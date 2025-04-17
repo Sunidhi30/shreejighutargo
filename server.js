@@ -7,22 +7,13 @@ const session = require('express-session');
 const admin = require("./routes/Admin");
 const users = require("./routes/User");
 const vendors = require("./routes/Vendor")
-// const authRoutes = require('./routes/authRoutes');
-// const movieRoutes = require('./routes/movieRoutes');
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 6000;
 require('dotenv').config()
 db();
 app.use(cors());
 app.use(express.json());
 let ejs = require('ejs');
 app.use(express.urlencoded({ extended: true }));
-app.get("/", (req, res) => {
-    res.sendFile(__dirname + "/testing.html");
-})
-// app.get("/"),()=>{
-//     console.log("db connected");
-// };
-
 app.listen(PORT,()=>{
     console.log(`Server started at ${PORT}`)
  })
@@ -33,12 +24,10 @@ app.listen(PORT,()=>{
       saveUninitialized: false,
     })
   );
- 
-app.use("/api/auth",login);
 app.use("/api/users",users)
 app.use("/api/admin",admin);
 app.use("/api/vendors",vendors);
-
+// app.use("/api/auth",vendors);
 app.get('/session', (req, res) => {
     res.json({ sessionId: req.sessionID });
 });

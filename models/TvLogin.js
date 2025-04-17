@@ -9,7 +9,7 @@ const tvLoginSchema = new mongoose.Schema({
   user_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // ✅ Allow init without user first
   },
   status: {
     type: Number,

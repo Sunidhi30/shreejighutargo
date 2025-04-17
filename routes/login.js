@@ -300,10 +300,4 @@ router.post('/verify-login-otp', [
       res.status(500).json({ success: false, msg: 'Server error' });
     }
 });
-
-
-
-
-
-
 module.exports = router;

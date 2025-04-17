@@ -1,25 +1,46 @@
-// // models/Language.js
+// // // models/Language.js
+// // const languageSchema = new mongoose.Schema({
+// //   name: String
+// // });
+// // module.exports = mongoose.model('Language', languageSchema);
+// const mongoose = require('mongoose');
+
 // const languageSchema = new mongoose.Schema({
-//   name: String
-// });
+//   name: {
+//     type: String,
+//     required: true,
+//     unique: true,
+//     trim: true
+//   },
+//   image: {
+//     type: String, // Cloudinary URL
+//     required: true
+//   },
+//   isActive: {
+//     type: Boolean,
+//     default: true // Always true by default, not set from frontend
+//   }
+// }, { timestamps: true });
+
 // module.exports = mongoose.model('Language', languageSchema);
 const mongoose = require('mongoose');
 
-const languageSchema = new mongoose.Schema({
+const LanguageSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
-    trim: true
   },
   image: {
-    type: String, // Cloudinary URL
-    required: true
+    type: String, // Cloudinary image URL
+    required: true,
   },
-  isActive: {
-    type: Boolean,
-    default: true // Always true by default, not set from frontend
+  status: {
+    type: Number,
+    default: 1, // active by default
   }
-}, { timestamps: true });
+}, {
+  collection: 'tbl_language', // same as Laravel
+  timestamps: true, // optional
+});
 
-module.exports = mongoose.model('Language', languageSchema);
+module.exports = mongoose.model('Language', LanguageSchema);

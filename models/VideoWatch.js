@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const videoWatchSchema = new mongoose.Schema({
   is_parent: {
     type: Number,
@@ -38,7 +37,5 @@ const videoWatchSchema = new mongoose.Schema({
   collection: 'tbl_video_watch',
   timestamps: true
 });
-
 const VideoWatch = mongoose.model('VideoWatch', videoWatchSchema);
-
 module.exports = VideoWatch;
