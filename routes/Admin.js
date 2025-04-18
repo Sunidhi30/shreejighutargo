@@ -1238,134 +1238,6 @@ router.get('/comments', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch comments', error: err.message });
   }
 });
-// add the packages for the users 
-router.post('/add-package', async (req, res) => {
-  try {
-    const {
-      name,
-      price,
-      type,
-      time,
-      watch_on_laptop_tv,
-      ads_free_content,
-      no_of_device_sync,
-      android_product_package,
-      ios_product_package,
-      web_product_package,
-      details // optional: array of key-value pairs
-    } = req.body;
-
-    // Create new package
-    const newPackage = new Package({
-      name,
-      price,
-      type,
-      time,
-      watch_on_laptop_tv,
-      ads_free_content,
-      no_of_device_sync,
-      android_product_package,
-      ios_product_package,
-      web_product_package
-    });
-
-    const savedPackage = await newPackage.save();
-
-    // If there are additional details to save
-    if (details && Array.isArray(details)) {
-      const packageDetails = details.map(detail => ({
-        package_id: savedPackage._id,
-        package_key: detail.key,
-        package_value: detail.value
-      }));
-
-      await PackageDetail.insertMany(packageDetails);
-    }
-
-    res.status(201).json({ success: true, message: 'Package added successfully', data: savedPackage });
-  } catch (error) {
-    console.error('Error adding package:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-// get packages 
-router.get("/get-package", async (req, res)=>{
-  try {
-    // Get all packages
-    const packages = await Package.find({ status: 1 }); // Optional: Filter by active status
-
-    // For each package, fetch its details
-    const packagesWithDetails = await Promise.all(
-      packages.map(async (pkg) => {
-        const details = await PackageDetail.find({ package_id: pkg._id });
-
-        return {
-          ...pkg.toObject(),
-          details, // attach package details
-        };
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      packages: packagesWithDetails,
-    });
-  } catch (error) {
-    console.error('Error getting packages:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-// edit the package
-router.put("/update-package/:id", async (req, res) => {
-  try {
-    const { name, price, type, time, status, details } = req.body;
-
-    // Update main package
-    const updatedPackage = await Package.findByIdAndUpdate(
-      req.params.id,
-      { name, price, type, time, status },
-      { new: true }
-    );
-
-    if (!updatedPackage) {
-      return res.status(404).json({ success: false, message: "Package not found" });
-    }
-
-    // Optional: Delete old details before adding new ones
-    await PackageDetail.deleteMany({ package_id: req.params.id });
-
-    // Insert new details
-    const detailDocs = details.map(detail => ({
-      package_id: req.params.id,
-      package_key: detail.package_key,
-      package_value: detail.package_value,
-    }));
-    await PackageDetail.insertMany(detailDocs);
-
-    res.status(200).json({ success: true, message: "Package updated successfully" });
-  } catch (error) {
-    console.error("Error updating package:", error);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
-// delete the package 
-router.delete("/delete-package/:id", async (req, res) => {
-  try {
-    const packageId = req.params.id;
-
-    const pkg = await Package.findByIdAndDelete(packageId);
-    if (!pkg) {
-      return res.status(404).json({ success: false, message: "Package not found" });
-    }
-
-    await PackageDetail.deleteMany({ package_id: packageId });
-
-    res.status(200).json({ success: true, message: "Package and its details deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting package:", error);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
 // Admin - Get List of All Transactions
 router.get('/admin/transactions', async (req, res) => {
   try {
@@ -1578,4 +1450,84 @@ router.patch('/update-profile', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+// // Create package (admin only)
+router.post('/package', verifyAdmin, async (req, res) => {
+  try {
+    const { viewThreshold, commissionRate, price, rentalDuration } = req.body;
+
+    if ([viewThreshold, commissionRate, price, rentalDuration].some(v => v === undefined)) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    const newPackage = await Package.create({ viewThreshold, commissionRate, price, rentalDuration });
+
+    res.status(201).json({
+      success: true,
+      message: 'Package limits set successfully',
+      data: newPackage
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error setting package limits', error: error.message });
+  }
+});
+router.put('/admin/package-request/status/:packageId', verifyAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const { packageId } = req.params;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Status must be "approved" or "rejected"' });
+    }
+
+    const result = await PackageDetail.updateMany(
+      { package_id: packageId, status: 'pending' },
+      { status }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Package request ${status} successfully.`,
+      updatedCount: result.modifiedCount
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating package request status',
+      error: err.message
+    });
+  }
+});
+router.get('/admin/pending-package-requests', verifyAdmin, async (req, res) => {
+  try {
+    const pendingRequests = await PackageDetail.find({ status: 'pending' })
+      .populate('package_id', 'name revenueType');
+
+    res.status(200).json({ success: true, data: pendingRequests });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch pending requests', error: err.message });
+  }
+});
+router.get('/approved-packages/:id', async (req, res) => {
+  try {
+    const foundPackage = await Package.findById(req.params.id);
+    if (!foundPackage) {
+      return res.status(404).json({ success: false, message: 'Package not found' });
+    }
+    res.status(200).json({ success: true, data: foundPackage });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+router.get('/status-packages', async (req, res) => {
+  try {
+    const packages = await Package.find({ status: true });
+    res.status(200).json({ success: true, count: packages.length, data: packages });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+
 module.exports = router; 

@@ -40,7 +40,18 @@ const videoSchema = new mongoose.Schema({
   price: { type: Number },
   rent_day: { type: Number },
   isApproved: { type: Boolean, default: false } , // 👈 Add this line
-  status: { type: Number }
+  status: { type: Number },
+  package_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Package' },
+  packageType: { type: String, enum: ['rental', 'view', 'ad'] },
+  packageDetails: {
+    price: { type: Number, default: 0 }, // For rental
+    viewThreshold: { type: Number, default: 30 }, // % of video to count as a view
+    commissionRate: { type: Number } // % commission for vendor
+  },
+  totalEarnings: { type: Number, default: 0 }, // Total earnings from this video
+  approvalNote: String, // Admin's note on approval/rejection
+  approvalDate: Date,
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }
 }, {
   collection: 'tbl_video',
   timestamps: true
