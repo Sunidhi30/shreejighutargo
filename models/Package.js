@@ -2,28 +2,28 @@
 const mongoose = require('mongoose');
 
 const packageSchema = new mongoose.Schema({
-  name: { type: String, required: false }, // e.g., "Rental", "Pay-per-view", "Ad-supported"
-  description: String,
+  name: { type: String, required: true }, // e.g., "Rental", "Pay-per-view", "Ad-supported"
+  description: { type: String, default: '' },
   revenueType: { 
     type: String, 
     enum: ['rental', 'view', 'ad'], 
-    required: false
+    required: true 
   },
   viewThreshold: { 
     type: Number, 
-    default: 30 // Default percentage (30%) of video that must be watched to count as a view
+    default: 30 
   },
   commissionRate: { 
     type: Number, 
-    required: true // Percentage commission for vendor
+    required: true 
   },
   price: { 
     type: Number, 
-    default: 0 // Price for rental packages
+    default: 0 
   },
   rentalDuration: { 
     type: Number, 
-    default: 48 // Hours for rental validity
+    default: 48 
   },
   status: { 
     type: Boolean, 

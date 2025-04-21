@@ -1,7 +1,4 @@
 
-
-
-
 const jwt = require('jsonwebtoken');
 const User = require('../models/User'); // Ensure correct path
 const Admin = require("../models/Admin");
@@ -24,7 +21,31 @@ require('dotenv').config();
 //       res.status(401).json({ error: 'Invalid token.' });
 //     }
 //   };
-  
+exports.isUser = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Access token required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Decoded:", decoded);
+
+    const user = await User.findById(decoded.userID); // ✅ Now it will work
+
+    console.log("User:", user);
+
+    if (!user || user.role !== 'user') {
+      return res.status(403).json({ message: 'Only users can access this route.' });
+    }
+
+    req.user = user; // ✅ Set the authenticated user to req.user
+    next();
+  } catch (err) {
+    res.status(401).json({ message: 'Invalid or expired token', error: err.message });
+  }
+};
 exports.isVendor = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
 
@@ -47,7 +68,6 @@ exports.isVendor = async (req, res, next) => {
     res.status(401).json({ message: 'Invalid or expired token', error: err.message });
   }
 };
-
 /**
  * 🔹 Middleware to verify JWT authentication
  */
@@ -75,9 +95,6 @@ exports.protect = async (req, res, next) => {
         // agr database mai set krege toh vo kaise krege 
 
         req.user = await User.findById(decoded.userId);
-    
-   
-            
         console.log("Decoded User:", req.user); // ✅ Debugging log
 //han
         if (!req.user) {
@@ -129,7 +146,6 @@ exports.verifyAdmin = async (req, res, next) => {
     if (!admin || admin.role !== 'admin') {
       return res.status(403).json({ message: 'Not authorized as admin' });
     }
-
     req.admin = admin;
     next();
   } catch (err) {

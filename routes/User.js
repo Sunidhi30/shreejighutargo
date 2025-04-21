@@ -7,16 +7,19 @@ const mongoose = require("mongoose");
 const User = require('../models/User');
 const ADMIN_EMAIL = "sunidhi@gmail.com";
 const ADMIN_PHONE = "1234567890"; // Optional
+const SubscriptionPlan= require("../models/SubscriptionPlan");
 const ADMIN_OTP = "0000";
 const Type =require("../models/Type")
 const TvLogin = require('../models/TvLogin');
 const { v4: uuidv4 } = require('uuid');
 const Avatar = require("../models/Avatar");
 const Category = require("../models/Category")
+const Subscriptions = require("../models/Subscription");
 const Cast = require("../models/Cast");
 const JWT_SECRET = process.env.JWT_SECRET || "Apple";
+const razorpay = require('../utils/razorpay');
 // const { protect,verifyToken } = require('../middleware/auth');
-const { protect } = require("../middleware/auth");
+const { protect, isUser } = require("../middleware/auth");
 const { body, validationResult } = require('express-validator');
 const multer = require("multer");
 const storage = multer.memoryStorage();
@@ -56,6 +59,7 @@ const sendOTPEmail = async (email, otp) => {
   };
   await transporter.sendMail(mailOptions);
 };
+//sign up 
 router.post('/signup', async (req, res) => {
   try {
     const { email, device_name, device_type, device_token, device_id } = req.body;
@@ -90,6 +94,7 @@ router.post('/signup', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+// sign up otp
 router.post('/verify-signup-otp', async (req, res) => {
   try {
     const { otp } = req.body;
@@ -284,7 +289,7 @@ if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('::ffff:127')) {
 
     await user.save();
 
-    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, {
+    const token = jwt.sign({ userID: user._id, email: user.email, role: user.role }, JWT_SECRET, {
       expiresIn: '7d',
     });
 
@@ -293,6 +298,7 @@ if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('::ffff:127')) {
       token,
       user: {
         id: user._id,
+        role: user.role,
         email: user.email,
         lastLogin: user.lastLogin,
       },
@@ -773,25 +779,300 @@ router.post('/invest-plan', async (req, res) => {
   }
 });
 // GET /api/users/:id - Get user details by ID including email
-router.get('/:id', async (req, res) => {
+// router.get('/:id', async (req, res) => {
+//   try {
+//     const user = await User.findById(req.params.id)
+//       .select('-otp -otpExpiry') // exclude sensitive fields if needed
+//       .populate('watchlist')
+//       .populate('downloads')
+//       .populate('subscriptions')
+//       .populate('rentedVideos')
+//       .populate('transactions');
+
+//     if (!user || user.deleted) {
+//       return res.status(404).json({ message: 'User not found' });
+//     }
+
+//     // Email will be included automatically
+//     res.status(200).json(user);
+//   } catch (err) {
+//     console.error('Error fetching user:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+// Get all active subscription plans (for users to view)
+router.get('/plans', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select('-otp -otpExpiry') // exclude sensitive fields if needed
-      .populate('watchlist')
-      .populate('downloads')
-      .populate('subscriptions')
-      .populate('rentedVideos')
-      .populate('transactions');
-
-    if (!user || user.deleted) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Email will be included automatically
-    res.status(200).json(user);
-  } catch (err) {
-    console.error('Error fetching user:', err);
-    res.status(500).json({ message: 'Server error' });
+    const plans = await SubscriptionPlan.find({ isActive: true });
+    res.status(200).json({
+      success: true,
+      data: plans
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching subscription plans',
+      error: error.message
+    });
   }
 });
-module.exports = router; 
+// user subscribing to the plan
+// Subscribe to a plan
+router.post('/subscribe', isUser, async (req, res) => {
+  try {
+    const { planId, paymentMethod, paymentId } = req.body;
+    
+    // Find the plan
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found or inactive'
+      });
+    }
+    
+    // Calculate end date based on plan duration
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    
+    if (plan.durationType === 'day') {
+      endDate.setDate(endDate.getDate() + plan.duration);
+    } else if (plan.durationType === 'month') {
+      endDate.setMonth(endDate.getMonth() + plan.duration);
+    } else if (plan.durationType === 'year') {
+      endDate.setFullYear(endDate.getFullYear() + plan.duration);
+    }
+    
+    // Create a transaction record
+    const transaction = new Transaction({
+      user: req.user._id,
+      amount: plan.price,
+      paymentMethod,
+      paymentId,
+      status: 'completed', // Assuming payment is already processed
+      type: 'subscription',
+      itemReference: plan._id,
+      itemModel: 'SubscriptionPlan'
+    });
+    
+    await transaction.save();
+    
+    // Create the subscription
+    const subscription = new UserSubscription({
+      user: req.user._id,
+      plan: plan._id,
+      startDate,
+      endDate,
+      paymentMethod,
+      paymentId,
+      transactionId: transaction._id
+    });
+    
+    await subscription.save();
+    
+    // Update the user's subscriptions array
+    await User.findByIdAndUpdate(
+      req.user._id,
+      { $push: { subscriptions: subscription._id, transactions: transaction._id } }
+    );
+    
+    // Update admin's wallet with the subscription amount
+    const planCreator = await Admin.findById(plan.createdBy);
+    if (planCreator) {
+      planCreator.wallet += plan.price;
+      await planCreator.save();
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Successfully subscribed to the plan',
+      data: {
+        subscription,
+        expiresAt: endDate
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error subscribing to plan',
+      error: error.message
+    });
+  }
+});
+// Get current user's active subscription
+router.get('/my-subscription', isUser, async (req, res) => {
+  try {
+    const subscription = await UserSubscription.findOne({
+      user: req.user._id,
+      status: 'active'
+    }).populate('plan');
+    
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active subscription found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: subscription
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching subscription',
+      error: error.message
+    });
+  }
+});
+// Upgrade or change subscription plan
+router.post('/change-plan', isUser, async (req, res) => {
+  try {
+    const { planId, paymentMethod, paymentId } = req.body;
+    
+    // Find current subscription
+    const currentSubscription = await UserSubscription.findOne({
+      user: req.user._id,
+      status: 'active'
+    });
+    
+    // Find the new plan
+    const newPlan = await SubscriptionPlan.findById(planId);
+    if (!newPlan || !newPlan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found or inactive'
+      });
+    }
+    
+    // If user has an active subscription, cancel it
+    if (currentSubscription) {
+      currentSubscription.status = 'canceled';
+      await currentSubscription.save();
+    }
+    
+    // Calculate end date based on plan duration
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    
+    if (newPlan.durationType === 'day') {
+      endDate.setDate(endDate.getDate() + newPlan.duration);
+    } else if (newPlan.durationType === 'month') {
+      endDate.setMonth(endDate.getMonth() + newPlan.duration);
+    } else if (newPlan.durationType === 'year') {
+      endDate.setFullYear(endDate.getFullYear() + newPlan.duration);
+    }
+    
+    // Create a transaction record
+    const transaction = new Transaction({
+      user: req.user._id,
+      amount: newPlan.price,
+      paymentMethod,
+      paymentId,
+      status: 'completed',
+      type: 'subscription',
+      itemReference: newPlan._id,
+      itemModel: 'SubscriptionPlan'
+    });
+    
+    await transaction.save();
+    
+    // Create the new subscription
+    const subscription = new UserSubscription({
+      user: req.user._id,
+      plan: newPlan._id,
+      startDate,
+      endDate,
+      paymentMethod,
+      paymentId,
+      transactionId: transaction._id
+    });
+    
+    await subscription.save();
+    
+    // Update the user's subscriptions array
+    await User.findByIdAndUpdate(
+      req.user._id,
+      { $push: { subscriptions: subscription._id, transactions: transaction._id } }
+    );
+    
+    // Update admin's wallet
+    const planCreator = await Admin.findById(newPlan.createdBy);
+    if (planCreator) {
+      planCreator.wallet += newPlan.price;
+      await planCreator.save();
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Successfully changed subscription plan',
+      data: {
+        subscription,
+        expiresAt: endDate
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error changing subscription plan',
+      error: error.message
+    });
+  }
+});
+// Get subscription history
+router.get('/subscription-history', isUser, async (req, res) => {
+  try {
+    const subscriptions = await UserSubscription.find({
+      user: req.user._id
+    }).populate('plan').sort({ createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      count: subscriptions.length,
+      data: subscriptions
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching subscription history',
+      error: error.message
+    });
+  }
+});
+// Cancel subscription (turn off auto-renewal)
+router.patch('/cancel-subscription', isUser, async (req, res) => {
+  try {
+    const subscription = await UserSubscription.findOne({
+      user: req.user._id,
+      status: 'active'
+    });
+    
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active subscription found'
+      });
+    }
+    
+    subscription.autoRenew = false;
+    await subscription.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Auto-renewal turned off. Your subscription will expire on the end date.',
+      data: {
+        subscription,
+        expiresAt: subscription.endDate
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error canceling subscription',
+      error: error.message
+    });
+  }
+});
+ 
+module.exports = router;

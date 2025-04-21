@@ -20,7 +20,6 @@ const userSchema = new mongoose.Schema({
     },
     time: Date,
   },
-  
   downloads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Content' }],
   subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' }],
   rentedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Content' }],

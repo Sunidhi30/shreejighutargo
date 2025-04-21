@@ -3,7 +3,6 @@ const router = express.Router();
 const multer = require('multer');
 const User = require('../models/User'); // adjust path if needed
 const jwt = require('jsonwebtoken');
-
 // Multer config
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -72,8 +71,7 @@ router.post('/register', upload.single('image'), async (req, res) => {
     } catch (err) {
       return res.status(500).json({ status: 500, error: err.message });
     }
-  });
-  
+}); 
 // POST /login
 router.post('/login', upload.single('image'), async (req, res) => {
   try {
@@ -164,5 +162,4 @@ router.post('/tv_login', async (req, res) => {
       return res.status(500).json({ status: 500, error: err.message });
     }
  });
-  
 module.exports = router;

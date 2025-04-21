@@ -10,6 +10,8 @@ const Package = require("../models/Package");
 const PackageDetail = require('../models/PackageDetail');
 const Category = require("../models/Category")
 const JWT_SECRET = process.env.JWT_SECRET || "Apple";
+const SubscriptionPlan = require("../models/SubscriptionPlan");
+const Plans = require("../models/Subscription")
 const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmail'); 
 const  Video = require("../models/Video");
@@ -20,7 +22,7 @@ const Season = require("../models/Season");
 const Comment = require("../models/Commet");
 const Transaction  = require("../models/Transactions");
 const Subscription = require('../models/Subscription'); // adjust the path if needed
-const { protect , verifyAdmin, isVendor } = require("../middleware/auth");
+const { protect , verifyAdmin, isVendor , isUser} = require("../middleware/auth");
 const { body, validationResult } = require('express-validator');
 const multer = require("multer");
 const storage = multer.memoryStorage();
@@ -280,16 +282,13 @@ router.post('/verify-otp', async (req, res) => {
       if (admin.otp !== otp || admin.otpExpiry < new Date()) {
         return res.status(400).json({ message: 'Invalid or expired OTP' });
       }
-  
       // Clear OTP after verification
       admin.otp = null;
       admin.otpExpiry = null;
       await admin.save();
-  
       const token = jwt.sign({ id: admin._id, email: admin.email }, JWT_SECRET, {
         expiresIn: '7d',
       });
-  
       res.status(200).json({
         message: 'Login successful',
         token,
@@ -1285,7 +1284,6 @@ router.post('/set-target', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err });
   }
 });
-
 // ✅ Get Target Status
 router.get('/target-status/:adminId', async (req, res) => {
   const { adminId } = req.params;
@@ -1401,7 +1399,6 @@ router.post('/admin/upload-profile-image', verifyToken, upload.single('profileIm
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-//get the profile 
 // Get admin profile
 router.get('/profile', verifyToken, async (req, res) => {
   try {
@@ -1451,83 +1448,137 @@ router.patch('/update-profile', verifyToken, async (req, res) => {
   }
 });
 // // Create package (admin only)
-router.post('/package', verifyAdmin, async (req, res) => {
+// Create a new subscription plan
+router.post('/subscription-plans',verifyAdmin, async (req, res) => {
   try {
-    const { viewThreshold, commissionRate, price, rentalDuration } = req.body;
+    const {
+      name,
+      description,
+      price,
+      duration,
+      maxDevices,
+      maxProfiles,
+    } = req.body;
 
-    if ([viewThreshold, commissionRate, price, rentalDuration].some(v => v === undefined)) {
-      return res.status(400).json({ success: false, message: 'All fields are required' });
-    }
+    const newPlan = new SubscriptionPlan({
+      name,
+      description,
+      price,
+      duration,
+      maxDevices,
+      maxProfiles,
+      createdBy: req.admin._id
+    });
 
-    const newPackage = await Package.create({ viewThreshold, commissionRate, price, rentalDuration });
-
+    await newPlan.save();
     res.status(201).json({
       success: true,
-      message: 'Package limits set successfully',
-      data: newPackage
+      message: 'Subscription plan created successfully',
+      data: newPlan
     });
-
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error setting package limits', error: error.message });
-  }
-});
-router.put('/admin/package-request/status/:packageId', verifyAdmin, async (req, res) => {
-  try {
-    const { status } = req.body;
-    const { packageId } = req.params;
-
-    if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Status must be "approved" or "rejected"' });
-    }
-
-    const result = await PackageDetail.updateMany(
-      { package_id: packageId, status: 'pending' },
-      { status }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: `Package request ${status} successfully.`,
-      updatedCount: result.modifiedCount
-    });
-
-  } catch (err) {
     res.status(500).json({
       success: false,
-      message: 'Error updating package request status',
-      error: err.message
+      message: 'Error creating subscription plan',
+      error: error.message
     });
   }
 });
-router.get('/admin/pending-package-requests', verifyAdmin, async (req, res) => {
+// Get all subscription plans (admin view)
+router.get('/subscription-plans', verifyAdmin, async (req, res) => {
   try {
-    const pendingRequests = await PackageDetail.find({ status: 'pending' })
-      .populate('package_id', 'name revenueType');
-
-    res.status(200).json({ success: true, data: pendingRequests });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to fetch pending requests', error: err.message });
+    const plans = await SubscriptionPlan.find().sort({ price: 1 });
+    res.status(200).json({
+      success: true,
+      count: plans.length,
+      data: plans
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching subscription plans',
+      error: error.message
+    });
   }
 });
-router.get('/approved-packages/:id', async (req, res) => {
+// Get a single subscription plan
+router.get('/subscription-plans/:id', verifyAdmin, async (req, res) => {
   try {
-    const foundPackage = await Package.findById(req.params.id);
-    if (!foundPackage) {
-      return res.status(404).json({ success: false, message: 'Package not found' });
+    const plan = await SubscriptionPlan.findById(req.params.id);
+    if (!plan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found'
+      });
     }
-    res.status(200).json({ success: true, data: foundPackage });
+    
+    res.status(200).json({
+      success: true,
+      data: plan
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching subscription plan',
+      error: error.message
+    });
   }
 });
-router.get('/status-packages', async (req, res) => {
+// Update a subscription plan
+router.put('/subscription-plans/:id', verifyAdmin, async (req, res) => {
   try {
-    const packages = await Package.find({ status: true });
-    res.status(200).json({ success: true, count: packages.length, data: packages });
+    const updatedPlan = await SubscriptionPlan.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!updatedPlan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Subscription plan updated successfully',
+      data: updatedPlan
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error updating subscription plan',
+      error: error.message
+    });
   }
 });
-
-
+// Activate/Deactivate a subscription plan
+router.patch('/subscription-plans/:id/toggle-status', verifyAdmin, async (req, res) => {
+  try {
+    const plan = await SubscriptionPlan.findById(req.params.id);
+    
+    if (!plan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found'
+      });
+    }
+    
+    plan.isActive = !plan.isActive;
+    await plan.save();
+    
+    res.status(200).json({
+      success: true,
+      message: `Subscription plan ${plan.isActive ? 'activated' : 'deactivated'} successfully`,
+      data: plan
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating subscription plan status',
+      error: error.message
+    });
+  }
+});
 module.exports = router; 

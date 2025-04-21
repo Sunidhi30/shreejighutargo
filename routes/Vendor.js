@@ -280,67 +280,6 @@ router.get('/videos/:id', isVendor, async (req, res) => {
     });
   }
 });
-// add packages and the send the request to theadmin
-// router.post('/vendor/package-request', isVendor, async (req, res) => {
-//   try {
-//     const { package_id, details } = req.body;
-
-//     // 1. Fetch the admin-defined package
-//     const adminPackage = await Package.findById(package_id);
-//     if (!adminPackage) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Package not found'
-//       });
-//     }
-
-//     // 2. Extract vendor-provided price and rentalDuration from details
-//     const vendorValues = {};
-//     for (const { key, value } of details) {
-//       vendorValues[key] = parseFloat(value); // convert to number if numeric
-//     }
-
-//     // 3. Compare with admin-defined limits
-//     if (vendorValues.price && vendorValues.price > adminPackage.price) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Vendor price (${vendorValues.price}) cannot exceed admin-defined limit (${adminPackage.price})`
-//       });
-//     }
-
-//     if (vendorValues.duration && vendorValues.duration > adminPackage.rentalDuration) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Vendor duration (${vendorValues.duration}) cannot exceed admin-defined limit (${adminPackage.rentalDuration} hours)`
-//       });
-//     }
-
-//     // 4. Save valid details
-//     const insertedDetails = [];
-//     for (const { key, value } of details) {
-//       const detail = await PackageDetail.create({
-//         package_id,
-//         vendor_id: req.vendor.id,
-//         package_key: key,
-//         package_value: value
-//       });
-//       insertedDetails.push(detail);
-//     }
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Package request submitted. Awaiting admin approval.',
-//       data: insertedDetails
-//     });
-
-//   } catch (err) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to submit package details',
-//       error: err.message
-//     });
-//   }
-// });
 // GET: Approved packages for the logged-in vendor
 router.get('/vendor/approved-packages',isVendor, async (req, res) => {
 
@@ -432,6 +371,5 @@ router.get('/vendor/approved-packages', isVendor, async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch approved packages', error: err.message });
   }
 });
-
 module.exports = router;
 
