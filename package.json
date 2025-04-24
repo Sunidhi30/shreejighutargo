@@ -1,5 +1,9 @@
 {
+  "engines": {
+    "node": "16.x"
+  },
   "dependencies": {
+    "16": "^0.0.2",
     "axios": "^1.8.4",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
@@ -26,6 +30,7 @@
     "uuidv4": "^6.2.13",
     "v4": "^0.0.1"
   },
+
   "name": "ghutargoobackend",
   "version": "1.0.0",
   "main": "server.js",

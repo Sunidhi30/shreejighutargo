@@ -39,7 +39,8 @@ const path = require("path");
 const Movie = require("../models/Movie");
 const downloadsDir = path.join(__dirname, "../downloads");
 const Type = require("../models/Type");
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
+
 const Vendor = require('../models/Vendor');
 const Cast = require('../models/Cast'); 
 const sendMail = require('../utils/sendEmail');
