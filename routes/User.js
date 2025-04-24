@@ -1097,7 +1097,35 @@ router.patch('/cancel-subscription', isUser, async (req, res) => {
     });
   }
 });
+// POST /api/comments
+router.post('/comment',isUser, async (req, res) => {
+  try {
+    const {
+  
+      video_id,
+      comment
+    } = req.body;
 
+    if (!comment || !video_id) {
+      return res.status(400).json({ message: 'Required fields missing' });
+    }
+
+    const newComment = new Comment({
+      user_id: req.user._id, // from isAuthenticated middleware
+      
+      video_id,
+    
+      comment
+    });
+
+    const savedComment = await newComment.save();
+    return res.status(201).json({ message: 'Comment posted', comment: savedComment });
+
+  } catch (error) {
+    console.error('Comment post error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 module.exports = router;
 
 

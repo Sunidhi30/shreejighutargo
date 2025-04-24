@@ -12,6 +12,7 @@ const {isVendor}= require("../middleware/auth")
 const upload = multer({ storage: storage });
 const Vendor = require("../models/Vendor");
 const crypto = require('crypto');
+const DEFAULT_IMAGE_URL = 'https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg'; // Set your default static image URL
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Content = require("../models/Content");
@@ -78,6 +79,59 @@ router.post('/vendor-login', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+// update the profile of the vendor 
+
+
+router.put('/update-profile', isVendor, upload.single('image'), async (req, res) => {
+  try {
+    const vendorId = req.vendor._id;
+    const { username, password } = req.body;
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    console.log('Before Update -> Vendor Image:', vendor.image);
+
+    if (username) vendor.username = username;
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      vendor.password = hashedPassword;
+    }
+
+    if (req.file) {
+      const file = req.file;
+      const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      const cloudinaryUrl = await uploadToCloudinary(base64, 'vendors/profile', file.mimetype);
+
+      console.log('Cloudinary result:', cloudinaryUrl);
+      if (cloudinaryUrl) {
+        vendor.image = cloudinaryUrl;
+      } else {
+        console.log('Cloudinary did not return a secure_url');
+      }
+    }
+
+    await vendor.save();
+    console.log('After Save -> Vendor Image:', vendor.image);
+
+    const { password: _, ...vendorData } = vendor.toObject(); // exclude password
+
+    res.status(200).json({
+      success: true,
+      message: 'Vendor profile updated successfully',
+      vendor: vendorData
+    });
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+});
+
+
+
 //upload video  (its simple uploading without doing the rentals videos and all )
 router.post(
   '/create-video',isVendor,
@@ -109,7 +163,7 @@ router.post(
         video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
         subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
         is_title, is_download, is_like, is_comment, total_like, total_view, is_rent, price,
-        rent_day, status
+        rent_day, status,monetizationType
       } = req.body;
       const vendorId = req.vendor.id;
       console.log("", vendorId);
@@ -143,6 +197,7 @@ router.post(
         language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
         cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
         name,
+        monetizationType,
         thumbnail: thumbnailUrl,
         landscape: landscapeUrl,
         description,
@@ -211,26 +266,10 @@ router.post(
     }
   }
 );
-
 //get all the  videos 
-// router.get('/videos', async (req, res) => {
-//   try {
-//     // const videos = await Video.find();
-//     const videos = await Video.find().populate('category_id', 'name'); // only fetch name
-
-   
-//     res.status(200).json({
-//       message: 'Fetched all videos successfully',
-//       videos
-//     });
-//   } catch (err) {
-//     console.error('Error fetching videos:', err);
-//     res.status(500).json({ message: 'Server error', error: err.message });
-//   }
-// });
-router.get('/videos',isVendor, async (req, res) => {
+router.get('/videos', isVendor, async (req, res) => {
   try {
-    const vendorId = req.vendor._id; // or req.user.id depending on how you set it
+    const vendorId = req.vendor?._id || req.user?._id;
 
     const videos = await Video.find({ vendor_id: vendorId }).populate('category_id', 'name');
 

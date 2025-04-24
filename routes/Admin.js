@@ -1595,4 +1595,5 @@ router.post('/set-rental-limit', verifyAdmin, async (req, res) => {
 
   res.status(201).json({ success: true, message: "Rental limit set", data: limit });
 });
+
 module.exports = router; 
