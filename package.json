@@ -26,11 +26,12 @@
     "nodemon": "^3.1.9",
     "pdfkit": "^0.16.0",
     "razorpay": "^2.9.6",
+    "readable-stream": "^4.7.0",
+    "stream": "^0.0.3",
     "uuid": "^11.1.0",
     "uuidv4": "^6.2.13",
     "v4": "^0.0.1"
   },
-
   "name": "ghutargoobackend",
   "version": "1.0.0",
   "main": "server.js",
