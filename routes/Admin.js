@@ -4,6 +4,7 @@ const { uploadToCloudinary } = require("../utils/cloudinary");
 const jwt = require('jsonwebtoken');
 const Producer = require("../models/Producer");
 const dotenv = require('dotenv');
+const RentalLimit = require("../models/RentalLimit");
 const User = require('../models/User');
 const ExcelJS = require('exceljs');
 const Package = require("../models/Package");
@@ -1580,5 +1581,17 @@ router.patch('/subscription-plans/:id/toggle-status', verifyAdmin, async (req, r
       error: error.message
     });
   }
+});
+// set the maximum rental limit 
+router.post('/set-rental-limit', verifyAdmin, async (req, res) => {
+  const { maxRentalPrice } = req.body;
+  if (!maxRentalPrice) {
+    return res.status(400).json({ success: false, message: "maxRentalPrice is required" });
+  }
+
+  const limit = new RentalLimit({ maxRentalPrice });
+  await limit.save();
+
+  res.status(201).json({ success: true, message: "Rental limit set", data: limit });
 });
 module.exports = router; 

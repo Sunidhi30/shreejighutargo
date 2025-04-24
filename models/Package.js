@@ -17,6 +17,15 @@ const packageSchema = new mongoose.Schema({
     type: Number, 
     required: true 
   },
+  maxRentalPrice: {
+    type: Number,
+    required: true,
+  },
+  vendor_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vendor', // Reference to the Vendor model
+    required: true
+  },
   price: { 
     type: Number, 
     default: 0 

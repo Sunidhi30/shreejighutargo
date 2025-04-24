@@ -1,0 +1,106 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+  <title>Razorpay Test</title>
+</head>
+<body>
+  <h1>Test Razorpay Integration</h1>
+  <button id="rzp-button">Pay ₹1</button>
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    document.getElementById('rzp-button').onclick = async function () {
+      // Call server to create order
+      const res = await fetch('api/users/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+
+      const options = {
+        key: "rzp_test_7m8iz2GqqZ6H9C", // Replace with your Razorpay Key ID (public)
+        amount: data.amount,
+        currency: data.currency,
+        name: "OTT Subscription",
+        description: "Test Transaction",
+        order_id: data.id,
+        handler: function (response) {
+          alert('Payment successful!');
+          console.log(response);
+        },
+        theme: {
+          color: "#3399cc"
+        }
+      };
+
+      const rzp1 = new Razorpay(options);
+      rzp1.open();
+    };
+  </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Razorpay Test</title>
+</head>
+<body>
+  <h1>Test Razorpay Integration</h1>
+  <button id="rzp-button">Pay ₹1</button>
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    document.getElementById('rzp-button').onclick = async function () {
+      // Step 1: Call server to create Razorpay order
+      const res = await fetch('/api/users/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await res.json();
+
+      // Step 2: Initialize Razorpay
+      const options = {
+        key: "rzp_test_7m8iz2GqqZ6H9C", // Replace with your Razorpay Key ID
+        amount: data.amount,
+        currency: data.currency,
+        name: "OTT Subscription",
+        description: "Test Transaction",
+        order_id: data.id,
+        handler: async function (response) {
+          // Step 3: Send response to backend for verification
+          const verifyRes = await fetch('/api/users/verify-payment', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            })
+          });
+
+          const result = await verifyRes.json();
+
+          if (result.success) {
+            alert("✅ Payment verified and successful!");
+          } else {
+            alert("❌ Payment failed verification. Please try again.");
+          }
+        },
+        theme: {
+          color: "#3399cc"
+        }
+      };
+
+      const rzp1 = new Razorpay(options);
+      rzp1.open();
+    };
+  </script>
+</body>
+</html>

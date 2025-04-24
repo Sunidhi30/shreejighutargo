@@ -36,6 +36,11 @@ const videoSchema = new mongoose.Schema({
   is_comment: { type: Number },
   total_like: { type: Number },
   total_view: { type: Number },
+  monetizationType: { type: String, enum: ["rent", "ad", "view"], required: true },
+  price: { type: Number, default: null }, // rent-based
+  rentDuration: { type: Number, default: null }, // in days
+  viewCount: { type: Number, default: 0 }, // view-based
+  adViews: { type: Number, default: 0 }, // ad-based
   is_rent: { type: Number },
   price: { type: Number },
   rent_day: { type: Number },

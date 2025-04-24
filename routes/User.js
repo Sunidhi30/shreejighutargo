@@ -174,69 +174,7 @@ router.post('/login', async (req, res) => {
   }
 });
 // Step 2: Verify OTP and Login
-// router.post('/verify-otp', async (req, res) => {
-//   try {
-//     const { email, otp } = req.body;
 
-//     const user = await User.findOne({ email });
-//     if (!user) {
-//       return res.status(404).json({ message: 'user not found' });
-//     }
-
-//     if (user.otp !== otp || user.otpExpiry < new Date()) {
-//       return res.status(400).json({ message: 'Invalid or expired OTP' });
-//     }
-
-//     // Clear OTP after verification
-//     user.otp = null;
-//     user.otpExpiry = null;
-    
-//     // Capture metadata
-// const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-// const device = req.headers['user-agent'];
-// let location = 'Unknown';  // Default value
-
-// try {
-//   // Geolocation fetch
-//   const geoRes = await axios.get(`http://ip-api.com/json/${ip}`);
-//   const { city, country } = geoRes.data;
-
-//   if (city && country) {
-//     location = `${city}, ${country}`;
-//   } else {
-//     location = 'Location not available';  // Fallback in case of missing location
-//   }
-// } catch (err) {
-//   console.log('Geolocation fetch failed:', err.message);
-//   location = 'Location fetch failed';  // Fallback in case of error in API call
-// }
-
-// // Save login info
-// user.lastLogin = {
-//   ip,
-//   device,
-//   location,
-//   time: new Date(),
-// };
-//     await user.save();
-
-//     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, {
-//       expiresIn: '7d',
-//     });
-
-//     res.status(200).json({
-//       message: 'Login successful',
-//       token,
-//       user: {
-//         id: user._id,
-//         email: user.email,
-//         lastLogin: user.lastLogin,  // Include the lastLogin data in the response
-//       },
-//     });
-//   } catch (err) {
-//     res.status(500).json({ message: 'OTP verification failed', error: err.message });
-// }
-// }); 
 router.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -899,6 +837,91 @@ router.post('/subscribe', isUser, async (req, res) => {
     });
   }
 });
+// create the subscription 
+router.post('/create-order', async (req, res) => {
+  const { planId, userId, paymentMethod } = req.body;
+
+  try {
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan) return res.status(404).json({ message: 'Plan not found' });
+
+    const options = {
+      amount: plan.price * 100, // Amount in paise
+      currency: 'INR',
+      receipt: `receipt_${new Date().getTime()}`,
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    // Create transaction
+    const transaction = await Transaction.create({
+      user: userId,
+      amount: plan.price,
+      paymentMethod,
+      paymentId: order.id,
+      status: 'pending',
+      type: 'subscription',
+      itemReference: planId,
+      itemModel: 'SubscriptionPlan',
+    });
+
+    res.status(200).json({
+      success: true,
+      orderId: order.id,
+      amount: options.amount,
+      currency: options.currency,
+      transactionId: transaction._id,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Payment initiation failed' });
+  }
+});
+router.post('/verify-payment', async (req, res) => {
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    transactionId,
+    userId,
+    planId
+  } = req.body;
+
+  const body = razorpay_order_id + '|' + razorpay_payment_id;
+  const expectedSignature = crypto
+    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .update(body.toString())
+    .digest('hex');
+
+  if (expectedSignature === razorpay_signature) {
+    const plan = await SubscriptionPlan.findById(planId);
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + plan.duration);
+
+    // Update transaction
+    await Transaction.findByIdAndUpdate(transactionId, {
+      status: 'completed',
+      paymentId: razorpay_payment_id,
+    });
+
+    // Create user subscription
+    await UserSubscription.create({
+      user: userId,
+      plan: planId,
+      endDate,
+      paymentMethod: 'razorpay',
+      paymentId: razorpay_payment_id,
+      transactionId
+    });
+
+    return res.json({ success: true, message: 'Payment verified and subscription activated' });
+  } else {
+    await Transaction.findByIdAndUpdate(transactionId, {
+      status: 'failed',
+    });
+    return res.status(400).json({ success: false, message: 'Payment verification failed' });
+  }
+});
 // Get current user's active subscription
 router.get('/my-subscription', isUser, async (req, res) => {
   try {
@@ -1074,5 +1097,7 @@ router.patch('/cancel-subscription', isUser, async (req, res) => {
     });
   }
 });
- 
+
 module.exports = router;
+
+

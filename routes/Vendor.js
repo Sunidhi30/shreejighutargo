@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const RentalLimit = require("../models/RentalLimit");
 const cloudinary = require('cloudinary').v2;
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const Movie = require('../models/Movie');
@@ -77,7 +78,7 @@ router.post('/vendor-login', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-//upload video 
+//upload video  (its simple uploading without doing the rentals videos and all )
 router.post(
   '/create-video',isVendor,
   upload.fields([
@@ -210,15 +211,31 @@ router.post(
     }
   }
 );
+
 //get all the  videos 
-router.get('/videos', async (req, res) => {
-  try {
-    // const videos = await Video.find();
-    const videos = await Video.find().populate('category_id', 'name'); // only fetch name
+// router.get('/videos', async (req, res) => {
+//   try {
+//     // const videos = await Video.find();
+//     const videos = await Video.find().populate('category_id', 'name'); // only fetch name
 
    
+//     res.status(200).json({
+//       message: 'Fetched all videos successfully',
+//       videos
+//     });
+//   } catch (err) {
+//     console.error('Error fetching videos:', err);
+//     res.status(500).json({ message: 'Server error', error: err.message });
+//   }
+// });
+router.get('/videos',isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor._id; // or req.user.id depending on how you set it
+
+    const videos = await Video.find({ vendor_id: vendorId }).populate('category_id', 'name');
+
     res.status(200).json({
-      message: 'Fetched all videos successfully',
+      message: 'Fetched videos for the vendor successfully',
       videos
     });
   } catch (err) {
@@ -280,96 +297,165 @@ router.get('/videos/:id', isVendor, async (req, res) => {
     });
   }
 });
-// GET: Approved packages for the logged-in vendor
-router.get('/vendor/approved-packages',isVendor, async (req, res) => {
-
-  console.log(req.vendor.id);
-
+// ✅ POST - Add a new package
+router.post('/packages', isVendor, async (req, res) => {
   try {
-    const approvedPackages = await PackageDetail.find({
-      vendor_id: req.vendor.id,
-      status: 'approved'
-    }).populate('package_id', 'name revenueType price rentalDuration');
-     console.log(approvedPackages);
-    res.status(200).json({
-      success: true,
-      data: approvedPackages
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch approved packages',
-      error: err.message
-    });
-  }
-});
-router.post('/vendor/package-request', isVendor, async (req, res) => {
-  try {
-    const { package_id, details } = req.body;
+    const vendorId = req.vendor._id; // Vendor ID from the token
+    
+    const {
+      name,
+      description,
+      revenueType,
+      viewThreshold,
+      commissionRate,
+      price,
+      rentalDuration,
+    } = req.body;
 
-    const adminPackage = await Package.findById(package_id);
-    if (!adminPackage) {
-      return res.status(404).json({ success: false, message: 'Package not found' });
-    }
-
-    // Convert array of key-value into object
-    const vendorValues = {};
-    for (const { key, value } of details) {
-      vendorValues[key] = parseFloat(value);
-    }
-
-    // Validation: Price and Duration should not exceed admin limits
-    if (vendorValues.price && vendorValues.price > adminPackage.price) {
+    // Validate required fields
+    if (!name || !revenueType || commissionRate === undefined) {
       return res.status(400).json({
         success: false,
-        message: `Price (${vendorValues.price}) exceeds admin limit (${adminPackage.price})`
+        message: 'Name, revenueType, and commissionRate are required.',
       });
     }
 
-    if (vendorValues.duration && vendorValues.duration > adminPackage.rentalDuration) {
-      return res.status(400).json({
-        success: false,
-        message: `Duration (${vendorValues.duration}) exceeds admin limit (${adminPackage.rentalDuration} hours)`
-      });
+    // If the revenueType is "rental", ensure price and rentalDuration are provided
+    // If it's a rental package, validate against admin-defined limit
+    if (revenueType === 'rental') {
+      const rentalLimit = await RentalLimit.findOne().sort({ createdAt: -1 }); // Get the latest limit
+      if (!rentalLimit) {
+        return res.status(500).json({
+          success: false,
+          message: 'Rental limit not set by admin.',
+        });
+      }
+
+      if (price >= rentalLimit.maxRentalPrice) {
+        return res.status(400).json({
+          success: false,
+          message: `Rental price must be less than ${rentalLimit.maxRentalPrice}`,
+        });
+      }
     }
 
-    // Save Vendor Details
-    const insertedDetails = [];
-    for (const { key, value } of details) {
-      const detail = await PackageDetail.create({
-        package_id,
-        vendor_id: req.vendor.id,
-        package_key: key,
-        package_value: value
-      });
-      insertedDetails.push(detail);
-    }
+
+    // Create the new package
+    const newPackage = new Package({
+      name,
+      description,
+      revenueType,
+      viewThreshold,
+      commissionRate,
+      price,
+      rentalDuration,
+      vendor_id: vendorId, // Linking the package to the vendor
+    });
+
+    await newPackage.save();
 
     res.status(201).json({
       success: true,
-      message: 'Package request submitted. Awaiting admin approval.',
-      data: insertedDetails
+      message: 'Package created successfully',
+      data: newPackage,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+// ✅ GET - Get all unique packages used by the logged-in vendor
+router.get('/vendor-packages', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor._id; // Vendor ID from token (set in isVendor middleware)
+
+    // Fetch all packages created by this vendor
+    const packages = await Package.find({ vendor_id: vendorId });
+
+    res.status(200).json({
+      success: true,
+      data: packages,
     });
 
   } catch (err) {
     res.status(500).json({
       success: false,
-      message: 'Failed to submit package details',
-      error: err.message
+      message: err.message,
     });
   }
 });
-router.get('/vendor/approved-packages', isVendor, async (req, res) => {
+// assign the package according to the vendor 
+router.post('/assign-package', isVendor, async (req, res) => {
   try {
-    const approvedPackages = await PackageDetail.find({
-      vendor_id: req.vendor.id,
-      status: 'approved'
-    }).populate('package_id', 'name revenueType price rentalDuration');
+    const vendorId = req.vendor._id;
+    const { videoId, revenueType, packageId } = req.body;
 
-    res.status(200).json({ success: true, data: approvedPackages });
+    // Basic validation
+    if (!videoId || !revenueType) {
+      return res.status(400).json({
+        success: false,
+        message: 'videoId and revenueType are required.',
+      });
+    }
+
+    // If rental, validate packageId and price
+    let selectedPackage = null;
+    if (revenueType === 'rental') {
+      if (!packageId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Rental revenueType requires a packageId.',
+        });
+      }
+
+      selectedPackage = await Package.findOne({ _id: packageId, vendor_id: vendorId, revenueType: 'rental' });
+      if (!selectedPackage) {
+        return res.status(404).json({
+          success: false,
+          message: 'Rental package not found or unauthorized.',
+        });
+      }
+    }
+
+    // Update the video
+    const updateData = {
+      monetizationType: revenueType,
+      package_id: packageId || null,
+      packageType: revenueType,
+      packageDetails: selectedPackage ? {
+        price: selectedPackage.price,
+        viewThreshold: selectedPackage.viewThreshold,
+        commissionRate: selectedPackage.commissionRate
+      } : undefined
+    };
+
+    const updatedVideo = await Video.findOneAndUpdate(
+      { _id: videoId, vendor_id: vendorId },
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!updatedVideo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found or unauthorized.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Package and monetization type assigned successfully.',
+      data: updatedVideo,
+    });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to fetch approved packages', error: err.message });
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 });
 module.exports = router;
-

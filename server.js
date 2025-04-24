@@ -24,6 +24,10 @@ app.listen(PORT,()=>{
       saveUninitialized: false,
     })
   );
+  // Serve the test HTML file
+  app.get("/testing", (req, res) => {
+    res.sendFile(__dirname + "/testing.html");
+  })
 app.use("/api/users",users)
 app.use("/api/admin",admin);
 app.use("/api/vendors",vendors);
