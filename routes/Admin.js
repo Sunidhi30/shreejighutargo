@@ -14,7 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "Apple";
 const SubscriptionPlan = require("../models/SubscriptionPlan");
 const Plans = require("../models/Subscription")
 const crypto = require('crypto');
-const sendEmail = require('../utils/sendEmail'); 
+const sendEmail= require("../utils/sendEmail");
 const  Video = require("../models/Video");
 const Channel = require("../models/Channel");
 const Banner = require("../models/Banner");
@@ -48,17 +48,19 @@ const generateRandomUsername = () => `vendor_${crypto.randomBytes(4).toString('h
 const generateRandomPassword = () => crypto.randomBytes(6).toString('hex');
 const Content = require("../models/Content");
 const UpcomingContent = require("../models/UpcomingContent");
+require('dotenv').config(); // Needed to load .env variables
 if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir, { recursive: true }); // Creates folder if missing
 }
-// Admin Login (Dynamically Generated OTP)
-const transporter = nodemailer.createTransport({ 
-    service: 'gmail', // Use your email provider
-    auth: {
-      user: process.env.EMAIL_USER, // Admin email (set in environment variables)
-      pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
-    }
-  });
+// // Admin Login (Dynamically Generated OTP)
+// const transporter = nodemailer.createTransport({ 
+//     service: 'gmail', // Use your email provider
+//     auth: {
+//       user: process.env.EMAIL_USER, // Admin email (set in environment variables)
+//       pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
+//     }
+//   });
+ 
   // ✅ Send OTP Email function
 const sendOTPEmail = async (email, otp) => {
     const mailOptions = {
@@ -592,63 +594,7 @@ router.get('/get-casts', async (req, res) => {
       res.status(500).json({ message: 'Server error', error: err.message });
     }
   });
-// approving the videos of  uploaded by the vendor 
-router.put('/video-status/:videoId', verifyAdmin, async (req, res) => {
-  const videoId = req.params.videoId;
-  const adminId = req.admin.id; // 👉 Admin ID from token
-  try {
-    const video = await Video.findById(videoId).populate('vendor_id', 'email name');
 
-    if (!video) {
-      return res.status(404).json({ message: 'Video not found' });
-    }
-
-    if (video.isApproved) {
-      return res.status(200).json({
-        message: 'Video is already approved',
-        adminId,
-        video
-      });
-    }
-
-    video.isApproved = true;
-    video.approvedBy = adminId;
-    video.approvalDate = new Date();
-    await video.save();
-
-    // ✉️ Send approval email to vendor
-    const vendorEmail = video.vendor_id?.email || '';
-    const videoTitle = video.name || 'your video';
-
-    const emailBody = `
-      Hi ${vendorEmail},
-      
-      Great news! Your video titled "${videoTitle}" has been approved and is now live on the platform.
-
-      Thank you for contributing!
-      
-      Regards,
-      Admin Team
-    `;
-
-    if (vendorEmail) {
-      await sendMail(
-        vendorEmail,
-        'Your video has been approved!',
-        emailBody
-      );
-    }
-
-    res.status(200).json({
-      message: 'Video approved successfully',
-      adminId,
-      video
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
 // get admin users
 router.get('/admin/users', async (req, res) => {
   try {
@@ -1591,5 +1537,74 @@ router.post('/set-rental-limit', verifyAdmin, async (req, res) => {
 
   res.status(201).json({ success: true, message: "Rental limit set", data: limit });
 });
+// approve the videos of the vendor 
+router.put('/video-status/:videoId', verifyAdmin, async (req, res) => {
+  const videoId = req.params.videoId;
+  const adminId = req.admin.id;
+  const { status, approvalNote } = req.body;
+
+  if (!["approved", "rejected"].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status. Use "approved" or "rejected".' });
+  }
+
+  try {
+    const video = await Video.findById(videoId).populate('vendor_id', 'email name');
+
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+
+    // ⚠️ If already approved and again trying to approve
+    if (video.isApproved && status === "approved") {
+      return res.status(200).json({
+        message: 'Video is already approved. No changes made.',
+        adminId,
+        video
+      });
+    }
+
+    const vendorEmail = video.vendor_id?.email;
+    const vendorName = video.vendor_id?.name || vendorEmail;
+    const videoTitle = video.name || 'your video';
+    const note = approvalNote ? `\n\nNote from Admin: ${approvalNote}` : '';
+
+    const subject = status === 'approved'
+      ? 'Your video has been approved!'
+      : 'Your video has been rejected';
+
+    const emailBody =
+      status === 'approved'
+        ? `Hi ${vendorName},\n\nYour video titled "${videoTitle}" has been approved and is now live on the platform.${note}\n\nRegards,\nAdmin Team`
+        : `Hi ${vendorName},\n\nWe regret to inform you that your video titled "${videoTitle}" has been rejected.${note}\n\nYou may update and re-submit it.\n\nRegards,\nAdmin Team`;
+
+    if (vendorEmail) {
+      try {
+        await sendEmail(vendorEmail, subject, emailBody);
+      } catch (error) {
+        console.error('Email sending failed:', error.message);
+        return res.status(500).json({ message: 'Email failed, approval not saved.' });
+      }
+    }
+
+    video.status = status;
+    video.isApproved = status === "approved";
+    video.approvalNote = approvalNote || '';
+    video.approvalDate = new Date();
+    video.approvedBy = adminId;
+
+    await video.save();
+
+    res.status(200).json({
+      message: `Video ${status} successfully`,
+      adminId,
+      video
+    });
+
+  } catch (err) {
+    console.error('Error updating video status:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 
 module.exports = router; 

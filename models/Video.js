@@ -45,7 +45,11 @@ const videoSchema = new mongoose.Schema({
   price: { type: Number },
   rent_day: { type: Number },
   isApproved: { type: Boolean, default: false } , // 👈 Add this line
-  status: { type: Number },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
   package_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Package' },
   packageType: { type: String, enum: ['rental', 'view', 'ad'] },
   totalEarnings: { type: Number, default: 0 }, // Total earnings from this video

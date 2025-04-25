@@ -158,7 +158,7 @@ router.post(
         video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
         subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
         is_title, is_download, is_like, is_comment, total_like, total_view, is_rent, price,
-        rent_day, status,monetizationType
+        rent_day,monetizationType
       } = req.body;
       const vendorId = req.vendor.id;
       console.log("", vendorId);
@@ -223,7 +223,7 @@ router.post(
         is_rent: Number(is_rent),
         price: Number(price),
         rent_day: Number(rent_day),
-        status: Number(status),
+        status:"pending",
         isApproved: false,
         packageType: package.revenueType,
         packageDetails: {
