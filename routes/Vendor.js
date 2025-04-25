@@ -796,5 +796,21 @@ router.delete('/delete-video/:videoId', isVendor, async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to delete video.', error: err.message });
   }
 });
+// GET: Get all videos of the vendor with approval status
+router.get('/approved-videos', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id;
+
+    const videos = await Video.find({ vendor_id: vendorId }).select('name isApproved approvalNote approvalDate createdAt updatedAt');
+
+    return res.status(200).json({
+      success: true,
+      videos
+    });
+  } catch (error) {
+    console.error('Error fetching videos:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 module.exports = router;

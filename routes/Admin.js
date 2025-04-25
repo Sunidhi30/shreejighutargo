@@ -593,60 +593,56 @@ router.get('/get-casts', async (req, res) => {
     }
   });
 // approving the videos of  uploaded by the vendor 
-router.put('/videos/:id/status', async (req, res) => {
-  const { status } = req.body;
-
-  if (!['approved', 'rejected'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status value' });
-  }
-
+router.put('/video-status/:videoId', verifyAdmin, async (req, res) => {
+  const videoId = req.params.videoId;
+  const adminId = req.admin.id; // 👉 Admin ID from token
   try {
-    const content = await Content.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    )
-      .populate('category', 'name')
-      .populate('type', 'name')
-      .populate('language', 'name')
-      .populate('cast', 'name image')
-      .populate('uploadedBy', 'name email');
+    const video = await Video.findById(videoId).populate('vendor_id', 'email name');
 
-    if (!content) {
+    if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
 
-    // ✉️ Send mail to vendor
-    const vendorEmail = content.uploadedBy.email;
-    
-    const videoTitle = content.title;
-    
-    let emailBody = '';
-
-    if (status === 'approved') {
-      emailBody =
-        `Hi ${vendorEmail},\n\n` +
-        `We're excited to let you know that your video titled "${videoTitle}" has been approved and is now live on the platform.\n\n` +
-        `Thank you for your contribution!\n\n` +
-        `Best Regards,\nAdmin Team`;
-    } else if (status === 'rejected') {
-      emailBody =
-        `Hi ${vendorEmail},\n\n` +
-        `We appreciate your effort in submitting the video titled "${videoTitle}".\n\n` +
-        `However, after review, it did not meet the content guidelines of our platform and has been rejected.\n\n` +
-        `You’re welcome to review our policies and try uploading again with suitable adjustments.\n\n` +
-        `Best Regards,\nAdmin Team`;
+    if (video.isApproved) {
+      return res.status(200).json({
+        message: 'Video is already approved',
+        adminId,
+        video
+      });
     }
 
-    await sendMail(
-      vendorEmail,
-      status === 'approved' ? 'Your video has been approved!' : 'Video Rejection Notification',
-      emailBody
-    );
+    video.isApproved = true;
+    video.approvedBy = adminId;
+    video.approvalDate = new Date();
+    await video.save();
+
+    // ✉️ Send approval email to vendor
+    const vendorEmail = video.vendor_id?.email || '';
+    const videoTitle = video.name || 'your video';
+
+    const emailBody = `
+      Hi ${vendorEmail},
+      
+      Great news! Your video titled "${videoTitle}" has been approved and is now live on the platform.
+
+      Thank you for contributing!
+      
+      Regards,
+      Admin Team
+    `;
+
+    if (vendorEmail) {
+      await sendMail(
+        vendorEmail,
+        'Your video has been approved!',
+        emailBody
+      );
+    }
 
     res.status(200).json({
-      message: `Video status updated to ${status}`,
-      content
+      message: 'Video approved successfully',
+      adminId,
+      video
     });
   } catch (err) {
     console.error(err);
