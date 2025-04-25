@@ -93,7 +93,7 @@ const commentSchema = new mongoose.Schema({
   },
   video_type: {
     type: Number,
-    required: true
+    required:  false
   },
   sub_video_type: {
     type: Number,
@@ -101,7 +101,7 @@ const commentSchema = new mongoose.Schema({
   },
   video_id: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true
+    required: false
   },
   episode_id: {
     type: mongoose.Schema.Types.ObjectId,

@@ -9,6 +9,7 @@ const ADMIN_EMAIL = "sunidhi@gmail.com";
 const ADMIN_PHONE = "1234567890"; // Optional
 const SubscriptionPlan= require("../models/SubscriptionPlan");
 const ADMIN_OTP = "0000";
+const Comment = require('../models/Commet');
 const Type =require("../models/Type")
 const TvLogin = require('../models/TvLogin');
 const { v4: uuidv4 } = require('uuid');
@@ -43,6 +44,15 @@ const axios = require("axios");
 if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir, { recursive: true }); // Creates folder if missing
 }
+const calculateEngagementRate = (video) => {
+  const { total_like, total_comment, total_view } = video;
+
+  if (total_view === 0) return 0; // Avoid division by zero
+
+  // A simple engagement rate formula
+  return (total_like + total_comment) / total_view * 100;
+};
+
 const transporter = nodemailer.createTransport({ 
   service: 'gmail', // Use your email provider
   auth: {
@@ -1124,6 +1134,110 @@ router.post('/comment',isUser, async (req, res) => {
   } catch (error) {
     console.error('Comment post error:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+// 👉 Like a video
+router.patch('/:videoId/like', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+
+    const video = await Video.findByIdAndUpdate(
+      videoId,
+      { $inc: { total_like: 1 } },
+      { new: true }
+    );
+     // Increment the like count
+     video.total_like += 1;
+
+     // Optionally, you can calculate the engagement rate after updating like count
+     video.engagementRate = calculateEngagementRate(video); // Implement this function as needed
+     await video.save();
+
+
+    if (!video) return res.status(404).json({ message: 'Video not found' });
+
+    res.json({ message: 'Video liked', total_like: video.total_like });
+  } catch (err) {
+    res.status(500).json({ error: 'Something went wrong while liking the video.' });
+  }
+});
+// 💬 Comment on a video
+// Add comment using token
+router.post('/:videoId/comment', isUser, async (req, res) => {
+  try {
+    const { comment } = req.body;
+    const { videoId } = req.params;
+    const user_id = req.user._id;
+
+    if (!comment) {
+      return res.status(400).json({ message: 'Comment is required' });
+    }
+
+    const newComment = new Comment({
+      video_id: videoId,
+      user_id,
+      comment,
+    });
+
+    await newComment.save();
+    // / Find the video and increment the total comments count
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+
+    video.total_comment += 1;
+    // Optionally, recalculate the engagement rate
+    video.engagementRate = calculateEngagementRate(video);
+
+    await video.save();
+
+    res.status(201).json({ message: 'Comment added successfully', comment: newComment });
+  } catch (err) {
+    console.error('Error adding comment:', err);
+    res.status(500).json({ error: 'Failed to add comment', details: err.message });
+  }
+});
+router.post('/:videoId/view', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+
+    // Increment the view count
+    video.total_view += 1;
+
+    // Optionally, you can calculate engagement rate based on views, likes, and comments here.
+    video.engagementRate = calculateEngagementRate(video); // Implement this function as needed
+
+    await video.save();
+    res.status(200).json({ message: 'Video view recorded', totalView: video.total_view });
+  } catch (error) {
+    console.error('Error tracking view:', error);
+    res.status(500).json({ message: 'Failed to track view' });
+  }
+});
+// get analytics
+router.get('/:videoId/analytics', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+
+    res.status(200).json({
+      totalLikes: video.total_like,
+      totalViews: video.total_view,
+      totalComments: video.total_comment,
+      engagementRate: video.engagementRate,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch video analytics' });
   }
 });
 module.exports = router;

@@ -36,7 +36,7 @@ const videoSchema = new mongoose.Schema({
   is_comment: { type: Number },
   total_like: { type: Number },
   total_view: { type: Number },
-  monetizationType: { type: String, enum: ["rent", "ad", "view"], required: true },
+  monetizationType: { type: String, enum: ["rental", "ad", "view"], required: true },
   price: { type: Number, default: null }, // rent-based
   rentDuration: { type: Number, default: null }, // in days
   viewCount: { type: Number, default: 0 }, // view-based
@@ -48,14 +48,12 @@ const videoSchema = new mongoose.Schema({
   status: { type: Number },
   package_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Package' },
   packageType: { type: String, enum: ['rental', 'view', 'ad'] },
-  packageDetails: {
-    price: { type: Number, default: 0 }, // For rental
-    viewThreshold: { type: Number, default: 30 }, // % of video to count as a view
-    commissionRate: { type: Number } // % commission for vendor
-  },
   totalEarnings: { type: Number, default: 0 }, // Total earnings from this video
   approvalNote: String, // Admin's note on approval/rejection
   approvalDate: Date,
+  total_like: { type: Number, default: 0 }, // Track likes
+total_view: { type: Number, default: 0 }, // Track views
+total_comment: { type: Number, default: 0 }, // Track comments
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }
 }, {
   collection: 'tbl_video',

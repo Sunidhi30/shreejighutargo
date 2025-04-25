@@ -80,8 +80,6 @@ router.post('/vendor-login', async (req, res) => {
   }
 });
 // update the profile of the vendor 
-
-
 router.put('/update-profile', isVendor, upload.single('image'), async (req, res) => {
   try {
     const vendorId = req.vendor._id;
@@ -129,9 +127,6 @@ router.put('/update-profile', isVendor, upload.single('image'), async (req, res)
     res.status(500).json({ success: false, message: 'Server error', error: err.message });
   }
 });
-
-
-
 //upload video  (its simple uploading without doing the rentals videos and all )
 router.post(
   '/create-video',isVendor,
@@ -263,6 +258,125 @@ router.post(
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: 'Video creation failed', error: err.message });
+    }
+  }
+);
+// update the videos 
+router.put(
+  '/update-video/:videoId', 
+  isVendor,
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'landscape', maxCount: 1 },
+    { name: 'video_320', maxCount: 1 },
+    { name: 'video_480', maxCount: 1 },
+    { name: 'video_720', maxCount: 1 },
+    { name: 'video_1080', maxCount: 1 },
+    { name: 'trailer', maxCount: 1 }
+  ]), 
+  async (req, res) => {
+    try {
+      const videoId = req.params.videoId;
+      const vendorId = req.vendor.id;
+
+      // Find the video by its ID and ensure the vendor owns it
+      const video = await Video.findById(videoId);
+      if (!video || video.vendor_id.toString() !== vendorId) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to update this video.' });
+      }
+
+      // Optionally update files
+      let thumbnailUrl = video.thumbnail, 
+          landscapeUrl = video.landscape, 
+          video_320Url = video.video_320, 
+          video_480Url = video.video_480, 
+          video_720Url = video.video_720, 
+          video_1080Url = video.video_1080, 
+          trailerUrl = video.trailer_url;
+
+      const uploadFile = async (field, folder, currentUrl) => {
+        if (req.files[field]) {
+          const file = req.files[field][0];
+          const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+          const uploadedUrl = await uploadToCloudinary(base64, folder, file.mimetype);
+          return uploadedUrl || currentUrl;
+        }
+        return currentUrl;
+      };
+
+      thumbnailUrl = await uploadFile('thumbnail', 'videos/thumbnails', thumbnailUrl);
+      landscapeUrl = await uploadFile('landscape', 'videos/landscapes', landscapeUrl);
+      video_320Url = await uploadFile('video_320', 'videos/320', video_320Url);
+      video_480Url = await uploadFile('video_480', 'videos/480', video_480Url);
+      video_720Url = await uploadFile('video_720', 'videos/720', video_720Url);
+      video_1080Url = await uploadFile('video_1080', 'videos/1080', video_1080Url);
+      trailerUrl = await uploadFile('trailer', 'videos/trailers', trailerUrl);
+
+      const { 
+        name, description, video_upload_type, video_extension, 
+        video_duration, trailer_type, subtitle_type, subtitle_lang_1, 
+        subtitle_1, subtitle_lang_2, subtitle_2, subtitle_lang_3, 
+        subtitle_3, release_date, is_premium, is_title, is_download, 
+        is_like, is_comment, total_like, total_view, is_rent, price, 
+        rent_day, status, monetizationType
+      } = req.body;
+
+      // Update video metadata
+      video.name = name || video.name;
+      video.description = description || video.description;
+      video.video_upload_type = video_upload_type || video.video_upload_type;
+      video.video_extension = video_extension || video.video_extension;
+      video.video_duration = video_duration || video.video_duration;
+      video.trailer_type = trailer_type || video.trailer_type;
+      video.subtitle_type = subtitle_type || video.subtitle_type;
+      video.subtitle_lang_1 = subtitle_lang_1 || video.subtitle_lang_1;
+      video.subtitle_1 = subtitle_1 || video.subtitle_1;
+      video.subtitle_lang_2 = subtitle_lang_2 || video.subtitle_lang_2;
+      video.subtitle_2 = subtitle_2 || video.subtitle_2;
+      video.subtitle_lang_3 = subtitle_lang_3 || video.subtitle_lang_3;
+      video.subtitle_3 = subtitle_3 || video.subtitle_3;
+      video.release_date = release_date || video.release_date;
+      video.is_premium = is_premium || video.is_premium;
+      video.is_title = is_title || video.is_title;
+      video.is_download = is_download || video.is_download;
+      video.is_like = is_like || video.is_like;
+      video.is_comment = is_comment || video.is_comment;
+      video.total_like = total_like || video.total_like;
+      video.total_view = total_view || video.total_view;
+      video.is_rent = is_rent || video.is_rent;
+      video.price = price || video.price;
+      video.rent_day = rent_day || video.rent_day;
+      video.status = status || video.status;
+      video.monetizationType = monetizationType || video.monetizationType;
+      
+      video.thumbnail = thumbnailUrl;
+      video.landscape = landscapeUrl;
+      video.video_320 = video_320Url;
+      video.video_480 = video_480Url;
+      video.video_720 = video_720Url;
+      video.video_1080 = video_1080Url;
+      video.trailer_url = trailerUrl;
+
+      await video.save();
+
+      const populatedVideo = await Video.findById(video._id)
+        .populate('type_id', 'name')
+        .populate('category_id', 'name')
+        .populate('cast_id', 'name')
+        .populate('language_id', 'name')
+        .populate('producer_id', 'name')
+        .populate('channel_id', 'name')
+        .populate('vendor_id', 'name');
+
+      res.status(200).json({
+        success: true,
+        message: 'Video updated successfully',
+        video: populatedVideo
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: 'Video update failed', error: err.message });
     }
   }
 );
@@ -497,4 +611,190 @@ router.post('/assign-package', isVendor, async (req, res) => {
     });
   }
 });
+// total videos vendor have uploaded 
+router.get('/video-count', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor._id // Get vendorId from the decoded token
+    console.log("id", vendorId);
+    console.log("Vendor ID: ", vendorId);  // Debugging output
+
+    if (!vendorId) {
+      return res.status(400).json({ message: 'Vendor I D is required.' });
+    }
+
+    // Query to count how many videos are uploaded by the vendor
+    const videoCount = await Video.countDocuments({ vendor_id: new mongoose.Types.ObjectId(vendorId) });
+    console.log("Video Count: ", videoCount); // Debugging output
+
+    if (videoCount === 0) {
+      return res.status(404).json({ message: 'No videos found for this vendor.' });
+    }
+
+    res.json({ videoCount });
+  } catch (error) {
+    console.error('Error fetching video count for vendor:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// Get views for a specific video by the vendor
+router.get('/video-views/:videoId', isVendor, async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const vendorId = req.vendor._id // Get vendorId from the decoded token
+
+    // Check if the video belongs to this vendor
+    const video = await Video.findOne({
+      _id: videoId,
+      vendor_id: vendorId
+    });
+
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found or not authorized.' });
+    }
+
+    res.status(200).json({
+      videoId: video._id,
+      name: video.name,
+      total_view: video.total_view,
+      viewCount: video.viewCount,
+      adViews: video.adViews
+    });
+
+  } catch (error) {
+    console.error('Error fetching video views:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// get the total views of the vendor 
+router.get('/total-views', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendorId;
+
+    const videos = await Video.find({ vendor_id: vendorId });
+
+    let totalViews = 0;
+    let totalViewCount = 0;
+    let totalAdViews = 0;
+
+    videos.forEach(video => {
+      totalViews += video.total_view || 0;
+      totalViewCount += video.viewCount || 0;
+      totalAdViews += video.adViews || 0;
+    });
+
+    res.status(200).json({
+      vendorId,
+      totalViews,
+      totalViewCount,
+      totalAdViews,
+      totalVideos: videos.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching vendor total views:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// total likes 
+router.get('/vendor-total-likes', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor._id; 
+
+    const result = await Video.aggregate([
+      {
+        $match: {
+          vendor_id: new mongoose.Types.ObjectId(vendorId)
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalLikes: { $sum: "$total_like" }
+        }
+      }
+    ]);
+
+    const totalLikes = result.length > 0 ? result[0].totalLikes : 0;
+
+    res.status(200).json({
+      vendorId,
+      totalLikes
+    });
+
+  } catch (error) {
+    console.error('Error fetching total likes:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// GET /vendor-total-earnings
+router.get('/vendor-total-earnings', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor._id;
+
+    const result = await Video.aggregate([
+      {
+        $match: {
+          vendor_id: new mongoose.Types.ObjectId(vendorId)
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: "$totalEarnings" }
+        }
+      }
+    ]);
+
+    const totalEarnings = result.length > 0 ? result[0].totalEarnings : 0;
+
+    res.status(200).json({
+      vendorId,
+      totalEarnings
+    });
+
+  } catch (error) {
+    console.error('Error fetching total earnings:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// GET /pending-approvals
+router.get('/pending-approvals', isVendor, async (req, res) => {
+  try {
+    const pendingVideos = await Video.find({ isApproved: false }).populate('vendor_id', 'name email');
+
+    res.status(200).json({
+      count: pendingVideos.length,
+      pendingVideos
+    });
+  } catch (error) {
+    console.error('Error fetching pending approvals:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// DELETE route to delete a video
+router.delete('/delete-video/:videoId', isVendor, async (req, res) => {
+  try {
+    const videoId = req.params.videoId;
+    const vendorId = req.vendor.id;
+
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video not found.' });
+    }
+
+    if (video.vendor_id.toString() !== vendorId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to delete this video.' });
+    }
+
+    await Video.findByIdAndDelete(videoId);
+
+    return res.status(200).json({ success: true, message: 'Video deleted successfully.' });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'Failed to delete video.', error: err.message });
+  }
+});
+
 module.exports = router;
