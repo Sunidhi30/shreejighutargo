@@ -8,6 +8,7 @@ const RentalLimit = require("../models/RentalLimit");
 const User = require('../models/User');
 const ExcelJS = require('exceljs');
 const Package = require("../models/Package");
+const  Setting = require("../models/LikesSetting");
 const PackageDetail = require('../models/PackageDetail');
 const Category = require("../models/Category")
 const JWT_SECRET = process.env.JWT_SECRET || "Apple";
@@ -1603,6 +1604,37 @@ router.put('/video-status/:videoId', verifyAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error updating video status:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+// set the number of likes and commision for this 
+// Set common/global earning configuration
+// Route: Admin sets percentage and price per like
+router.post('/set-earnings', async (req, res) => {
+  try {
+    const { pricePerLike, adminPercentage, vendorPercentage } = req.body;
+
+    // Create or update the global settings
+    let setting = await Setting.findOne();
+    if (setting) {
+      // Update existing setting
+      setting.pricePerLike = pricePerLike;
+      setting.adminPercentage = adminPercentage;
+      setting.vendorPercentage = vendorPercentage;
+      await setting.save();
+    } else {
+      // Create new setting
+      setting = new Setting({ pricePerLike, adminPercentage, vendorPercentage });
+      await setting.save();
+    }
+
+    res.status(200).json({
+      message: 'Earnings settings updated successfully!',
+      pricePerLike,
+      adminPercentage,
+      vendorPercentage
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error setting earnings', error: error.message });
   }
 });
 module.exports = router; 

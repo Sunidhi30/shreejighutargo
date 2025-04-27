@@ -1,4 +1,5 @@
 const express = require('express');
+const Admin = require("../models/Admin");
 const router = express.Router();
 const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
@@ -7,6 +8,7 @@ const { uploadToCloudinary } = require("../utils/cloudinary");
 const Movie = require('../models/Movie');
 const Vendors = require("../models/Vendor");
 const storage = multer.memoryStorage();
+const Setting = require("../models/LikesSetting");
 const Package = require("../models/Package")
 const {isVendor}= require("../middleware/auth")
 const upload = multer({ storage: storage });
@@ -812,5 +814,56 @@ router.get('/approved-videos', isVendor, async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+// Route: Calculate vendor and admin earnings based on likes
+router.get('/calculate-earnings', isVendor,async (req, res) => {
+  const vendorId = req.vendor.id;; // Extracted vendorId from the token
 
+  try {
+    // Fetch global settings from the database
+    const setting = await Setting.findOne();
+    if (!setting) {
+      return res.status(404).json({ message: 'Earnings settings not found. Please set earnings first.' });
+    }
+
+    // Find all videos uploaded by this vendor
+    const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
+
+    // Calculate total likes across all videos
+    const totalLikes = videos.reduce((acc, video) => acc + (video.total_like || 0), 0);
+
+    // Calculate total earnings based on likes
+    const totalEarnings = totalLikes * setting.pricePerLike;
+
+    // Split earnings based on the settings
+    const vendorShare = (setting.vendorPercentage / 100) * totalEarnings;
+    const adminShare = (setting.adminPercentage / 100) * totalEarnings;
+
+    // Update vendor wallet
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+    vendor.wallet += vendorShare;
+    await vendor.save();
+
+    // Update admin wallet (assuming single admin)
+    const admin = await Admin.findOne();
+    if (admin) {
+      admin.wallet += adminShare;
+      await admin.save();
+    }
+
+    res.status(200).json({
+      message: 'Earnings calculated successfully',
+      vendorWallet: vendor.wallet,
+      adminWallet: admin ? admin.wallet : 0,
+      totalLikes,
+      totalEarnings,
+      vendorShare,
+      adminShare
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error calculating earnings', error: error.message });
+  }
+});
 module.exports = router;
