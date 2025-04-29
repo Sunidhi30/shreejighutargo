@@ -4,6 +4,7 @@ const { uploadToCloudinary } = require("../utils/cloudinary");
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const mongoose = require("mongoose");
+const ContinueWatching = require("../models/ContinueWatching")
 const User = require('../models/User');
 const ADMIN_EMAIL = "sunidhi@gmail.com";
 const ADMIN_PHONE = "1234567890"; // Optional
@@ -52,7 +53,6 @@ const calculateEngagementRate = (video) => {
   // A simple engagement rate formula
   return (total_like + total_comment) / total_view * 100;
 };
-
 const transporter = nodemailer.createTransport({ 
   service: 'gmail', // Use your email provider
   auth: {
@@ -184,7 +184,6 @@ router.post('/login', async (req, res) => {
   }
 });
 // Step 2: Verify OTP and Login
-
 router.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -1240,6 +1239,164 @@ router.get('/:videoId/analytics', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch video analytics' });
   }
 });
+// user can send a request for renting the video 
+// Create Razorpay Order and Save Transaction
+router.post('/buy-video/:videoId',isUser, async (req, res) => {
+  try {
+    const userId = req.user.id; // from auth middleware
+    const videoId = req.params.videoId;
+
+    // 1. Find the video
+    const video = await Video.findById(videoId);
+    if (!video) return res.status(404).json({ message: 'Video not found' });
+
+    // if (!video.isApproved || video.status !== 1) {
+    //   return res.status(403).json({ message: 'This video is not available for purchase' });
+    // }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.rentedVideos.includes(videoId)) {
+      return res.status(400).json({ message: 'Video already purchased or rented' });
+    }
+
+    const price = video.price;
+    if (!price) {
+      return res.status(400).json({ message: 'Price not available for this video' });
+    }
+
+    // 2. Create Razorpay Order
+    const amountInPaise = price * 100; // Razorpay expects amount in paise (1 Rupee = 100 Paise)
+
+    const razorpayOrder = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: "INR",
+      receipt: `receipt_${uuidv4().slice(0, 20)}`,
+
+      notes: {
+        userId: userId.toString(),
+        videoId: videoId.toString(),
+      }
+    });
+
+    // 3. Save the transaction in your DB as "pending" initially
+    const newTransaction = new Transaction({
+      unique_id: uuidv4(),
+      user_id: userId,
+      package_id: video.package_id || null, // if video has package, else null
+      transaction_id: razorpayOrder.id,
+      price: price.toString(),
+      description: `Purchase of video: ${video.name}`,
+      status: 0, // 0 => pending
+    });
+
+    await newTransaction.save();
+
+    // 4. Return order details to frontend to complete payment
+    res.status(200).json({
+      message: "Order created",
+      orderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      key: process.env.RAZORPAY_KEY, // frontend will use this to complete payment
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+// After frontend completes payment, it will hit this endpoint
+router.post('/verify-payment', async (req, res) => {
+  try {
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, videoId } = req.body;
+    const userId = req.user.id;
+
+    // 1. Verify Signature
+    const generated_signature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(razorpay_order_id + "|" + razorpay_payment_id)
+      .digest('hex');
+
+    if (generated_signature !== razorpay_signature) {
+      return res.status(400).json({ message: 'Payment verification failed' });
+    }
+
+    // 2. Update Transaction
+    const transaction = await Transaction.findOneAndUpdate(
+      { transaction_id: razorpay_order_id },
+      { status: 1 }, // mark as success
+      { new: true }
+    );
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    // 3. Update User's rentedVideos
+    const user = await User.findById(userId);
+    if (!user.rentedVideos.includes(videoId)) {
+      user.rentedVideos.push(videoId);
+      await user.save();
+    }
+
+    res.status(200).json({ message: 'Payment verified and video purchased successfully' });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+// Get all Top 10 movies
+router.get('/top10-movies', async (req, res) => {
+  try {
+    const top10Movies = await Video.find({ isTop10: true, isApproved: true })
+      .sort({ approvalDate: -1 }) // Optional: Latest approved movies first
+      .limit(10); // Just a safety limit
+
+    res.status(200).json({
+      message: 'Top 10 movies fetched successfully',
+      movies: top10Movies
+    });
+  } catch (err) {
+    console.error('Error fetching Top 10 movies:', err);
+    res.status(500).json({ message: 'Server error while fetching Top 10 movies' });
+  }
+});
+// Continue Watching List for a User
+// GET /api/user/continue-watching
+router.post('/continue-watching', async (req, res) => {
+  const { userId, videoId, progress } = req.body;
+  console.log(req.body)
+  try {
+    const existing = await ContinueWatching.findOne({ userId, videoId });
+    console.log("existing videos", existing);
+    if (existing) {
+      existing.progress = progress;
+      existing.updatedAt = Date.now();
+      await existing.save();
+    } else {
+      await ContinueWatching.create({ userId, videoId, progress });
+    }
+    res.json({ message: 'Progress saved' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to save progress', error: error.message });
+  }
+});
+router.get('/continue-watching',isUser, async (req, res) => {
+  const user_id = req.user._id;
+  console.log(user_id)
+  try {
+    const list = await ContinueWatching.find({  userId : user_id  })
+      .sort({ updatedAt: -1 })
+      .populate('videoId');
+    res.json({ message: 'Continue Watching list fetched successfully', data: list });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch list', error: error.message });
+  }
+});
+ 
 module.exports = router;
 
 

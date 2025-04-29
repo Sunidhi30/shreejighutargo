@@ -24,6 +24,9 @@ app.listen(PORT,()=>{
       saveUninitialized: false,
     })
   );
+  app.get("/testingVideos", (req, res) => {
+    res.sendFile(__dirname + "/testingVideos.html");
+  })
   // Serve the test HTML file
   app.get("/testing", (req, res) => {
     res.sendFile(__dirname + "/testing.html");
@@ -35,6 +38,10 @@ app.use("/api/vendors",vendors);
 app.get('/session', (req, res) => {
     res.json({ sessionId: req.sessionID });
 });
+//  // Serve the test HTML file
+ app.get("/testingpay", (req, res) => {
+  res.sendFile(__dirname + "/testingvideo.html");
+})
 db().then(function (db) {
     console.log(`Db connnected`)
 })

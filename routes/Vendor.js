@@ -816,7 +816,7 @@ router.get('/approved-videos', isVendor, async (req, res) => {
 });
 // Route: Calculate vendor and admin earnings based on likes
 router.get('/calculate-earnings', isVendor,async (req, res) => {
-  const vendorId = req.vendor.id;; // Extracted vendorId from the token
+  const vendorId = req.vendor.id; // Extracted vendorId from the token
 
   try {
     // Fetch global settings from the database
@@ -866,4 +866,94 @@ router.get('/calculate-earnings', isVendor,async (req, res) => {
     res.status(500).json({ message: 'Error calculating earnings', error: error.message });
   }
 });
+// Route to get vendor earnings this is the wrong api 
+router.get('/vendor/earnings',isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id
+
+    // Fetch all APPROVED videos uploaded by this vendor
+    const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
+
+    let totalEarnings = 0;
+    let detailedEarnings = [];
+
+    videos.forEach(video => {
+      let videoEarnings = 0;
+
+      if (video.monetizationType === 'rental' && video.price) {
+        // Earnings from rentals
+        videoEarnings = video.total_view * video.price;
+      } 
+      else if (video.monetizationType === 'view') {
+        // Earnings from views (let's assume $0.01 per view if not specified)
+        videoEarnings = video.viewCount * 0.01;
+      } 
+      else if (video.monetizationType === 'ad') {
+        // Earnings from ad views (let's assume $0.005 per ad view if not specified)
+        videoEarnings = video.adViews * 0.005;
+      }
+
+      totalEarnings += videoEarnings;
+      console.log("total earnings", totalEarnings);
+
+      detailedEarnings.push({
+        videoId: video._id,
+        name: video.name,
+        monetizationType: video.monetizationType,
+        earnings: videoEarnings.toFixed(2)
+      });
+    });
+
+    // Update the vendor's wallet (optional, if you want real-time update)
+    await Vendor.findByIdAndUpdate(vendorId, { wallet: totalEarnings });
+
+    res.status(200).json({
+      success: true,
+      vendorId,
+      totalEarnings: totalEarnings.toFixed(2),
+      videos: detailedEarnings
+    });
+  } catch (error) {
+    console.error('Error fetching vendor earnings:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// Search Vendor's Uploaded Videos
+router.get('/vendor/videos/search', async (req, res) => {
+  try {
+    const { name, category } = req.query;
+
+    // Check if both name and category are missing
+    if (!name && !category) {
+      return res.status(400).json({ message: 'Please provide at least a name or category to search.' });
+    }
+
+    // Build search filter
+    const filter = {};
+    if (name) {
+      filter.name = { $regex: name, $options: 'i' }; // case-insensitive partial match
+    }
+    if (category) {
+      filter.category = { $regex: category, $options: 'i' };
+    }
+
+    // Find videos matching the filters
+    const videos = await Video.find(filter);
+
+    // Check if videos exist
+    if (videos.length === 0) {
+      return res.status(404).json({ message: 'No videos found matching the search criteria.' });
+    }
+
+    res.status(200).json({
+      message: 'Videos fetched successfully',
+      videos
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+
 module.exports = router;

@@ -17,9 +17,16 @@ const userSchema = new mongoose.Schema({
     },
     time: Date,
   },
-  downloads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Content' }],
+  // continueWatching: [
+  //   {
+  //     video: { type: mongoose.Schema.Types.ObjectId, ref: 'Video' },
+  //     progress: { type: Number, default: 0 }, // progress in seconds (or percentage if you want)
+  //     lastWatched: { type: Date, default: Date.now }
+  //   }
+  // ],
+  downloads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
   subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' }],
-  rentedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Content' }],
+  rentedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
   transactions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' }],
   investedAmount: { type: Number, default: 0 },
   languagePreference: String,

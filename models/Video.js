@@ -50,7 +50,7 @@ const videoSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
-  
+  isTop10: { type: Boolean, default: false },
   package_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Package' },
   packageType: { type: String, enum: ['rental', 'view', 'ad'] },
   totalEarnings: { type: Number, default: 0 }, // Total earnings from this video

@@ -54,13 +54,13 @@ if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir, { recursive: true }); // Creates folder if missing
 }
 // // Admin Login (Dynamically Generated OTP)
-// const transporter = nodemailer.createTransport({ 
-//     service: 'gmail', // Use your email provider
-//     auth: {
-//       user: process.env.EMAIL_USER, // Admin email (set in environment variables)
-//       pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
-//     }
-//   });
+const transporter = nodemailer.createTransport({ 
+    service: 'gmail', // Use your email provider
+    auth: {
+      user: process.env.EMAIL_USER, // Admin email (set in environment variables)
+      pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
+    }
+  });
  
   // ✅ Send OTP Email function
 const sendOTPEmail = async (email, otp) => {
@@ -620,23 +620,23 @@ router.get('/admin/movies', async (req, res) => {
   }
 });
 // top 10 movies 
-router.put('/admin/top10-movies/add', async (req, res) => {
-  const { title } = req.body;
-
-  if (!title) {
-    return res.status(400).json({ message: 'Movie title is required' });
+// Mark a movie as Top 10
+router.put('/admin/top10-movies/add', verifyAdmin, async (req, res) => {
+  const { name } = req.body;
+  if (!name) {
+    return res.status(400).json({ message: 'Movie name is required' });
   }
-
   try {
-    // Check if 10 movies are already marked as top 10
-    const currentTop10 = await Content.countDocuments({ isTop10: true });
+    // Check how many movies are already marked as Top 10
+    const currentTop10 = await Video.countDocuments({ isTop10: true });
     if (currentTop10 >= 10) {
       return res.status(400).json({ message: 'Top 10 list already full. Remove one before adding.' });
     }
 
-    const movie = await Content.findOneAndUpdate(
-      { title, status: 'approved' },
-      { $set: { isTop10: true } },
+    // Find the movie by name and status 'approved' and mark it as Top 10
+    const movie = await Video.findOneAndUpdate(
+      { name, isApproved:true },
+      { $set: { isTop10: true } }, // ✅ Setting isTop10 true
       { new: true }
     );
 
@@ -645,14 +645,15 @@ router.put('/admin/top10-movies/add', async (req, res) => {
     }
 
     res.status(200).json({
-      message: `"${movie.title}" has been added to the Top 10 list.`,
+      message: `"${movie.name}" has been added to the Top 10 list.`,
       movie
     });
   } catch (err) {
-    console.error('Error updating top 10 movie:', err);
-    res.status(500).json({ message: 'Server error while updating top 10 movie' });
+    console.error('Error marking movie as Top 10:', err);
+    res.status(500).json({ message: 'Server error while updating Top 10 movie' });
   }
 });
+
 // GET /content/webseries
 router.get('/content/webseries', async (req, res) => {
   const { name } = req.query;
@@ -1617,7 +1618,7 @@ router.post('/set-earnings', async (req, res) => {
     let setting = await Setting.findOne();
     if (setting) {
       // Update existing setting
-      setting.pricePerLike = pricePerLike;
+      setting.pricePerLike = pricePerLikex;
       setting.adminPercentage = adminPercentage;
       setting.vendorPercentage = vendorPercentage;
       await setting.save();

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Buy Video Test</title>
+</head>
+<body>
+
+  <h1>Test Buy Video API</h1>
+
+  <input type="text" id="videoId" placeholder="Enter Video ID">
+  <button onclick="buyVideo()">Buy Video</button>
+
+  <script>
+    async function buyVideo() {
+      const videoId = document.getElementById('videoId').value.trim();
+      if (!videoId) {
+        alert('Please enter a Video ID');
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:9000/api/users/buy-video/680a22cb2a530d2772ea0480`, { // adjust your API URL here
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2N2ZjMGI2Yzc2YmFkMmExMmYzMTNhYTYiLCJlbWFpbCI6InJhdHJhc3VuaWRoaTZAZ21haWwuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDU4MjA4ODksImV4cCI6MTc0NjQyNTY4OX0.gB32Z52PB0V4KpYGBBk_3qSoc7cGD2XR8ytQGY8YSX8' // put your user's JWT token here
+          },
+        });
+
+        const data = await response.json();
+        console.log(data);
+
+        if (response.ok) {
+          alert(`Order Created Successfully!\nOrder ID: ${data.orderId}`);
+        } else {
+          alert(`Error: ${data.message || data.error.description}`);
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Something went wrong!');
+      }
+    }
+  </script>
+
+</body>
+</html>

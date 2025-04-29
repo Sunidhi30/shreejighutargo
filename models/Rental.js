@@ -8,7 +8,7 @@ const rentalSchema = new mongoose.Schema({
   },
   movie: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Content',
+    ref: 'Video',
     required: true
   },
   vendor: {
