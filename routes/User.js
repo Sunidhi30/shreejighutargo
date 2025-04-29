@@ -299,7 +299,6 @@ router.get('/user-locations', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch user locations', error: err.message });
   }
 });
-//Generate code from TV
 // router.post('/init', async (req, res) => {
 //   const code = uuidv4().split('-')[0].toUpperCase(); // Short code like 'A1B2C3'
 //   // console.log("code this is ", code);
@@ -1459,7 +1458,6 @@ router.get('/top10-movies', async (req, res) => {
     res.status(500).json({ message: 'Server error while fetching Top 10 movies' });
   }
 });
-// Continue Watching List for a User
 // GET /api/user/continue-watching
 router.post('/continue-watching', async (req, res) => {
   const { userId, videoId, progress } = req.body;
@@ -1539,7 +1537,6 @@ router.get('/user/favorites',isUser, async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 });
-
 // POST /videos/:videoId/rate — Rate or update rating for a video
 router.post('/rate-video', isUser,async (req, res) => {
   try {

@@ -17,13 +17,19 @@ const userSchema = new mongoose.Schema({
     },
     time: Date,
   },
-  // continueWatching: [
-  //   {
-  //     video: { type: mongoose.Schema.Types.ObjectId, ref: 'Video' },
-  //     progress: { type: Number, default: 0 }, // progress in seconds (or percentage if you want)
-  //     lastWatched: { type: Date, default: Date.now }
-  //   }
-  // ],
+  deviceSessions: [
+    {
+      ip: String,
+      device: String,
+      location: String,
+      coordinates: {
+        lat: Number,
+        lng: Number,
+      },
+      time: Date,
+    }
+  ],
+ 
   downloads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
   subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' }],
   rentedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
