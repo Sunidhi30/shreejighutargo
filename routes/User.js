@@ -7,7 +7,9 @@ const mongoose = require("mongoose");
 const ContinueWatching = require("../models/ContinueWatching")
 const User = require('../models/User');
 const ADMIN_EMAIL = "sunidhi@gmail.com";
+const cloudinary = require("cloudinary");
 const ADMIN_PHONE = "1234567890"; // Optional
+const  Language = require("../models/Language");
 const SubscriptionPlan= require("../models/SubscriptionPlan");
 const ADMIN_OTP = "0000";
 const Comment = require('../models/Commet');
@@ -42,6 +44,7 @@ const DeviceSync = require("../models/DeviceSync")
 const DeviceWatching = require('../models/DeviceWatching');
 const crypto = require('crypto');
 const axios = require("axios");
+default_image_url="https://e7.pngegg.com/pngimages/753/432/png-clipart-user-profile-2018-in-sight-user-conference-expo-business-default-business-angle-service.png"
 if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir, { recursive: true }); // Creates folder if missing
 }
@@ -69,6 +72,21 @@ const sendOTPEmail = async (email, otp) => {
   };
   await transporter.sendMail(mailOptions);
 };
+
+// Helper function to upload to Cloudinary
+const uploadingCloudinary = async (base64Data, folder, mimetype) => {
+  try {
+    const result = await cloudinary.uploader.upload(base64Data, {
+      folder: folder,
+      resource_type: 'auto', // This automatically handles image types
+    });
+    return result.secure_url; // Return the URL of the uploaded image
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    throw error;
+  }
+};
+
 //sign up 
 router.post('/signup', async (req, res) => {
   try {
@@ -406,6 +424,67 @@ router.post('/logout', async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
+// Update User Profile Image API
+router.put('/upload-profile-image', isUser, upload.single('profileImage'), async (req, res) => {
+  try {
+    const userId = req.user.id;  // Extracted from JWT
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    // Convert file buffer to base64
+    const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+
+    // Upload image to Cloudinary
+    const uploadedImageUrl = await uploadingCloudinary(base64, 'user_profiles', file.mimetype);
+
+    // Update user profile with the new image URL
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profileImage: uploadedImageUrl },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      message: 'Profile image updated successfully',
+      profileImage: updatedUser.profileImage,
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Fetch User Profile API
+router.get('/profile', isUser, async (req, res) => {
+  try {
+    const userId = req.user.id;  // Get the user ID from the JWT token
+    console.log("user id "+" "+userId);
+
+    // Fetch user with the correct fields
+    const user = await User.findById(userId).select('email profileImage role');  // Select profileImage, not image
+    console.log(user);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log("user profile image"+" "+user.profileImage)
+
+    res.status(200).json({
+      email: user.email,
+      profileImage: user.profileImage || 'https://e7.pngegg.com/pngimages/753/432/png-clipart-user-profile-2018-in-sight-user-conference-expo-business-default-business-angle-service.png', // Default image URL if no image is set
+      role: user.role
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 // approved videos
 router.get('/approved-movies', async (req, res) => {
     try {
@@ -611,7 +690,7 @@ router.get('/get_avatar', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
-// GET /get_all_types
+// GET /get_all_types movies , show ?
 router.get('/get_all_types', async (req, res) => {
   try {
     const types = await Type.find();
@@ -625,7 +704,7 @@ router.get('/get_all_types', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
-//get types 
+//get types  same as above
 router.get('/get_types', async (req, res) => {
   try {
     const types = await Type.find().sort({ name: 1 }); // sort by name if needed
@@ -639,7 +718,7 @@ router.get('/get_types', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
-// get category 
+// get category action , romance 
 router.get('/get_categories', async (req, res) => {
   try {
     const categories = await Category.find().sort({ name: 1 }); // you can sort as needed
@@ -656,14 +735,30 @@ router.get('/get_categories', async (req, res) => {
 // get language  
 router.get('/get_languages', async (req, res) => {
   try {
-    const languages = await Language.find().sort({ name: 1 }); // Optional sorting by name
+    // Get all languages sorted by name
+    const languages = await Language.find().sort({ name: 1 });
+
+    // For each language, get its related videos
+    const results = await Promise.all(
+      languages.map(async (language) => {
+        const videos = await Video.find({ language_id: language._id, isApproved: true })
+                                  .select('name thumbnail video_720 status'); // select only needed fields
+        return {
+          _id: language._id,
+          name: language.name,
+          image: language.image,
+          status: language.status,
+          videos
+        };
+      })
+    );
 
     return res.status(200).json({
-      message: 'Languages fetched successfully',
-      data: languages
+      message: 'Languages with videos fetched successfully',
+      data: results
     });
   } catch (error) {
-    console.error('Error fetching languages:', error);
+    console.error('Error fetching languages with videos:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
@@ -1396,7 +1491,82 @@ router.get('/continue-watching',isUser, async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch list', error: error.message });
   }
 });
- 
+ // make the video fav 
+ // Endpoint to mark a video as favorite
+router.put('/user/favorites/:videoId',isUser, async (req, res) => {
+  const userId = req.user._id; // Assuming user ID is available in the request (e.g., from a JWT)
+  const videoId = req.params.videoId;
+
+  try {
+    // Find the user by ID and add the video to the favorites array
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if the video is already in favorites
+    if (user.favorites.includes(videoId)) {
+      return res.status(400).json({ message: 'Video already marked as favorite' });
+    }
+
+    // Add video to favorites
+    user.favorites.push(videoId);
+    await user.save();
+
+    return res.status(200).json({ message: 'Video marked as favorite' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+// Endpoint to get the list of favorite videos for a user
+router.get('/user/favorites',isUser, async (req, res) => {
+  const userId = req.user._id; // Assuming user ID is available in the request (e.g., from a JWT)
+
+  try {
+    // Find the user by ID and populate the favorites field with video details
+    const user = await User.findById(userId).populate('favorites');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Return the list of favorite videos
+    return res.status(200).json(user.favorites);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /videos/:videoId/rate — Rate or update rating for a video
+router.post('/rate-video', isUser,async (req, res) => {
+  try {
+    const { videoId, rating } = req.body;
+    const user_id = req.user._id;
+    const video = await Video.findById(videoId);
+    if (!video) return res.status(404).json({ message: 'Video not found' });
+
+    // Remove any existing rating by this user
+    video.ratings = video.ratings.filter(r => r.user.toString() !== userId);
+
+    // Add new rating
+    video.ratings.push({ user: userId, value: rating });
+
+    // Recalculate average rating
+    const total = video.ratings.reduce((sum, r) => sum + r.value, 0);
+    video.ratingCount = video.ratings.length;
+    video.averageRating = total / video.ratingCount;
+
+    await video.save(); // This is where the error happens
+
+    res.status(200).json({ message: 'Rating submitted successfully' });
+  } catch (error) {
+    console.error('Error rating video:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 module.exports = router;
 
 

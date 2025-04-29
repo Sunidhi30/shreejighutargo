@@ -33,6 +33,7 @@ const videoSchema = new mongoose.Schema({
   is_title: { type: Number },
   is_download: { type: Number },
   is_like: { type: Number },
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   is_comment: { type: Number },
   total_like: { type: Number },
   total_view: { type: Number },
@@ -59,6 +60,14 @@ const videoSchema = new mongoose.Schema({
   total_like: { type: Number, default: 0 }, // Track likes
 total_view: { type: Number, default: 0 }, // Track views
 total_comment: { type: Number, default: 0 }, // Track comments
+ratings: [
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    value: { type: Number, min: 1, max: 5 },
+  }
+],
+averageRating: { type: Number, default: 0 },
+ratingCount: { type: Number, default: 0 },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }
 }, {
   collection: 'tbl_video',

@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, default: 'user' },
   otp: { type: String },
   otpExpiry: { type: Date },
-  image: String, // profile image URL
+  profileImage: String, // profile image URL
   watchlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Content' }],
   lastLogin: {
     ip: String,
@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
   transactions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' }],
   investedAmount: { type: Number, default: 0 },
   languagePreference: String,
+  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],  // This line was added
   deleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
