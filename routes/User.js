@@ -23,7 +23,7 @@ const Cast = require("../models/Cast");
 const JWT_SECRET = process.env.JWT_SECRET || "Apple";
 const razorpay = require('../utils/razorpay');
 // const { protect,verifyToken } = require('../middleware/auth');
-const { protect, isUser } = require("../middleware/auth");
+const { protect, isUser, verifyAdmin } = require("../middleware/auth");
 const { body, validationResult } = require('express-validator');
 const multer = require("multer");
 const storage = multer.memoryStorage();
@@ -693,7 +693,6 @@ router.get('/get_avatar', async (req, res) => {
 router.get('/get_all_types', async (req, res) => {
   try {
     const types = await Type.find();
-
     return res.status(200).json({
       message: 'All types fetched successfully',
       data: types
@@ -1489,7 +1488,6 @@ router.get('/continue-watching',isUser, async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch list', error: error.message });
   }
 });
- // make the video fav 
  // Endpoint to mark a video as favorite
 router.put('/user/favorites/:videoId',isUser, async (req, res) => {
   const userId = req.user._id; // Assuming user ID is available in the request (e.g., from a JWT)
@@ -1564,6 +1562,124 @@ router.post('/rate-video', isUser,async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+// Search videos by name
+router.get('/search', async (req, res) => {
+  const { name } = req.query;
+
+  if (!name) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide a search query (name)'
+    });
+  }
+
+  try {
+    const videos = await Video.find({
+      name: { $regex: name, $options: 'i' } // Case-insensitive partial match
+    })
+      .populate('type_id', 'name')
+      .populate('category_id', 'name')
+      .populate('cast_id', 'name')
+      .populate('language_id', 'name')
+      .populate('producer_id', 'name')
+      .populate('channel_id', 'name')
+      .populate('vendor_id', 'name');
+
+    res.status(200).json({
+      success: true,
+      results: videos
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Search failed',
+      error: error.message
+    });
+  }
+});
+// GET /api/trailers/coming-soon
+router.get('/coming-soon', async (req, res) => {
+  try {
+    const trailers = await Video.find({ 
+      isComingSoon: true, 
+      isApproved: true 
+    }).select('name thumbnail trailer_url release_date description')
+      .sort({ release_date: 1 }); // optional sorting by date
+
+    res.status(200).json({ success: true, data: trailers });
+  } catch (error) {
+    console.error('Error fetching coming soon trailers:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+
+});
+// POST /api/admin/trailers/upcoming
+// router.post('/upcoming', verifyAdmin, async (req, res) => {
+//   try {
+//     const {
+//       vendor_id,
+//       name,
+//       thumbnail,     // poster image URL
+//       landscape,     // optional wide image URL
+//       description,
+//       trailer_url,   // external trailer link
+//       release_date,
+//       category_id,
+//       language_id
+//     } = req.body;
+
+//     // Validation
+//     if (!vendor_id || !name || !thumbnail || !trailer_url || !release_date) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'vendor_id, name, thumbnail, trailer_url, and release_date are required.'
+//       });
+//     }
+
+//     // Ensure trailer_url is a valid URL (optional)
+//     if (!trailer_url.startsWith('http')) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'trailer_url must be a valid external URL.'
+//       });
+//     }
+
+//     const newTrailer = new Video({
+//       vendor_id,
+//       name,
+//       thumbnail,
+//       landscape,
+//       description,
+//       trailer_url,
+//       release_date,
+//       category_id,
+//       language_id,
+//       isComingSoon: true,
+//       isApproved: true, // auto-approve or set to false if you want admin approval flow
+//       video_upload_type: 'url', // to indicate it's not a direct upload
+//       video_320: null,
+//       video_480: null,
+//       video_720: null,
+//       video_1080: null
+//     });
+
+//     const saved = await newTrailer.save();
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Upcoming trailer (poster only) created successfully',
+//       data: saved
+//     });
+
+//   } catch (err) {
+//     console.error('Error creating upcoming trailer:', err);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal Server Error'
+//     });
+//   }
+// });
+
 module.exports = router;
-
-
