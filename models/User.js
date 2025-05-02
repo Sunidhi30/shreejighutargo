@@ -7,6 +7,10 @@ const userSchema = new mongoose.Schema({
   otpExpiry: { type: Date },
   profileImage: String, // profile image URL
   watchlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Content' }],
+  device_name:{ type :String },
+      device_type:{ type :String } ,
+      device_token:{ type :String },
+      device_id:{ type :String },
   lastLogin: {
     ip: String,
     device: String,
@@ -29,7 +33,6 @@ const userSchema = new mongoose.Schema({
       time: Date,
     }
   ],
- 
   downloads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
   subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' }],
   rentedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],

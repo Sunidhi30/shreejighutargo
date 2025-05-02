@@ -954,6 +954,87 @@ router.get('/vendor/videos/search', async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
+// get the videos acc to monetization(rental,views,ads)
+router.get('/users-count', async (req, res) => {
+  try {
+    const count = await User.countDocuments({ deleted: false });
+    res.status(200).json({ totalUsers: count });
+  } catch (error) {
+    console.error('Error counting users:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 
+// GET /api/tvshows/count
+router.get('/tvshows-count', async (req, res) => {
+  try {
+    const count = await TVShow.countDocuments();
+    res.status(200).json({ totalTVShows: count });
+  } catch (error) {
+    console.error('Error counting TV Shows:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+// GET /api/channel/count
+router.get('/channels-count', async (req, res) => {
+  try {
+    const count = await Channel.countDocuments();
+    res.status(200).json({ ChannelCounts: count });
+  } catch (error) {
+    console.error('Error counting TV Shows:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+// GET /api/cast/count
+router.get('/casts-count', async (req, res) => {
+  try {
+    const count = await Cast.countDocuments();
+    res.status(200).json({ CastCounts: count });
+  } catch (error) {
+    console.error('Error counting TV Shows:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET: Count videos uploaded by a specific vendor
+router.get('/vendor/video-count', isVendor,async (req, res) => {
+ 
+  const vendorId = req.vendor.id
+  try {
+    const videoCount = await Video.countDocuments({ vendor_id: vendorId });
+
+    res.status(200).json({
+      success: true,
+      vendorId,
+      videoCount
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving video count',
+      error: error.message
+    });
+  }
+});
+// GET: All videos uploaded by a specific vendor
+router.get('/vendor/videos', isVendor, async (req, res) => {
+  const vendorId = req.vendor.id;
+
+  try {
+    const videos = await Video.find({ vendor_id: vendorId });
+
+    res.status(200).json({
+      success: true,
+      vendorId,
+      videos
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving vendor videos',
+      error: error.message
+    });
+  }
+});
 module.exports = router;

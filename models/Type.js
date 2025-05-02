@@ -18,6 +18,7 @@
 // }, { timestamps: true });
 
 // module.exports = mongoose.model('Type', typeSchema);
+
 const mongoose = require('mongoose');
 
 const TypeSchema = new mongoose.Schema({

@@ -1607,8 +1607,7 @@ router.put('/video-status/:videoId', verifyAdmin, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-// set the number of likes and commision for this 
-// Set common/global earning configuration
+
 // Route: Admin sets percentage and price per like
 router.post('/set-earnings', async (req, res) => {
   try {
@@ -1638,4 +1637,5 @@ router.post('/set-earnings', async (req, res) => {
     res.status(500).json({ message: 'Error setting earnings', error: error.message });
   }
 });
+
 module.exports = router; 

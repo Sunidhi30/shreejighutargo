@@ -139,7 +139,7 @@ router.post('/verify-signup-otp', async (req, res) => {
     // Save user to DB
     const newUser = new User({ email: signupData.email });
     await newUser.save();
-
+    console.log(newUser)
     // Save device info
     const device = new DeviceSync({
       user_id: newUser._id,
@@ -148,7 +148,7 @@ router.post('/verify-signup-otp', async (req, res) => {
       device_token: signupData.device_token,
       device_id: signupData.device_id,
     });
-
+  
     await device.save();
 
     // Clear session
@@ -1681,5 +1681,4 @@ router.get('/coming-soon', async (req, res) => {
 //     });
 //   }
 // });
-
 module.exports = router;
