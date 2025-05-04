@@ -9,7 +9,8 @@ const Movie = require('../models/Movie');
 const Vendors = require("../models/Vendor");
 const storage = multer.memoryStorage();
 const Setting = require("../models/LikesSetting");
-const Package = require("../models/Package")
+// const Package = require("../models/Package")
+const finalPackage = require("../models/FinalPackage");
 const {isVendor}= require("../middleware/auth")
 const upload = multer({ storage: storage });
 const Vendor = require("../models/Vendor");
@@ -142,29 +143,21 @@ router.post(
     { name: 'trailer', maxCount: 1 }
   ]),
   async (req, res) => {
-    console.log(req.body)
+    // console.log(req.body)
 
     try {
       
-       // Validate package
-       const package = await Package.findById(req.body.package_id);
-       if (!package) {
-         return res.status(400).json({
-           success: false,
-           message: 'Invalid package selected'
-         });
-       }
       const { 
-        type_id, video_type,channel_id, producer_id, category_id,
+        type_id, video_type,channel_id, producer_id, category_id,finalPackage_id,
         language_id, cast_id, name, description, video_upload_type, video_extension,
         video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
         subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
         is_title, is_download, is_like, is_comment, total_like, total_view, is_rent, price,
-        rent_day,monetizationType
+        rent_day
       } = req.body;
       const vendorId = req.vendor.id;
-      console.log("", vendorId);
-      console.log(req.body)
+      // console.log("", vendorId);
+      // console.log(req.body)
       let thumbnailUrl = '', landscapeUrl = '', video_320Url = '', video_480Url = '', video_720Url = '', video_1080Url = '', trailerUrl = '';
 
       const uploadFile = async (field, folder) => {
@@ -192,9 +185,10 @@ router.post(
         producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
         category_id: category_id ? new mongoose.Types.ObjectId(category_id) : null,
         language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
+        finalPackage_id: finalPackage_id ? new mongoose.Types.ObjectId(finalPackage_id) : null,
         cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
         name,
-        monetizationType,
+        // monetizationType,
         thumbnail: thumbnailUrl,
         landscape: landscapeUrl,
         description,
@@ -226,13 +220,13 @@ router.post(
         price: Number(price),
         rent_day: Number(rent_day),
         status:"pending",
-        isApproved: false,
-        packageType: package.revenueType,
-        packageDetails: {
-          price: req.body.price || package.price,
-          viewThreshold: package.viewThreshold,
-          commissionRate: package.commissionRate
-        }
+        isApproved: false
+        // packageType: package.revenueType,
+        // packageDetails: {
+        //   price: req.body.price || package.price,
+        //   viewThreshold: package.viewThreshold,
+        //   commissionRate: package.commissionRate
+        // }
       });
 
       await newVideo.save();
@@ -249,7 +243,8 @@ router.post(
         .populate('language_id', 'name')
         .populate('producer_id', 'name')
         .populate('channel_id', 'name')
-        .populate('vendor_id', 'name');
+        .populate('vendor_id', 'name')
+        .populate('finalPackage_id',name);
 
       res.status(201).json({
         success: true,
@@ -385,10 +380,16 @@ router.put(
 //get all the  videos 
 router.get('/videos', isVendor, async (req, res) => {
   try {
-    const vendorId = req.vendor?._id || req.user?._id;
+    const vendorId = req.vendor?._id
+    console.log("venodrs "+vendorId) 
 
-    const videos = await Video.find({ vendor_id: vendorId }).populate('category_id', 'name');
-
+    const videos = await Video.find({ vendor_id: vendorId })
+    // .populate('category_id', 'name') 
+    // .populate('finalPackage_id', 'name') // Populating only the 'name' field of the FinalPackage model
+    .populate('category_id', 'name')
+    .populate('finalPackage_id', 'name')
+    .populate('finalPackage_id', 'price');
+    console.log(videos);
     res.status(200).json({
       message: 'Fetched videos for the vendor successfully',
       videos
@@ -433,6 +434,7 @@ router.get('/videos/:id', isVendor, async (req, res) => {
       vendor_id: vendorId 
     }).populate('package_id');
     
+    
     if (!video) {
       return res.status(404).json({
         success: false,
@@ -452,167 +454,154 @@ router.get('/videos/:id', isVendor, async (req, res) => {
     });
   }
 });
-// ✅ POST - Add a new package
-router.post('/packages', isVendor, async (req, res) => {
+//packages
+router.post('/create-packages', isVendor, async (req, res) => {
+  const vendor_id = req.vendor.id;
   try {
-    const vendorId = req.vendor._id; // Vendor ID from the token
-    
     const {
       name,
       description,
       revenueType,
       viewThreshold,
-      commissionRate,
+    
       price,
       rentalDuration,
+      customDetails
     } = req.body;
 
-    // Validate required fields
-    if (!name || !revenueType || commissionRate === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, revenueType, and commissionRate are required.',
-      });
+    // Validate if all required fields are provided
+    if (!name || !revenueType  || !price) {
+      return res.status(400).json({ message: 'Required fields missing' });
     }
 
-    // If the revenueType is "rental", ensure price and rentalDuration are provided
-    // If it's a rental package, validate against admin-defined limit
-    if (revenueType === 'rental') {
-      const rentalLimit = await RentalLimit.findOne().sort({ createdAt: -1 }); // Get the latest limit
-      if (!rentalLimit) {
-        return res.status(500).json({
-          success: false,
-          message: 'Rental limit not set by admin.',
-        });
-      }
+    // Fetch the vendor to ensure they exist
+    const vendor = await Vendor.findById(vendor_id);
+    if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
 
-      if (price >= rentalLimit.maxRentalPrice) {
-        return res.status(400).json({
-          success: false,
-          message: `Rental price must be less than ${rentalLimit.maxRentalPrice}`,
-        });
-      }
+    // Fetch the latest rental limit from RentalLimit model
+    const rentalLimit = await RentalLimit.findOne().sort({ createdAt: -1 });
+    if (!rentalLimit) return res.status(500).json({ message: 'Rental limit not set by admin' });
+
+    // Ensure the price is within the rental limit
+    if (price > rentalLimit.maxRentalPrice) {
+      return res.status(400).json({ message: `Price cannot exceed max rental price (${rentalLimit.maxRentalPrice})` });
     }
 
-
-    // Create the new package
-    const newPackage = new Package({
+    // Create the new package with the fixed commission rate and rental price validation
+    const newPackage = new finalPackage({
       name,
       description,
       revenueType,
-      viewThreshold,
-      commissionRate,
+      viewThreshold: viewThreshold || 30,  // Default to 30 if not provided
+      vendor_id,
       price,
-      rentalDuration,
-      vendor_id: vendorId, // Linking the package to the vendor
+      rentalDuration: rentalDuration || 48, // Default to 48 hours if not provided
+      status: true, // Default to true, assuming active
+      customDetails: customDetails || [], // Default to empty array if not provided
+      commissionRate: 40 // Fixed commission rate
     });
 
-    await newPackage.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Package created successfully',
-      data: newPackage,
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
-});
-// ✅ GET - Get all unique packages used by the logged-in vendor
-router.get('/vendor-packages', isVendor, async (req, res) => {
-  try {
-    const vendorId = req.vendor._id; // Vendor ID from token (set in isVendor middleware)
-
-    // Fetch all packages created by this vendor
-    const packages = await Package.find({ vendor_id: vendorId });
-
-    res.status(200).json({
-      success: true,
-      data: packages,
-    });
-
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
-});
-// assign the package according to the vendor 
-router.post('/assign-package', isVendor, async (req, res) => {
-  try {
-    const vendorId = req.vendor._id;
-    const { videoId, revenueType, packageId } = req.body;
-
-    // Basic validation
-    if (!videoId || !revenueType) {
-      return res.status(400).json({
-        success: false,
-        message: 'videoId and revenueType are required.',
-      });
-    }
-
-    // If rental, validate packageId and price
-    let selectedPackage = null;
-    if (revenueType === 'rental') {
-      if (!packageId) {
-        return res.status(400).json({
-          success: false,
-          message: 'Rental revenueType requires a packageId.',
-        });
-      }
-
-      selectedPackage = await Package.findOne({ _id: packageId, vendor_id: vendorId, revenueType: 'rental' });
-      if (!selectedPackage) {
-        return res.status(404).json({
-          success: false,
-          message: 'Rental package not found or unauthorized.',
-        });
-      }
-    }
-
-    // Update the video
-    const updateData = {
-      monetizationType: revenueType,
-      package_id: packageId || null,
-      packageType: revenueType,
-      packageDetails: selectedPackage ? {
-        price: selectedPackage.price,
-        viewThreshold: selectedPackage.viewThreshold,
-        commissionRate: selectedPackage.commissionRate
-      } : undefined
-    };
-
-    const updatedVideo = await Video.findOneAndUpdate(
-      { _id: videoId, vendor_id: vendorId },
-      { $set: updateData },
-      { new: true }
-    );
-
-    if (!updatedVideo) {
-      return res.status(404).json({
-        success: false,
-        message: 'Video not found or unauthorized.',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Package and monetization type assigned successfully.',
-      data: updatedVideo,
-    });
+    // Save the package
+    const savedPackage = await newPackage.save();
+    res.status(201).json(savedPackage);
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
+    res.status(500).json({ message: 'Failed to create package', error: err.message });
   }
 });
+// Get all packages for a specific vendor
+router.get('/get-packages',isVendor, async (req, res) => {
+  try {
+    const vendor_id = req.vendor.id;
+    console.log("vendor id "+" "+vendor_id);
+    // Fetch all packages by vendor_id
+    const packages = await finalPackage.find({ vendor_id })
+      .populate('vendor_id', 'fullName email') // You can populate vendor details if needed
+      .sort({ createdAt: -1 }); // Sort packages by creation date, latest first
+
+    if (packages.length === 0) {
+      return res.status(404).json({ message: 'No packages found for this vendor' });
+    }
+
+    res.status(200).json(packages);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch packages', error: err.message });
+  }
+});
+//video count
+// router.post('/assign-package', isVendor, async (req, res) => {
+//   try {
+//     const vendorId = req.vendor._id;
+//     const { videoId, revenueType, packageId } = req.body;
+
+//     // Basic validation
+//     if (!videoId || !revenueType) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'videoId and revenueType are required.',
+//       });
+//     }
+
+//     // If rental, validate packageId and price
+//     let selectedPackage = null;
+//     if (revenueType === 'rental') {
+//       if (!packageId) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Rental revenueType requires a packageId.',
+//         });
+//       }
+
+//       selectedPackage = await Package.findOne({ _id: packageId, vendor_id: vendorId, revenueType: 'rental' });
+//       if (!selectedPackage) {
+//         return res.status(404).json({
+//           success: false,
+//           message: 'Rental package not found or unauthorized.',
+//         });
+//       }
+//     }
+
+//     // Update the video
+//     const updateData = {
+//       monetizationType: revenueType,
+//       package_id: packageId || null,
+//       packageType: revenueType,
+//       packageDetails: selectedPackage ? {
+//         price: selectedPackage.price,
+//         viewThreshold: selectedPackage.viewThreshold,
+//         commissionRate: selectedPackage.commissionRate
+//       } : undefined
+//     };
+
+//     const updatedVideo = await Video.findOneAndUpdate(
+//       { _id: videoId, vendor_id: vendorId },
+//       { $set: updateData },
+//       { new: true }
+//     );
+
+//     if (!updatedVideo) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Video not found or unauthorized.',
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Package and monetization type assigned successfully.',
+//       data: updatedVideo,
+//     });
+
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({
+//       success: false,
+//       message: err.message,
+//     });
+//   }
+// });
 // total videos vendor have uploaded 
 router.get('/video-count', isVendor, async (req, res) => {
   try {
@@ -964,8 +953,6 @@ router.get('/users-count', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-
 // GET /api/tvshows/count
 router.get('/tvshows-count', async (req, res) => {
   try {
@@ -1037,4 +1024,77 @@ router.get('/vendor/videos', isVendor, async (req, res) => {
     });
   }
 });
+//get the videos by the sttaus 
+// GET: Get all videos of the vendor with optional status filter
+// router.get('/videos-by-status', isVendor, async (req, res) => {
+//   try {
+//     const vendorId = req.vendor.id;
+//     const { status } = req.query; // 'pending', 'approved', or 'rejected'
+
+//     const query = { vendor_id: vendorId };
+//     if (status) {
+//       query.status = status;
+//     }
+
+//     const videos = await Video.find(query).select(
+//       'name status isApproved approvalNote approvalDate createdAt updatedAt'
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       videos,
+//     });
+//   } catch (error) {
+//     console.error('Error fetching videos:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal Server Error',
+//     });
+//   }
+// });
+router.get('/videos-by-status', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id;
+    const { status } = req.query; // 'pending', 'approved', or 'rejected'
+
+    // Initialize the query to search for the vendor's videos
+    const query = { vendor_id: vendorId };
+
+    // If a status is provided, add it to the query
+    if (status) {
+      query.status = status;
+    }
+
+    // Fetch the videos with the required fields
+    const videos = await Video.find(query).select(
+      'name thumbnail video_type status finalPackage_id' // Add 'finalPackage_id' to query
+    );
+
+    // For each video, retrieve the associated price from the final package
+    for (let video of videos) {
+      // Assuming you have a FinalPackage model to get the package details
+      const package = await finalPackage.findById(video.finalPackage_id);
+
+      // If the package is found, add the price to the video
+      if (package) {
+        video.price = package.price;
+      } else {
+        video.price = 0; // Default price if no package is found
+      }
+    }
+
+    // Return the response with the video data including the price
+    return res.status(200).json({
+      success: true,
+      videos,
+    });
+  } catch (error) {
+    console.error('Error fetching videos:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal Server Error',
+    });
+  }
+});
+
 module.exports = router;

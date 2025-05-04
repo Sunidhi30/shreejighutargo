@@ -37,7 +37,13 @@ const videoSchema = new mongoose.Schema({
   is_comment: { type: Number },
   total_like: { type: Number },
   total_view: { type: Number },
-  monetizationType: { type: String, enum: ["rental", "ad", "view"], required: true },
+  // finalPackage_id: {
+  //   type: mongoose.Schema.Types.ObjectId,
+  //   ref: 'FinalPackage', // Reference to the FinalPackage model
+  //   required: false // If this is optional, ensure it allows null or undefined values
+  // },
+  finalPackage_id: { type: mongoose.Schema.Types.ObjectId, ref: 'FinalPackage' },
+  // monetizationType: { type: String, enum: ["rental", "ad", "view"], required: false },
   price: { type: Number, default: null }, // rent-based
   rentDuration: { type: Number, default: null }, // in days
   viewCount: { type: Number, default: 0 }, // view-based

@@ -1607,6 +1607,51 @@ router.put('/video-status/:videoId', verifyAdmin, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+router.get('/admin-note/:videoId',  async (req, res) => {
+  const videoId = req.params.videoId;
+
+  try {
+    const video = await Video.findById(videoId)
+      .populate('vendor_id', 'name email')
+      .populate('approvedBy', 'name email'); // Optional: get admin details
+
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+
+    let adminNote = '';
+
+    switch (video.status) {
+      case 'pending':
+        adminNote = 'Your video is under observation.';
+        break;
+      case 'approved':
+        adminNote = 'Admin has approved your video.';
+        break;
+      case 'rejected':
+        adminNote = video.approvalNote
+          ? `Admin rejected your video. Reason: ${video.approvalNote}`
+          : 'Admin rejected your video. No reason provided.';
+        break;
+      default:
+        adminNote = 'No status available.';
+    }
+
+    res.status(200).json({
+      videoId: video._id,
+      title: video.name,
+      status: video.status,
+      isApproved: video.isApproved,
+      adminNote,
+      approvedBy: video.approvedBy || null,
+      approvalDate: video.approvalDate || null
+    });
+  } catch (err) {
+    console.error('Error fetching admin note:', err.message);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 
 // Route: Admin sets percentage and price per like
 router.post('/set-earnings', async (req, res) => {
