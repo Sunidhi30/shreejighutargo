@@ -7,6 +7,9 @@ const vendorSchema = new mongoose.Schema({
   fullName: String,
   email: { type: String, unique: true },
   mobile: String,
+  totalViews: { type: Number, default: 0 },
+  totalUsers: { type: Number, default: 0 },
+  totalVideos: { type: Number, default: 0 },
   password: { type: String, required: true }, // <- Added field
   role: { type: String, default: 'vendor' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },

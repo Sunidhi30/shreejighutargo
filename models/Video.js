@@ -64,7 +64,7 @@ const videoSchema = new mongoose.Schema({
   approvalNote: String, // Admin's note on approval/rejection
   approvalDate: Date,
   total_like: { type: Number, default: 0 }, // Track likes
-total_view: { type: Number, default: 0 }, // Track views
+// total_view: { type: Number, default: 0 }, // Track views
 total_comment: { type: Number, default: 0 }, // Track comments
 ratings: [
   {

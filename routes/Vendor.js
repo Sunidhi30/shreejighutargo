@@ -403,7 +403,7 @@ router.get('/videos', isVendor, async (req, res) => {
 router.get('/videos/category/:categoryId', async (req, res) => {
   try {
     const videos = await Video.find({ category_id: req.params.categoryId })
-    console.log("", videos);
+    console.log("videos is this ", videos);
       // .populate('category', 'name')
       // .sort({ createdAt: -1 });
 
@@ -717,37 +717,6 @@ router.get('/vendor-total-likes', isVendor, async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-// GET /vendor-total-earnings
-router.get('/vendor-total-earnings', isVendor, async (req, res) => {
-  try {
-    const vendorId = req.vendor._id;
-
-    const result = await Video.aggregate([
-      {
-        $match: {
-          vendor_id: new mongoose.Types.ObjectId(vendorId)
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalEarnings: { $sum: "$totalEarnings" }
-        }
-      }
-    ]);
-
-    const totalEarnings = result.length > 0 ? result[0].totalEarnings : 0;
-
-    res.status(200).json({
-      vendorId,
-      totalEarnings
-    });
-
-  } catch (error) {
-    console.error('Error fetching total earnings:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
 // GET /pending-approvals
 router.get('/pending-approvals', isVendor, async (req, res) => {
   try {
@@ -1024,34 +993,6 @@ router.get('/vendor/videos', isVendor, async (req, res) => {
     });
   }
 });
-//get the videos by the sttaus 
-// GET: Get all videos of the vendor with optional status filter
-// router.get('/videos-by-status', isVendor, async (req, res) => {
-//   try {
-//     const vendorId = req.vendor.id;
-//     const { status } = req.query; // 'pending', 'approved', or 'rejected'
-
-//     const query = { vendor_id: vendorId };
-//     if (status) {
-//       query.status = status;
-//     }
-
-//     const videos = await Video.find(query).select(
-//       'name status isApproved approvalNote approvalDate createdAt updatedAt'
-//     );
-
-//     return res.status(200).json({
-//       success: true,
-//       videos,
-//     });
-//   } catch (error) {
-//     console.error('Error fetching videos:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Internal Server Error',
-//     });
-//   }
-// });
 router.get('/videos-by-status', isVendor, async (req, res) => {
   try {
     const vendorId = req.vendor.id;
@@ -1096,5 +1037,60 @@ router.get('/videos-by-status', isVendor, async (req, res) => {
     });
   }
 });
+router.get('/top-performing-videos', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id;
+    console.log("vendor id ", vendorId);
+    // Find approved videos for this vendor, sorted by total likes
+    const videos = await Video.find({ vendor_id: vendorId, status: "approved" })
+      .sort({ total_like: -1 })
+      .limit(10)
+      .select('name thumbnail video_type total_like finalPackage_id');
 
+    // Populate price from final package
+    for (let video of videos) {
+      const pkg = await finalPackage.findById(video.finalPackage_id);
+      video.price = pkg ? pkg.price : 0;
+    }
+
+    return res.status(200).json({
+      success: true,
+      videos,
+    });
+  } catch (error) {
+    console.error('Error fetching top-performing videos:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal Server Error',
+    });
+  }
+});
+// GET vendor earnings using token
+router.get('/vendor-earnings', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id;
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+    console.log("vendor.totalViews:", vendor.totalViews);
+    const admin = await Admin.findOne();
+    console.log("admin", admin);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+    const earnings = vendor.totalViews * admin.pricePerView;
+    console.log("earningis :", earnings);
+    res.json({
+      success: true,
+      vendorId: vendor._id,
+      totalViews: vendor.totalViews,
+      pricePerView: admin.pricePerView,
+      earnings
+    });
+  } catch (error) {
+    console.error('Error fetching vendor earnings:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
 module.exports = router;

@@ -306,6 +306,24 @@ router.post('/verify-otp', async (req, res) => {
       res.status(500).json({ message: 'OTP verification failed', error: err.message });
  }
 });
+// Admin sets per-view price
+router.put('/set-price-per-view', verifyAdmin, async (req, res) => {
+  try {
+    const { pricePerView } = req.body;
+
+    if (typeof pricePerView !== 'number' || pricePerView < 0) {
+      return res.status(400).json({ success: false, message: 'Invalid price per view value' });
+    }
+
+    const adminId = req.admin.id; // from isAdmin middleware
+    await Admin.findByIdAndUpdate(adminId, { pricePerView });
+
+    res.json({ success: true, message: 'Per-view price updated successfully', pricePerView });
+  } catch (error) {
+    console.error('Error updating price per view:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
 // add type 
 router.post('/add_type', async (req, res) => {
   try {
@@ -331,7 +349,7 @@ router.post('/add_type', async (req, res) => {
 router.get('/get_types', async (req, res) => {
   try {
     const types = await Type.find().sort({ name: 1 }); // sort by name if needed
-
+  console.log("types "+types)
     return res.status(200).json({
       message: 'Types fetched successfully',
       data: types
@@ -1649,37 +1667,6 @@ router.get('/admin-note/:videoId',  async (req, res) => {
   } catch (err) {
     console.error('Error fetching admin note:', err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-
-
-// Route: Admin sets percentage and price per like
-router.post('/set-earnings', async (req, res) => {
-  try {
-    const { pricePerLike, adminPercentage, vendorPercentage } = req.body;
-
-    // Create or update the global settings
-    let setting = await Setting.findOne();
-    if (setting) {
-      // Update existing setting
-      setting.pricePerLike = pricePerLikex;
-      setting.adminPercentage = adminPercentage;
-      setting.vendorPercentage = vendorPercentage;
-      await setting.save();
-    } else {
-      // Create new setting
-      setting = new Setting({ pricePerLike, adminPercentage, vendorPercentage });
-      await setting.save();
-    }
-
-    res.status(200).json({
-      message: 'Earnings settings updated successfully!',
-      pricePerLike,
-      adminPercentage,
-      vendorPercentage
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error setting earnings', error: error.message });
   }
 });
 

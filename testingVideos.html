@@ -1,150 +1,123 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Progress Tracker</title>
+</head>
+<body>
+  <h2>Watch the video</h2>
+  <video id="videoPlayer" width="640" height="360" controls>
+    <source src="your-video-url.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+
+  <script>
+    const video = document.getElementById('videoPlayer');
+    const videoId = '68173966efec4a7655c9b324'; // Replace with real video ID from DB
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2N2ZjMGI2Yzc2YmFkMmExMmYzMTNhYTYiLCJlbWFpbCI6InJhdHJhc3VuaWRoaTZAZ21haWwuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDY0NDEyMDQsImV4cCI6MTc0NzA0NjAwNH0.XxLH4VLDfMxUzNhZgvvl7K3TlAi0EhAd81TlhBWO8NI'; // Replace with user's actual auth token
+
+    let hasSent = false;
+
+    video.addEventListener('timeupdate', async () => {
+      const currentTime = video.currentTime;
+      const duration = video.duration;
+
+      const watchedPercentage = (currentTime / duration) * 100;
+
+      // Send update every 5 seconds or when >= 30% viewed
+      if (!hasSent && watchedPercentage >= 30) {
+        hasSent = true;
+
+        try {
+          const response = await fetch('http://localhost:9000/api/users/track-video-progress', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              videoId,
+              currentTime,
+              duration
+            })
+          });
+
+          const data = await response.json();
+          console.log('Progress tracked:', data);
+        } catch (error) {
+          console.error('Error sending progress:', error);
+        }
+      }
+    });
+  </script>
+</body>
+</html> -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Video Streaming</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-    }
-    #video-list, #continue-watching-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-    .video-card {
-      width: 250px;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      cursor: pointer;
-    }
-    .video-card img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-    }
-    .video-card h3 {
-      margin: 10px;
-      font-size: 18px;
-    }
-    video {
-      width: 100%;
-      margin-top: 20px;
-    }
-    #video-player-section {
-      margin-top: 40px;
-    }
-  </style>
+  <title>Video Progress Tracker</title>
 </head>
 <body>
+  <h2>Watch the video</h2>
+  <video id="videoPlayer" width="640" height="360" controls>
+    <source id="videoSource" src="" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
 
-  <h1>Approved Movies</h1>
-  <div id="video-list"></div>
+  <script>
+    const video = document.getElementById('videoPlayer');
+    const videoSource = document.getElementById('videoSource');
+    const videoId = '68173966efec4a7655c9b324'; // Replace with real ID
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2N2ZjMGI2Yzc2YmFkMmExMmYzMTNhYTYiLCJlbWFpbCI6InJhdHJhc3VuaWRoaTZAZ21haWwuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDY0NDEyMDQsImV4cCI6MTc0NzA0NjAwNH0.XxLH4VLDfMxUzNhZgvvl7K3TlAi0EhAd81TlhBWO8NI';
 
-  <h2>Continue Watching</h2>
-  <div id="continue-watching-list"></div>
-
-  <div id="video-player-section" style="display:none;">
-    <h2>Now Watching: <span id="now-watching-title"></span></h2>
-    <video id="video-player" controls></video>
-  </div>
-
- <!-- Inside <script> tag -->
-<script>
-    const API_URL = 'http://localhost:9000/api/users';
-    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2N2ZjMGI2Yzc2YmFkMmExMmYzMTNhYTYiLCJlbWFpbCI6InJhdHJhc3VuaWRoaTZAZ21haWwuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDU5MDgzNDgsImV4cCI6MTc0NjUxMzE0OH0.laj3gpKy_sx8v7vcJy4oHfoaLHjhyjN53ox-6iDRFYo'; // Replace with actual token
-    const decodedToken = JSON.parse(atob(token.split('.')[1]));
-    const userId = decodedToken.userID;
-  
-    const videoListDiv = document.getElementById('video-list');
-    const continueWatchingListDiv = document.getElementById('continue-watching-list');
-    const videoPlayerSection = document.getElementById('video-player-section');
-    const videoPlayer = document.getElementById('video-player');
-    const nowWatchingTitle = document.getElementById('now-watching-title');
-  
-    let currentVideoId = null;
-    let currentVideoTimeTracked = false;
-  
-    async function fetchApprovedMovies() {
-      try {
-        const response = await fetch(`${API_URL}/approved-movies`);
-        const movies = await response.json();
-        displayMovies(movies, videoListDiv);
-      } catch (error) {
-        console.error('Error fetching approved movies:', error);
-      }
-    }
-  
-    async function fetchContinueWatching() {
-      try {
-        const response = await fetch(`${API_URL}/continue-watching`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        const data = await response.json();
-        displayMovies(data.data, continueWatchingListDiv);
-      } catch (error) {
-        console.error('Error fetching continue watching list:', error);
-      }
-    }
-  
-    function displayMovies(movies, container) {
-      container.innerHTML = '';
-      movies.forEach(movie => {
-        const videoData = movie.videoId || movie; // Populate-aware
-        const card = document.createElement('div');
-        card.className = 'video-card';
-        card.innerHTML = `
-          <img src="${videoData.thumbnail}" alt="${videoData.name}">
-          <h3>${videoData.name}</h3>
-        `;
-        card.addEventListener('click', () => playVideo(videoData));
-        container.appendChild(card);
+    // 1. Fetch video URL
+    fetch(`http://localhost:9000/api/users/video-url/${videoId}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.videoUrl) {
+          videoSource.src = data.videoUrl;
+          video.load();
+        } else {
+          alert('Video not found or URL missing.');
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching video URL:', err);
       });
-    }
-  
-    function playVideo(movie) {
-      currentVideoId = movie._id;
-      currentVideoTimeTracked = false;
-  
-      nowWatchingTitle.textContent = movie.name;
-      videoPlayer.src = movie.video_480;
-      videoPlayerSection.style.display = 'block';
-      videoPlayer.currentTime = 0;
-      videoPlayer.play();
-    }
-  
-    videoPlayer.addEventListener('timeupdate', () => {
-      if (!currentVideoTimeTracked && videoPlayer.currentTime > 10) {
-        currentVideoTimeTracked = true;
-        saveToContinueWatching(currentVideoId, videoPlayer.currentTime);
+
+    let hasSent = false;
+
+    video.addEventListener('timeupdate', async () => {
+      const currentTime = video.currentTime;
+      const duration = video.duration;
+
+      const watchedPercentage = (currentTime / duration) * 100;
+
+      if (!hasSent && watchedPercentage >= 30) {
+        hasSent = true;
+
+        try {
+          const response = await fetch('http://localhost:9000/api/users/track-video-progress', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              videoId,
+              currentTime,
+              duration
+            })
+          });
+
+          const data = await response.json();
+          console.log('Progress tracked:', data);
+        } catch (error) {
+          console.error('Error sending progress:', error);
+        }
       }
     });
-  
-    async function saveToContinueWatching(videoId, progress) {
-      try {
-        await fetch(`${API_URL}/continue-watching`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ userId, videoId, progress })
-        });
-        console.log('Progress saved:', videoId, progress);
-        fetchContinueWatching(); // refresh the list
-      } catch (error) {
-        console.error('Error saving to continue watching:', error);
-      }
-    }
-  
-    fetchApprovedMovies();
-    fetchContinueWatching();
   </script>
-  
 </body>
 </html>

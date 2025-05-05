@@ -12,8 +12,10 @@ const ADMIN_PHONE = "1234567890"; // Optional
 const  Language = require("../models/Language");
 const SubscriptionPlan= require("../models/SubscriptionPlan");
 const ADMIN_OTP = "0000";
+const VideoView = require('../models/videoView'); // Adjust the path according to your project structure
 const Comment = require('../models/Commet');
 const Type =require("../models/Type")
+const Vendor=require("../models/Vendor")
 const TvLogin = require('../models/TvLogin');
 const { v4: uuidv4 } = require('uuid');
 const Avatar = require("../models/Avatar");
@@ -22,6 +24,7 @@ const Subscriptions = require("../models/Subscription");
 const Cast = require("../models/Cast");
 const JWT_SECRET = process.env.JWT_SECRET || "Apple";
 const razorpay = require('../utils/razorpay');
+const PlatformStats =require("../models/PlatformStats")
 // const { protect,verifyToken } = require('../middleware/auth');
 const { protect, isUser, verifyAdmin } = require("../middleware/auth");
 const { body, validationResult } = require('express-validator');
@@ -1681,4 +1684,274 @@ router.get('/coming-soon', async (req, res) => {
 //     });
 //   }
 // });
+// trakc the watcing videos 
+// router.post('/track-video-progress', isUser, async (req, res) => {
+//   try {
+//     const { videoId, currentTime, duration } = req.body;
+//     const userId = req.user.id;
+
+//     if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
+//       return res.status(400).json({ success: false, message: 'Invalid input data' });
+//     }
+
+//     // Calculate watched percentage
+//     const watchedPercentage = (currentTime / duration) * 100;
+
+//     // Find or create view record
+//     let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
+//     console.log("video view: ", videoView);  // Check the value of videoView
+
+//     if (!videoView) {
+//       videoView = new VideoView({
+//         video_id: videoId,
+//         user_id: userId,
+//         watchedPercentage
+//       });
+//     } else {
+//       videoView.watchedPercentage = Math.max(videoView.watchedPercentage, watchedPercentage);
+//     }
+
+//     // Check if view should be counted (30% threshold)
+//     if (watchedPercentage >= 30 && !videoView.isCompleted) {
+//       videoView.isCompleted = true;
+
+//       await Video.findByIdAndUpdate(videoId, {
+//         $inc: { total_view: 1 }
+//       });
+
+//       const video = await Video.findById(videoId).populate('finalPackage_id');
+//       const vendor = await Vendor.findById(video.vendor_id);
+
+//       if (video.finalPackage_id) {
+//         const earningsPerView = video.finalPackage_id.pricePerView || 0;
+//         const earnings = earningsPerView;
+
+//         await Vendor.findByIdAndUpdate(video.vendor_id, {
+//           $inc: {
+//             wallet: earnings,
+//             lockedBalance: earnings
+//           }
+//         });
+
+//         await Video.findByIdAndUpdate(videoId, {
+//           $inc: { totalEarnings: earnings }
+//         });
+//       }
+//     }
+
+//     await videoView.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Video progress tracked successfully',
+//       watchedPercentage
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ success: false, message: 'Error tracking video progress' });
+//   }
+// });
+// router.post('/track-video-progress', isUser, async (req, res) => {
+//   try {
+//     const { videoId, currentTime, duration } = req.body;
+//     const userId = req.user.id;
+
+//     if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
+//       return res.status(400).json({ success: false, message: 'Invalid input data' });
+//     }
+
+//     // Calculate watched percentage
+//     const watchedPercentage = (currentTime / duration) * 100;
+
+//     // Find or create view record
+//     let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
+//     console.log("video view: ", videoView);  // Check the value of videoView
+
+//     if (!videoView) {
+//       // If no view exists, create a new one
+//       videoView = new VideoView({
+//         video_id: videoId,
+//         user_id: userId,
+//         watchedPercentage
+//       });
+//     } else {
+//       // Update watchedPercentage if view exists
+//       videoView.watchedPercentage = Math.max(videoView.watchedPercentage, watchedPercentage);
+//     }
+
+//     // Check if view should be counted (30% threshold)
+//     if (watchedPercentage >= 30 && !videoView.isCompleted) {
+//       videoView.isCompleted = true;
+
+//       // Update the video view count only if this is the first time the user watched 30%
+//       const video = await Video.findById(videoId);
+//       console.log("video is ", video);
+//       // Ensure the view count is only updated once per user
+//       await Video.findByIdAndUpdate(videoId, {
+//         $inc: { total_view: 1 }
+//       });
+
+//       // Calculate and update vendor earnings
+//       const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
+//       const vendor = await Vendor.findById(videoWithPackage.vendor_id);
+
+//       if (videoWithPackage.finalPackage_id) {
+//         const earningsPerView = videoWithPackage.finalPackage_id.pricePerView || 0;
+//         const earnings = earningsPerView;
+
+//         // Update vendor wallet
+//         await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
+//           $inc: {
+//             wallet: earnings,
+//             lockedBalance: earnings
+//           }
+//         });
+
+//         // Update video total earnings
+//         await Video.findByIdAndUpdate(videoId, {
+//           $inc: { totalEarnings: earnings }
+//         });
+//       }
+//     }
+
+//     // Save the video view document
+//     await videoView.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Video progress tracked successfully',
+//       watchedPercentage
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ success: false, message: 'Error tracking video progress' });
+//   }
+// });
+
+router.post('/track-video-progress', isUser, async (req, res) => {
+  try {
+    const { videoId, currentTime, duration } = req.body;
+    const userId = req.user.id;
+
+    if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid input data' });
+    }
+
+    const watchedPercentage = (currentTime / duration) * 100;
+    console.log(`User ${userId} watching video ${videoId}`);
+    console.log(`Current Time: ${currentTime}, Duration: ${duration}, Watched: ${watchedPercentage.toFixed(2)}%`);
+
+    let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
+
+    if (!videoView) {
+      console.log("Creating new video view record");
+      videoView = new VideoView({
+        video_id: videoId,
+        user_id: userId,
+        watchedPercentage
+      });
+    } else {
+      console.log("Existing video view found:", videoView);
+      if (watchedPercentage > videoView.watchedPercentage) {
+        videoView.watchedPercentage = watchedPercentage;
+        console.log("Updated watchedPercentage to:", watchedPercentage.toFixed(2));
+      } else {
+        console.log("Watched percentage not higher, not updating.");
+      }
+    }
+
+    // if (watchedPercentage >= 30) {
+    //   videoView.isCompleted = true;
+    //   console.log("Marking video as completed and updating view count");
+
+    //   await Video.findByIdAndUpdate(videoId, {
+    //     $inc: { viewCount: 1}
+    //   });
+    //   await PlatformStats.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
+
+    //   const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
+    //   const vendor = await Vendor.findById(videoWithPackage.vendor_id);
+
+    //   if (videoWithPackage?.finalPackage_id) {
+    //     const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
+
+    //     await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
+    //       $inc: {
+    //         wallet: earnings,
+    //         lockedBalance: earnings
+    //       }
+    //     });
+
+    //     await Video.findByIdAndUpdate(videoId, {
+    //       $inc: { totalEarnings: earnings }
+    //     });
+
+    //     console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
+    //   }
+    // } else if (videoView.isCompleted) {
+    //   console.log("Video already marked as completed, skipping view/earnings update.");
+    // }
+
+    
+    if (watchedPercentage >= 30 && !videoView.isCompleted) {
+      videoView.isCompleted = true;
+      console.log("Marking video as completed and updating view count");
+    
+      await Video.findByIdAndUpdate(videoId, {
+        $inc: { viewCount: 1 }
+      });
+    
+      await Vendor.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
+    
+      const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
+      const vendor = await Vendor.findById(videoWithPackage.vendor_id);
+    
+      if (videoWithPackage?.finalPackage_id) {
+        const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
+    
+        await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
+          $inc: {
+            wallet: earnings,
+            lockedBalance: earnings
+          }
+        });
+    
+        await Video.findByIdAndUpdate(videoId, {
+          $inc: { totalEarnings: earnings }
+        });
+    
+        console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
+      }
+    } else if (videoView.isCompleted) {
+      console.log("Video already marked as completed, skipping view/earnings update.");
+    }
+    
+    await videoView.save();
+
+    res.json({
+      success: true,
+      message: 'Video progress tracked successfully',
+      watchedPercentage: watchedPercentage.toFixed(2)
+    });
+  } catch (error) {
+    console.error("Error tracking video progress:", error);
+    res.status(500).json({ success: false, message: 'Error tracking video progress' });
+  }
+});
+
+router.get('/video-url/:id', async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id);
+    if (!video) return res.status(404).json({ success: false, message: 'Video not found' });
+
+    // Choose best available resolution or provide all options
+    const videoUrl = video.video_720 || video.video_480 || video.video_320 || '';
+
+    res.json({ success: true, videoUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error fetching video' });
+  }
+});
+
 module.exports = router;

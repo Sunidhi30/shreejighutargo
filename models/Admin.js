@@ -9,7 +9,10 @@ const adminSchema = new mongoose.Schema({
   role: { type: String, default: 'admin' },
   profileImage: { type: String }, // 👈 New field for profile picture
   targetAmount: { type: Number, default: 0 },  // 👈 Add this line
+  pricePerView: { type: Number, default: 1 } , // ✅ Add this
+
   wallet: { type: Number, default: 0 }  // Admin's wallet balance
+
 
 }, { timestamps: true });
 

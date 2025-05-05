@@ -40,7 +40,7 @@ app.get('/session', (req, res) => {
 });
 //  // Serve the test HTML file
  app.get("/testingpay", (req, res) => {
-  res.sendFile(__dirname + "/testingvideo.html");
+  res.sendFile(__dirname + "/testingVideos.html");
 })
 db().then(function (db) {
     console.log(`Db connnected`)
