@@ -74,6 +74,10 @@ ratings: [
 ],
 averageRating: { type: Number, default: 0 },
 ratingCount: { type: Number, default: 0 },
+isSeries: { type: Boolean, default: false },
+series_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Series' },
+season_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Season' },
+episodeNumber: { type: Number },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }
 }, {
   collection: 'tbl_video',
