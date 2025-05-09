@@ -325,7 +325,7 @@ router.put('/set-price-per-view', verifyAdmin, async (req, res) => {
   }
 });
 // add type 
-router.post('/add_type', async (req, res) => {
+router.post('/add_type',verifyAdmin, async (req, res) => {
   try {
     const { name, type, status = 1 } = req.body;
 
@@ -1058,46 +1058,6 @@ router.get('/casts-count', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-// add a season 
-// Add a new season according to random like any season of any video 
-// router.post('/add-season', async (req, res) => {
-//   try {
-//     const { id, name, status } = req.body;
-
-//     // Check for existing season with same ID
-//     const existing = await Season.findOne({ id });
-//     if (existing) {
-//       return res.status(400).json({ message: 'Season with this ID already exists' });
-//     }
-
-//     const newSeason = new Season({ id, name, status });
-//     await newSeason.save();
-
-//     res.status(201).json({ message: 'Season added successfully', data: newSeason });
-//   } catch (error) {
-//     console.error('Error adding season:', error);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// });
-// POST /api/seasons/add accoridng to the particular video or show here im taking show 
-router.post('/add-season', async (req, res) => {
-  try {
-    const { showId, name, status } = req.body;
-
-    // Validate required fields
-    if (!showId || !name) {
-      return res.status(400).json({ error: 'showId and name are required' });
-    }
-
-    const newSeason = new Season({ showId, name, status });
-    await newSeason.save();
-
-    res.status(201).json({ message: 'Season added successfully', season: newSeason });
-  } catch (error) {
-    console.error('Error adding season:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 // get all users
 router.get('/all-users', async (req, res) => {
   try {
@@ -1627,7 +1587,6 @@ router.put('/video-status/:videoId', verifyAdmin, async (req, res) => {
 });
 router.get('/admin-note/:videoId',  async (req, res) => {
   const videoId = req.params.videoId;
-
   try {
     const video = await Video.findById(videoId)
       .populate('vendor_id', 'name email')
@@ -1669,5 +1628,4 @@ router.get('/admin-note/:videoId',  async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-
-module.exports = router; 
+module.exports = router;

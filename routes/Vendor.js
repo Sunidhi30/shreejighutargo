@@ -5,8 +5,6 @@ const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
 const cloudinary = require('cloudinary').v2;
 const { uploadToCloudinary } = require("../utils/cloudinary");
-const Movie = require('../models/Movie');
-const Vendors = require("../models/Vendor");
 const storage = multer.memoryStorage();
 const Series = require('../models/Series');
 const Season = require('../models/Season');
@@ -21,13 +19,10 @@ const crypto = require('crypto');
 const DEFAULT_IMAGE_URL = 'https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg'; // Set your default static image URL
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const Content = require("../models/Content");
-const category = require("../models/Category")
-const UpcomingContent = require('../models/UpcomingContent');
 const  Video = require("../models/Video");
 const Channel = require("../models/Channel");
-const Category = require("../models/Category");
-const PackageDetail = require("../models/PackageDetail")
+// const Category = require("../models/Category");
+// const PackageDetail = require("../models/PackageDetail")
 const mongoose = require("mongoose");
 // Configucre Cloudinary
 cloudinary.config({
@@ -146,8 +141,6 @@ router.post(
     { name: 'trailer', maxCount: 1 }
   ]),
   async (req, res) => {
-    // console.log(req.body)
-
     try {
       
       const { 
@@ -155,8 +148,8 @@ router.post(
         language_id, cast_id, name, description, video_upload_type, video_extension,
         video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
         subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
-        is_title, is_download, is_like, is_comment, total_like, total_view, is_rent, price,
-        rent_day
+        is_title, is_download, is_like, is_comment, total_like, total_view, is_rent,
+       
       } = req.body;
       const vendorId = req.vendor.id;
       // console.log("", vendorId);
@@ -220,8 +213,8 @@ router.post(
         total_like: Number(total_like),
         total_view: Number(total_view),
         is_rent: Number(is_rent),
-        price: Number(price),
-        rent_day: Number(rent_day),
+        // price: Number(price),
+        // rent_day: Number(rent_day),
         status:"pending",
         isApproved: false
         // packageType: package.revenueType,
@@ -261,6 +254,7 @@ router.post(
     }
   }
 );
+
 // update the videos 
 router.put(
   '/update-video/:videoId', 
@@ -1201,7 +1195,6 @@ router.post('/series/:seriesId/seasons', isVendor, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 // Add Episode to Season
 router.post(
   '/series/:seriesId/seasons/:seasonId/episodes',
@@ -1302,7 +1295,6 @@ router.post(
     }
   }
 );
-
 // // Get series with seasons and episodes
 // router.get('/series/:seriesId', async (req, res) => {
 //   try {
@@ -1322,8 +1314,6 @@ router.post(
 //     res.status(500).json({ success: false, error: error.message });
 //   }
 // });
-
-
 // Get all episodes for a specific season
 router.get('/season/:seasonId', async (req, res) => {
   try {
@@ -1338,7 +1328,6 @@ router.get('/season/:seasonId', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 // routes/series.js or similar
 router.get('/series/:seriesId', async (req, res) => {
   try {
@@ -1373,208 +1362,6 @@ router.get('/series/:seriesId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching series:', error);
     res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Playlist Management Routes
-router.post('/playlists', isVendor, upload.single('thumbnail'), async (req, res) => {
-  try {
-    const { title, description, isPublic } = req.body;
-    
-    const thumbnailUrl = req.file ? 
-      await uploadToCloudinary(req.file, 'playlists/thumbnails') : '';
-
-    const playlist = new Playlist({
-      vendor_id: req.vendor.id,
-      title,
-      description,
-      thumbnail: thumbnailUrl,
-      isPublic: isPublic === 'true'
-    });
-
-    await playlist.save();
-    res.status(201).json({ success: true, playlist });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Add video to playlist
-router.post('/playlists/:playlistId/videos', isVendor, async (req, res) => {
-  try {
-    const { video_id } = req.body;
-    
-    const playlist = await Playlist.findOneAndUpdate(
-      { _id: req.params.playlistId, vendor_id: req.vendor.id },
-      { $addToSet: { videos: video_id } },
-      { new: true }
-    );
-
-    if (!playlist) {
-      return res.status(404).json({ success: false, message: 'Playlist not found' });
-    }
-
-    res.json({ success: true, playlist });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-// upload a series videos , tv show 
-router.post('/create-series-video', isVendor, upload.fields([
-  { name: 'thumbnail', maxCount: 1 },
-  { name: 'landscape', maxCount: 1 },
-  { name: 'video_320', maxCount: 1 },
-  { name: 'video_480', maxCount: 1 },
-  { name: 'video_720', maxCount: 1 },
-  { name: 'video_1080', maxCount: 1 },
-  { name: 'trailer', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const {
-      // Series-specific fields
-      series_id,
-      season_id,
-      episodeNumber,
-      seasonNumber,
-      
-      // Regular video fields
-      type_id, video_type, channel_id, producer_id, category_id, finalPackage_id,
-      language_id, cast_id, name, description, video_upload_type, video_extension,
-      video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
-      subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
-      is_title, is_download, is_like, is_comment, total_like, total_view, is_rent, price,
-      rent_day
-    } = req.body;
-
-    const vendorId = req.vendor.id;
-
-    // Handle file uploads
-    let thumbnailUrl = '', landscapeUrl = '', video_320Url = '', video_480Url = '', 
-        video_720Url = '', video_1080Url = '', trailerUrl = '';
-
-    const uploadFile = async (field, folder) => {
-      if (req.files[field]) {
-        const file = req.files[field][0];
-        const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-        return await uploadToCloudinary(base64, folder, file.mimetype);
-      }
-      return '';
-    };
-
-    // Upload all files
-    thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
-    landscapeUrl = await uploadFile('landscape', 'series/landscapes');
-    video_320Url = await uploadFile('video_320', 'series/320');
-    video_480Url = await uploadFile('video_480', 'series/480');
-    video_720Url = await uploadFile('video_720', 'series/720');
-    video_1080Url = await uploadFile('video_1080', 'series/1080');
-    trailerUrl = await uploadFile('trailer', 'series/trailers');
-
-    // Create the video document
-    const newVideo = new Video({
-      // Series-specific fields
-      isSeries: true,
-      series_id: series_id ? new mongoose.Types.ObjectId(series_id) : null,
-      season_id: season_id ? new mongoose.Types.ObjectId(season_id) : null,
-      episodeNumber: Number(episodeNumber),
-      seasonNumber: Number(seasonNumber),
-
-      // Regular video fields
-      type_id: type_id ? new mongoose.Types.ObjectId(type_id) : null,
-      video_type,
-      vendor_id: new mongoose.Types.ObjectId(vendorId),
-      channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
-      producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
-      category_id: category_id ? new mongoose.Types.ObjectId(category_id) : null,
-      language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
-      finalPackage_id: finalPackage_id ? new mongoose.Types.ObjectId(finalPackage_id) : null,
-      cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
-      name,
-      thumbnail: thumbnailUrl,
-      landscape: landscapeUrl,
-      description,
-      video_upload_type,
-      video_320: video_320Url,
-      video_480: video_480Url,
-      video_720: video_720Url,
-      video_1080: video_1080Url,
-      video_extension,
-      video_duration: Number(video_duration),
-      trailer_type,
-      trailer_url: trailerUrl,
-      subtitle_type,
-      subtitle_lang_1,
-      subtitle_1,
-      subtitle_lang_2,
-      subtitle_2,
-      subtitle_lang_3,
-      subtitle_3,
-      release_date,
-      is_premium: Number(is_premium),
-      is_title: Number(is_title),
-      is_download: Number(is_download),
-      is_like: Number(is_like),
-      is_comment: Number(is_comment),
-      total_like: Number(total_like),
-      total_view: Number(total_view),
-      is_rent: Number(is_rent),
-      price: Number(price),
-      rent_day: Number(rent_day),
-      status: "pending",
-      isApproved: false
-    });
-
-    await newVideo.save();
-
-    // Create corresponding episode
-    const episode = new Episode({
-      series_id,
-      season_id,
-      video_id: newVideo._id,
-      episodeNumber: Number(episodeNumber),
-      seasonNumber: Number(seasonNumber),
-      title: name,
-      description,
-      duration: Number(video_duration),
-      thumbnail: thumbnailUrl
-    });
-
-    await episode.save();
-
-    // Update season's episode count
-    if (season_id) {
-      await Season.findByIdAndUpdate(season_id, {
-        $inc: { totalEpisodes: 1 }
-      });
-    }
-
-    // Populate the video response
-    const populatedVideo = await Video.findById(newVideo._id)
-      .populate('type_id', 'name')
-      .populate('category_id', 'name')
-      .populate('cast_id', 'name')
-      .populate('language_id', 'name')
-      .populate('producer_id', 'name')
-      .populate('channel_id', 'name')
-      .populate('vendor_id', 'name')
-      .populate('finalPackage_id', 'name')
-      .populate('series_id')
-      .populate('season_id');
-
-    res.status(201).json({
-      success: true,
-      message: 'Series episode created successfully',
-      video: populatedVideo,
-      episode
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Series episode creation failed', 
-      error: err.message 
-    });
   }
 });
 

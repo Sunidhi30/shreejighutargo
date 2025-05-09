@@ -821,28 +821,6 @@ router.post('/invest-plan', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-// GET /api/users/:id - Get user details by ID including email
-// router.get('/:id', async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id)
-//       .select('-otp -otpExpiry') // exclude sensitive fields if needed
-//       .populate('watchlist')
-//       .populate('downloads')
-//       .populate('subscriptions')
-//       .populate('rentedVideos')
-//       .populate('transactions');
-
-//     if (!user || user.deleted) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-
-//     // Email will be included automatically
-//     res.status(200).json(user);
-//   } catch (err) {
-//     console.error('Error fetching user:', err);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// });
 // Get all active subscription plans (for users to view)
 router.get('/plans', async (req, res) => {
   try {
@@ -1203,34 +1181,7 @@ router.patch('/cancel-subscription', isUser, async (req, res) => {
   }
 });
 // POST /api/comments
-router.post('/comment',isUser, async (req, res) => {
-  try {
-    const {
-  
-      video_id,
-      comment
-    } = req.body;
 
-    if (!comment || !video_id) {
-      return res.status(400).json({ message: 'Required fields missing' });
-    }
-
-    const newComment = new Comment({
-      user_id: req.user._id, // from isAuthenticated middleware
-      
-      video_id,
-    
-      comment
-    });
-
-    const savedComment = await newComment.save();
-    return res.status(201).json({ message: 'Comment posted', comment: savedComment });
-
-  } catch (error) {
-    console.error('Comment post error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
 // 👉 Like a video
 router.patch('/:videoId/like', async (req, res) => {
   try {
@@ -1263,17 +1214,14 @@ router.post('/:videoId/comment', isUser, async (req, res) => {
     const { comment } = req.body;
     const { videoId } = req.params;
     const user_id = req.user._id;
-
     if (!comment) {
       return res.status(400).json({ message: 'Comment is required' });
     }
-
     const newComment = new Comment({
       video_id: videoId,
       user_id,
       comment,
     });
-
     await newComment.save();
     // / Find the video and increment the total comments count
     const video = await Video.findById(videoId);
@@ -1333,115 +1281,6 @@ router.get('/:videoId/analytics', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch video analytics' });
-  }
-});
-// user can send a request for renting the video 
-// Create Razorpay Order and Save Transaction
-router.post('/buy-video/:videoId',isUser, async (req, res) => {
-  try {
-    const userId = req.user.id; // from auth middleware
-    const videoId = req.params.videoId;
-
-    // 1. Find the video
-    const video = await Video.findById(videoId);
-    if (!video) return res.status(404).json({ message: 'Video not found' });
-
-    // if (!video.isApproved || video.status !== 1) {
-    //   return res.status(403).json({ message: 'This video is not available for purchase' });
-    // }
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    if (user.rentedVideos.includes(videoId)) {
-      return res.status(400).json({ message: 'Video already purchased or rented' });
-    }
-
-    const price = video.price;
-    if (!price) {
-      return res.status(400).json({ message: 'Price not available for this video' });
-    }
-
-    // 2. Create Razorpay Order
-    const amountInPaise = price * 100; // Razorpay expects amount in paise (1 Rupee = 100 Paise)
-
-    const razorpayOrder = await razorpay.orders.create({
-      amount: amountInPaise,
-      currency: "INR",
-      receipt: `receipt_${uuidv4().slice(0, 20)}`,
-
-      notes: {
-        userId: userId.toString(),
-        videoId: videoId.toString(),
-      }
-    });
-
-    // 3. Save the transaction in your DB as "pending" initially
-    const newTransaction = new Transaction({
-      unique_id: uuidv4(),
-      user_id: userId,
-      package_id: video.package_id || null, // if video has package, else null
-      transaction_id: razorpayOrder.id,
-      price: price.toString(),
-      description: `Purchase of video: ${video.name}`,
-      status: 0, // 0 => pending
-    });
-
-    await newTransaction.save();
-
-    // 4. Return order details to frontend to complete payment
-    res.status(200).json({
-      message: "Order created",
-      orderId: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency,
-      key: process.env.RAZORPAY_KEY, // frontend will use this to complete payment
-    });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-// After frontend completes payment, it will hit this endpoint
-router.post('/verify-payment', async (req, res) => {
-  try {
-    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, videoId } = req.body;
-    const userId = req.user.id;
-
-    // 1. Verify Signature
-    const generated_signature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(razorpay_order_id + "|" + razorpay_payment_id)
-      .digest('hex');
-
-    if (generated_signature !== razorpay_signature) {
-      return res.status(400).json({ message: 'Payment verification failed' });
-    }
-
-    // 2. Update Transaction
-    const transaction = await Transaction.findOneAndUpdate(
-      { transaction_id: razorpay_order_id },
-      { status: 1 }, // mark as success
-      { new: true }
-    );
-
-    if (!transaction) {
-      return res.status(404).json({ message: 'Transaction not found' });
-    }
-
-    // 3. Update User's rentedVideos
-    const user = await User.findById(userId);
-    if (!user.rentedVideos.includes(videoId)) {
-      user.rentedVideos.push(videoId);
-      await user.save();
-    }
-
-    res.status(200).json({ message: 'Payment verified and video purchased successfully' });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
   }
 });
 // Get all Top 10 movies
@@ -1618,216 +1457,7 @@ router.get('/coming-soon', async (req, res) => {
   }
 
 });
-// POST /api/admin/trailers/upcoming
-// router.post('/upcoming', verifyAdmin, async (req, res) => {
-//   try {
-//     const {
-//       vendor_id,
-//       name,
-//       thumbnail,     // poster image URL
-//       landscape,     // optional wide image URL
-//       description,
-//       trailer_url,   // external trailer link
-//       release_date,
-//       category_id,
-//       language_id
-//     } = req.body;
-
-//     // Validation
-//     if (!vendor_id || !name || !thumbnail || !trailer_url || !release_date) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'vendor_id, name, thumbnail, trailer_url, and release_date are required.'
-//       });
-//     }
-
-//     // Ensure trailer_url is a valid URL (optional)
-//     if (!trailer_url.startsWith('http')) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'trailer_url must be a valid external URL.'
-//       });
-//     }
-
-//     const newTrailer = new Video({
-//       vendor_id,
-//       name,
-//       thumbnail,
-//       landscape,
-//       description,
-//       trailer_url,
-//       release_date,
-//       category_id,
-//       language_id,
-//       isComingSoon: true,
-//       isApproved: true, // auto-approve or set to false if you want admin approval flow
-//       video_upload_type: 'url', // to indicate it's not a direct upload
-//       video_320: null,
-//       video_480: null,
-//       video_720: null,
-//       video_1080: null
-//     });
-
-//     const saved = await newTrailer.save();
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Upcoming trailer (poster only) created successfully',
-//       data: saved
-//     });
-
-//   } catch (err) {
-//     console.error('Error creating upcoming trailer:', err);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Internal Server Error'
-//     });
-//   }
-// });
-// trakc the watcing videos 
-// router.post('/track-video-progress', isUser, async (req, res) => {
-//   try {
-//     const { videoId, currentTime, duration } = req.body;
-//     const userId = req.user.id;
-
-//     if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
-//       return res.status(400).json({ success: false, message: 'Invalid input data' });
-//     }
-
-//     // Calculate watched percentage
-//     const watchedPercentage = (currentTime / duration) * 100;
-
-//     // Find or create view record
-//     let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
-//     console.log("video view: ", videoView);  // Check the value of videoView
-
-//     if (!videoView) {
-//       videoView = new VideoView({
-//         video_id: videoId,
-//         user_id: userId,
-//         watchedPercentage
-//       });
-//     } else {
-//       videoView.watchedPercentage = Math.max(videoView.watchedPercentage, watchedPercentage);
-//     }
-
-//     // Check if view should be counted (30% threshold)
-//     if (watchedPercentage >= 30 && !videoView.isCompleted) {
-//       videoView.isCompleted = true;
-
-//       await Video.findByIdAndUpdate(videoId, {
-//         $inc: { total_view: 1 }
-//       });
-
-//       const video = await Video.findById(videoId).populate('finalPackage_id');
-//       const vendor = await Vendor.findById(video.vendor_id);
-
-//       if (video.finalPackage_id) {
-//         const earningsPerView = video.finalPackage_id.pricePerView || 0;
-//         const earnings = earningsPerView;
-
-//         await Vendor.findByIdAndUpdate(video.vendor_id, {
-//           $inc: {
-//             wallet: earnings,
-//             lockedBalance: earnings
-//           }
-//         });
-
-//         await Video.findByIdAndUpdate(videoId, {
-//           $inc: { totalEarnings: earnings }
-//         });
-//       }
-//     }
-
-//     await videoView.save();
-
-//     res.json({
-//       success: true,
-//       message: 'Video progress tracked successfully',
-//       watchedPercentage
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ success: false, message: 'Error tracking video progress' });
-//   }
-// });
-// router.post('/track-video-progress', isUser, async (req, res) => {
-//   try {
-//     const { videoId, currentTime, duration } = req.body;
-//     const userId = req.user.id;
-
-//     if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
-//       return res.status(400).json({ success: false, message: 'Invalid input data' });
-//     }
-
-//     // Calculate watched percentage
-//     const watchedPercentage = (currentTime / duration) * 100;
-
-//     // Find or create view record
-//     let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
-//     console.log("video view: ", videoView);  // Check the value of videoView
-
-//     if (!videoView) {
-//       // If no view exists, create a new one
-//       videoView = new VideoView({
-//         video_id: videoId,
-//         user_id: userId,
-//         watchedPercentage
-//       });
-//     } else {
-//       // Update watchedPercentage if view exists
-//       videoView.watchedPercentage = Math.max(videoView.watchedPercentage, watchedPercentage);
-//     }
-
-//     // Check if view should be counted (30% threshold)
-//     if (watchedPercentage >= 30 && !videoView.isCompleted) {
-//       videoView.isCompleted = true;
-
-//       // Update the video view count only if this is the first time the user watched 30%
-//       const video = await Video.findById(videoId);
-//       console.log("video is ", video);
-//       // Ensure the view count is only updated once per user
-//       await Video.findByIdAndUpdate(videoId, {
-//         $inc: { total_view: 1 }
-//       });
-
-//       // Calculate and update vendor earnings
-//       const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
-//       const vendor = await Vendor.findById(videoWithPackage.vendor_id);
-
-//       if (videoWithPackage.finalPackage_id) {
-//         const earningsPerView = videoWithPackage.finalPackage_id.pricePerView || 0;
-//         const earnings = earningsPerView;
-
-//         // Update vendor wallet
-//         await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
-//           $inc: {
-//             wallet: earnings,
-//             lockedBalance: earnings
-//           }
-//         });
-
-//         // Update video total earnings
-//         await Video.findByIdAndUpdate(videoId, {
-//           $inc: { totalEarnings: earnings }
-//         });
-//       }
-//     }
-
-//     // Save the video view document
-//     await videoView.save();
-
-//     res.json({
-//       success: true,
-//       message: 'Video progress tracked successfully',
-//       watchedPercentage
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ success: false, message: 'Error tracking video progress' });
-//   }
-// });
-
+// video progress
 router.post('/track-video-progress', isUser, async (req, res) => {
   try {
     const { videoId, currentTime, duration } = req.body;
@@ -1938,7 +1568,6 @@ router.post('/track-video-progress', isUser, async (req, res) => {
     res.status(500).json({ success: false, message: 'Error tracking video progress' });
   }
 });
-
 router.get('/video-url/:id', async (req, res) => {
   try {
     const video = await Video.findById(req.params.id);
@@ -1953,5 +1582,4 @@ router.get('/video-url/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching video' });
   }
 });
-
 module.exports = router;
