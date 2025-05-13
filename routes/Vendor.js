@@ -42,7 +42,6 @@ const sendEmailWithPDF = async (videoData, pdfPath, adminEmail) => {
       pass: process.env.EMAIL_PASS
     }
   });
-
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: adminEmail, // ✅ dynamic email passed as argument
@@ -68,7 +67,6 @@ Your Platform Team`,
     ]
   });
 };
-
 const generatePDF = (videoData, filePath) => {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument();
@@ -95,7 +93,6 @@ const generatePDF = (videoData, filePath) => {
     stream.on('error', err => reject(err));
   });
 };
-
 // Fields for upload
 const uploadFields = [
   { name: 'video', maxCount: 1 },
@@ -1447,10 +1444,8 @@ router.post(
 router.get('/season/:seasonId', async (req, res) => {
   try {
     const { seasonId } = req.params;
-
     const episodes = await Episode.find({ season_id: seasonId })
       .sort({ episode_number: 1 }); // optional: sort by episode number
-
     res.status(200).json(episodes);
   } catch (error) {
     console.error('Error fetching episodes:', error);
