@@ -40,7 +40,6 @@ const router = express.Router();
 const Video = require("../models/Video");
 const fs = require("fs");
 const path = require("path");
-const Movie = require("../models/Movie");
 const Content = require("../models/Content");
 const downloadsDir = path.join(__dirname, "../downloads");
 const DeviceSync = require("../models/DeviceSync")
@@ -68,14 +67,13 @@ const transporter = nodemailer.createTransport({
 });
 const sendOTPEmail = async (email, otp) => {
   const mailOptions = {
-    from: `"Everything Like in the Movies" <${process.env.EMAIL_USER}>`,
+    from: `"Backend testing the videos" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: 'Your OTP for Admin Login',
     text: `Your One-Time Password (OTP) is: ${otp}\nThis OTP is valid for 10 minutes.`,
   };
   await transporter.sendMail(mailOptions);
 };
-
 // Helper function to upload to Cloudinary
 const uploadingCloudinary = async (base64Data, folder, mimetype) => {
   try {
@@ -89,7 +87,6 @@ const uploadingCloudinary = async (base64Data, folder, mimetype) => {
     throw error;
   }
 };
-
 //sign up 
 router.post('/signup', async (req, res) => {
   try {
@@ -1180,8 +1177,6 @@ router.patch('/cancel-subscription', isUser, async (req, res) => {
     });
   }
 });
-// POST /api/comments
-
 // 👉 Like a video
 router.patch('/:videoId/like', async (req, res) => {
   try {
@@ -1222,13 +1217,16 @@ router.post('/:videoId/comment', isUser, async (req, res) => {
       user_id,
       comment,
     });
+    
     await newComment.save();
+  
+
     // / Find the video and increment the total comments count
     const video = await Video.findById(videoId);
     if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
-
+    video.comments.push(newComment._id);
     video.total_comment += 1;
     // Optionally, recalculate the engagement rate
     video.engagementRate = calculateEngagementRate(video);

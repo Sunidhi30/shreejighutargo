@@ -23,6 +23,8 @@ const vendorSchema = new mongoose.Schema({
     ifscCode: String,
     swiftCode: String
   },
+  resetToken: String,
+resetTokenExpiry: Date,
   paymentMethods: [{
     type: String,
     methodType: { type: String, enum: ['bank_transfer', 'paypal', 'stripe', 'other'] },

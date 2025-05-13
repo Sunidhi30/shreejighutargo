@@ -37,7 +37,6 @@ const router = express.Router();
 const fs = require("fs");
 const Admin = require("../models/Admin");
 const path = require("path");
-const Movie = require("../models/Movie");
 const downloadsDir = path.join(__dirname, "../downloads");
 const Type = require("../models/Type");
 const bcrypt = require('bcryptjs');

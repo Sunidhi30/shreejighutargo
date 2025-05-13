@@ -1,5 +1,9 @@
 const express = require('express');
 const Admin = require("../models/Admin");
+const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
@@ -30,6 +34,68 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
+const sendEmailWithPDF = async (videoData, pdfPath, adminEmail) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: adminEmail, // ✅ dynamic email passed as argument
+    subject: `New Video Submission: ${videoData.name}`,
+    text: `Hello Admin,
+
+A new video has been submitted for review.
+
+📌 Title: ${videoData.name}
+🎬 Vendor: ${videoData.vendor_id?.name}
+🎭 Category: ${videoData.category_id?.name}
+🗣 Language: ${videoData.language_id?.name}
+
+Please find the attached PDF containing full details of the submission.
+
+Regards,
+Your Platform Team`,
+    attachments: [
+      {
+        filename: 'video-details.pdf',
+        path: pdfPath
+      }
+    ]
+  });
+};
+
+const generatePDF = (videoData, filePath) => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument();
+    const stream = fs.createWriteStream(filePath);
+    doc.pipe(stream);
+
+    doc.fontSize(18).text('Video Submission Agreement', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).text(`Name: ${videoData.name}`);
+    doc.text(`Description: ${videoData.description}`);
+    doc.text(`Video Type: ${videoData.video_type}`);
+    doc.text(`Duration: ${videoData.video_duration}`);
+    doc.text(`Release Date: ${videoData.release_date}`);
+    doc.text(`Language: ${videoData.language_id?.name || 'N/A'}`);
+    doc.text(`Category: ${videoData.category_id?.name || 'N/A'}`);
+    doc.text(`Producer: ${videoData.producer_id?.name || 'N/A'}`);
+    doc.text(`Vendor: ${videoData.vendor_id?.name || 'N/A'}`);
+    doc.text(`Status: ${videoData.status}`);
+    doc.moveDown().text('Agreement Terms...');
+    doc.text('By uploading this video, the vendor agrees to platform terms and conditions.');
+
+    doc.end();
+    stream.on('finish', () => resolve());
+    stream.on('error', err => reject(err));
+  });
+};
+
 // Fields for upload
 const uploadFields = [
   { name: 'video', maxCount: 1 },
@@ -128,6 +194,25 @@ router.put('/update-profile', isVendor, upload.single('image'), async (req, res)
     res.status(500).json({ success: false, message: 'Server error', error: err.message });
   }
 });
+router.get('/get-profile', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor._id;
+
+    const vendor = await Vendor.findById(vendorId).select('-password'); // exclude password
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      vendor
+    });
+  } catch (err) {
+    console.error('Get profile error:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+});
 //upload video  (its simple uploading without doing the rentals videos and all )
 router.post(
   '/create-video',isVendor,
@@ -185,6 +270,7 @@ router.post(
         cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
         name,
         // monetizationType,
+        comments: [],
         thumbnail: thumbnailUrl,
         landscape: landscapeUrl,
         description,
@@ -224,14 +310,8 @@ router.post(
         //   commissionRate: package.commissionRate
         // }
       });
-
       await newVideo.save();
-       // Push video ID to vendor's uploadedContent
-      //  await Vendor.findByIdAndUpdate(vendorId, {
-      //   $push: { uploadedContent: newVideo._id }
-      // });
-
-
+  
       const populatedVideo = await Video.findById(newVideo._id)
         .populate('type_id', 'name')
         .populate('category_id', 'name')
@@ -240,8 +320,29 @@ router.post(
         .populate('producer_id', 'name')
         .populate('channel_id', 'name')
         .populate('vendor_id', 'name')
+        .populate({
+          path: 'comments',
+          populate: {
+            path: 'user_id',
+            select: 'name'
+          }
+        })
         .populate('finalPackage_id',name);
+         // ✅ Fetch admin email from DB
+      const admin = await Admin.findOne({ role: 'admin' }); // adjust if role is stored differently
+      if (!admin || !admin.email) {
+        throw new Error('Admin email not found.');
+      }
 
+      // ✅ Generate PDF and email it to admin
+      const pdfPath = path.join(__dirname, `../temp/video-${newVideo._id}.pdf`);
+      await generatePDF(populatedVideo, pdfPath);
+      await sendEmailWithPDF(populatedVideo, pdfPath, admin.email);
+
+      // ✅ Delete PDF after sending
+      fs.unlink(pdfPath, err => {
+        if (err) console.error('Failed to delete PDF:', err);
+      });
       res.status(201).json({
         success: true,
         message: 'Video created successfully',
@@ -254,7 +355,6 @@ router.post(
     }
   }
 );
-
 // update the videos 
 router.put(
   '/update-video/:videoId', 
@@ -374,11 +474,39 @@ router.put(
     }
   }
 );
+// DELETE /vendor/delete-video/:id
+router.delete('/delete-video/:id',isVendor, async (req, res) => {
+  try {
+    const videoId = req.params.id;
+    const vendorId = req.vendor.id;
+
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      return res.status(400).json({ success: false, message: 'Invalid video ID' });
+    }
+
+    // Find the video
+    const video = await Video.findOne({ _id: videoId, vendor_id: vendorId });
+
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video not found or unauthorized' });
+    }
+
+   
+
+    // Delete from DB
+    await Video.deleteOne({ _id: videoId });
+
+    res.status(200).json({ success: true, message: 'Video deleted successfully' });
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+});
 //get all the  videos 
 router.get('/videos', isVendor, async (req, res) => {
   try {
     const vendorId = req.vendor?._id
-    console.log("venodrs "+vendorId) 
+   
 
     const videos = await Video.find({ vendor_id: vendorId })
     // .populate('category_id', 'name') 
@@ -651,6 +779,26 @@ router.get('/video-views/:videoId', isVendor, async (req, res) => {
   } catch (error) {
     console.error('Error fetching video views:', error);
     res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// Route: GET /api/vendors/videos
+router.get('/filter-videos', async (req, res) => {
+  try {
+    const { type } = req.query;
+
+    const filter = {};
+    if (type) {
+      filter.video_type = type;
+    }
+
+    const videos = await Video.find(filter)
+      .populate('finalPackage_id')
+      .populate('category_id');
+
+    res.status(200).json({ videos });
+  } catch (error) {
+    console.error('Error fetching videos:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 // get the total views of the vendor 
@@ -949,7 +1097,6 @@ router.get('/casts-count', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 // GET: Count videos uploaded by a specific vendor
 router.get('/vendor/video-count', isVendor,async (req, res) => {
  
@@ -990,6 +1137,7 @@ router.get('/vendor/videos', isVendor, async (req, res) => {
     });
   }
 });
+// get videos by status
 router.get('/videos-by-status', isVendor, async (req, res) => {
   try {
     const vendorId = req.vendor.id;
@@ -1034,6 +1182,7 @@ router.get('/videos-by-status', isVendor, async (req, res) => {
     });
   }
 });
+// get top performing
 router.get('/top-performing-videos', isVendor, async (req, res) => {
   try {
     const vendorId = req.vendor.id;
@@ -1090,7 +1239,6 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
-// playlist , series , episodes managements 
 // Create a new series
 router.post('/series', isVendor, upload.fields([
   { name: 'thumbnail', maxCount: 1 },
@@ -1295,25 +1443,6 @@ router.post(
     }
   }
 );
-// // Get series with seasons and episodes
-// router.get('/series/:seriesId', async (req, res) => {
-//   try {
-//     const series = await Series.findById(req.params.seriesId);
-//     const seasons = await Season.find({ series_id: series._id });
-//     const episodes = await Episode.find({ series_id: series._id })
-//       .populate('video_id')
-//       .sort({ seasonNumber: 1, episodeNumber: 1 });
-
-//     res.json({
-//       success: true,
-//       series,
-//       seasons,
-//       episodes
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, error: error.message });
-//   }
-// });
 // Get all episodes for a specific season
 router.get('/season/:seasonId', async (req, res) => {
   try {
@@ -1364,5 +1493,63 @@ router.get('/series/:seriesId', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+// POST: Forgot Password - Send reset link
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const vendor = await Vendor.findOne({ email });
+    if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
 
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiry = Date.now() + 3600000; // 1 hour
+
+    vendor.resetToken = token;
+    vendor.resetTokenExpiry = expiry;
+    await vendor.save();
+
+    // Email transporter
+    const transporter = nodemailer.createTransport({
+      service: 'Gmail', // or use SMTP config
+      auth: {
+        user: process.env.EMAIL_USER, // Admin email (set in environment variables)
+        pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
+      }
+    });
+
+    const resetLink = `http://localhost:9000/reset-password/${token}`;
+    await transporter.sendMail({
+      to: vendor.email,
+      subject: 'Vendor Password Reset',
+      html: `<p>Click <a href="${resetLink}">here</a> to reset your password. Valid for 1 hour.</p>`
+    });
+
+    res.status(200).json({ message: 'Reset link sent to your email.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+// POST: Reset Password - Change password
+router.post('/reset-password/:token', async (req, res) => {
+  const { token } = req.params;
+  const { newPassword } = req.body;
+
+  try {
+    const vendor = await Vendor.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() }
+    });
+
+    if (!vendor) return res.status(400).json({ message: 'Invalid or expired token.' });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    vendor.password = hashedPassword;
+    vendor.resetToken = undefined;
+    vendor.resetTokenExpiry = undefined;
+    await vendor.save();
+
+    res.status(200).json({ message: 'Password reset successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
 module.exports = router;

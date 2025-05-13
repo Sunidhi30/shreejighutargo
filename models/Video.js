@@ -51,6 +51,7 @@ const videoSchema = new mongoose.Schema({
   is_rent: { type: Number },
   price: { type: Number },
   rent_day: { type: Number },
+  comments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }],
   isApproved: { type: Boolean, default: false } , // 👈 Add this line
   status: {
     type: String,
