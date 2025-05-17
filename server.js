@@ -6,6 +6,7 @@ const login= require("./routes/login");
 const session = require('express-session');
 const admin = require("./routes/Admin");
 const users = require("./routes/User");
+const path = require('path');
 const vendors = require("./routes/Vendor")
 const PORT = process.env.PORT || 6000;
 require('dotenv').config()
@@ -42,11 +43,10 @@ app.get('/session', (req, res) => {
  app.get("/testingpay", (req, res) => {
   res.sendFile(__dirname + "/testingVideos.html");
 })
-//  // Serve the test HTML file
-app.get("/reset-password", (req, res) => {
-  res.sendFile(__dirname + "/reset-password.html");
-})
-
+// Render reset-password.html
+app.get('/reset-password/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'reset-password.html'));
+});
 db().then(function (db) {
     console.log(`Db connnected`)
 })

@@ -4,6 +4,7 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const Contest = require("../models/Content")
 const router = express.Router();
 const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
@@ -11,10 +12,10 @@ const cloudinary = require('cloudinary').v2;
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const storage = multer.memoryStorage();
 const Series = require('../models/Series');
+const Type = require("../models/Type")
 const Season = require('../models/Season');
 const Episode = require('../models/Episode');
 const Setting = require("../models/LikesSetting");
-// const Package = require("../models/Package")
 const finalPackage = require("../models/FinalPackage");
 const {isVendor}= require("../middleware/auth")
 const upload = multer({ storage: storage });
@@ -25,8 +26,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const  Video = require("../models/Video");
 const Channel = require("../models/Channel");
-// const Category = require("../models/Category");
-// const PackageDetail = require("../models/PackageDetail")
 const mongoose = require("mongoose");
 // Configucre Cloudinary
 cloudinary.config({
@@ -67,6 +66,14 @@ Your Platform Team`,
     ]
   });
 };
+const transporter = nodemailer.createTransport({ 
+  service: 'gmail', // Use your email provider
+  auth: {
+    user: process.env.EMAIL_USER, // Admin email (set in environment variables)
+    pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
+  }
+});
+
 const generatePDF = (videoData, filePath) => {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument();
@@ -550,7 +557,6 @@ router.get('/videos/:id', isVendor, async (req, res) => {
   try {
     const videoId = req.params.id;
     const vendorId = req.vendor.id;
-    
     const video = await Video.findOne({ 
       _id: videoId, 
       vendor_id: vendorId 
@@ -802,7 +808,6 @@ router.get('/filter-videos', async (req, res) => {
 router.get('/total-views', isVendor, async (req, res) => {
   try {
     const vendorId = req.vendorId;
-
     const videos = await Video.find({ vendor_id: vendorId });
 
     let totalViews = 0;
@@ -828,6 +833,7 @@ router.get('/total-views', isVendor, async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+
 // total likes 
 router.get('/vendor-total-likes', isVendor, async (req, res) => {
   try {
@@ -1064,14 +1070,22 @@ router.get('/users-count', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-// GET /api/tvshows/count
-router.get('/tvshows-count', async (req, res) => {
+ // GET total number of TV shows
+router.get('/tvshows/count', async (req, res) => {
   try {
-    const count = await TVShow.countDocuments();
-    res.status(200).json({ totalTVShows: count });
+    const tvShowType = 2; // Replace with your actual TV show type ID
+    const totalTVShows = await Type.countDocuments({ type: tvShowType, status: 1 }); // only active
+
+    res.status(200).json({
+      success: true,
+      totalTVShows
+    });
   } catch (error) {
-    console.error('Error counting TV Shows:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
   }
 });
 // GET /api/channel/count
@@ -1093,6 +1107,7 @@ router.get('/casts-count', async (req, res) => {
     console.error('Error counting TV Shows:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+  
 });
 // GET: Count videos uploaded by a specific vendor
 router.get('/vendor/video-count', isVendor,async (req, res) => {
@@ -1488,63 +1503,133 @@ router.get('/series/:seriesId', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-// POST: Forgot Password - Send reset link
+// Request password reset route
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
   try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Find the vendor by email
     const vendor = await Vendor.findOne({ email });
-    if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
+    
+    if (!vendor) {
+      return res.status(404).json({ message: 'No vendor found with this email address' });
+    }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiry = Date.now() + 3600000; // 1 hour
+    // Generate reset token and set expiry (valid for 1 hour)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = Date.now() + 3600000; // 1 hour from now
 
-    vendor.resetToken = token;
-    vendor.resetTokenExpiry = expiry;
+    // Save token to vendor record
+    vendor.resetToken = resetToken;
+    vendor.resetTokenExpiry = resetTokenExpiry;
     await vendor.save();
 
-    // Email transporter
-    const transporter = nodemailer.createTransport({
-      service: 'Gmail', // or use SMTP config
-      auth: {
-        user: process.env.EMAIL_USER, // Admin email (set in environment variables)
-        pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
-      }
-    });
+    // Create reset URL
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:9000'}/reset-password/${resetToken}`;
 
-    const resetLink = `http://localhost:9000/reset-password/${token}`;
-    await transporter.sendMail({
+    // Send email
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
       to: vendor.email,
-      subject: 'Vendor Password Reset',
-      html: `<p>Click <a href="${resetLink}">here</a> to reset your password. Valid for 1 hour.</p>`
-    });
+      subject: 'Password Reset Request',
+      html: `
+        <h1>Password Reset Request</h1>
+        <p>You requested a password reset for your vendor account.</p>
+        <p>Please click the link below to reset your password. This link is valid for 1 hour.</p>
+        <a href="${resetUrl}" style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 20px; margin: 8px 0; border: none; border-radius: 4px; cursor: pointer; text-decoration: none;">Reset Password</a>
+        <p>If you did not request this password reset, please ignore this email and your password will remain unchanged.</p>
+      `
+    };
 
-    res.status(200).json({ message: 'Reset link sent to your email.' });
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ 
+      message: 'Password reset email sent successfully. Please check your email.' 
+    });
   } catch (err) {
+    console.error('Password reset request error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-// POST: Reset Password - Change password
-router.post('/reset-password/:token', async (req, res) => {
-  const { token } = req.params;
-  const { newPassword } = req.body;
-
+// Verify reset token route
+router.get('/reset-password/:token', async (req, res) => {
   try {
+    const { token } = req.params;
+
+    // Find vendor with valid token
     const vendor = await Vendor.findOne({
       resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() }
+      resetTokenExpiry: { $gt: Date.now() } // Token must not be expired
     });
 
-    if (!vendor) return res.status(400).json({ message: 'Invalid or expired token.' });
+    if (!vendor) {
+      return res.status(400).json({ message: 'Invalid or expired password reset token' });
+    }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    // Return success if token is valid
+    res.status(200).json({ message: 'Token is valid', email: vendor.email });
+    
+  } catch (err) {
+    console.error('Token verification error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Reset password route
+router.post('/reset-password/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'New password is required' });
+    }
+
+    // Find vendor with valid token
+    const vendor = await Vendor.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() } // Token must not be expired
+    });
+
+    if (!vendor) {
+      return res.status(400).json({ message: 'Invalid or expired password reset token' });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Update vendor with new password and clear reset token
     vendor.password = hashedPassword;
     vendor.resetToken = undefined;
     vendor.resetTokenExpiry = undefined;
     await vendor.save();
 
-    res.status(200).json({ message: 'Password reset successfully.' });
+    // Send confirmation email
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || 'noreply@yourapp.com',
+      to: vendor.email,
+      subject: 'Password Reset Successful',
+      html: `
+        <h1>Password Reset Successful</h1>
+        <p>Your password has been successfully reset.</p>
+        <p>If you did not make this change, please contact our support team immediately.</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ message: 'Password has been reset successfully' });
+    
   } catch (err) {
+    console.error('Password reset error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+
 module.exports = router;

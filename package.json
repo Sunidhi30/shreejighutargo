@@ -32,7 +32,7 @@
     "uuidv4": "^6.2.13",
     "v4": "^0.0.1"
   },
-  "name": "ghutargoobackend",
+  "name": "gutargoobackend",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
