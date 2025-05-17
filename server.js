@@ -9,11 +9,13 @@ const users = require("./routes/User");
 const path = require('path');
 const vendors = require("./routes/Vendor")
 const PORT = process.env.PORT || 6000;
+const section = require("./routes/Section")
 require('dotenv').config()
 db();
 app.use(cors());
 app.use(express.json());
 let ejs = require('ejs');
+const Transaction = require('./models/Transactions');
 app.use(express.urlencoded({ extended: true }));
 app.listen(PORT,()=>{
     console.log(`Server started at ${PORT}`)
@@ -35,6 +37,7 @@ app.listen(PORT,()=>{
 app.use("/api/users",users)
 app.use("/api/admin",admin);
 app.use("/api/vendors",vendors);
+app.use("/api/sections",section);
 // app.use("/api/auth",vendors);
 app.get('/session', (req, res) => {
     res.json({ sessionId: req.sessionID });
@@ -50,3 +53,23 @@ app.get('/reset-password/:token', (req, res) => {
 db().then(function (db) {
     console.log(`Db connnected`)
 })
+// get all transactions 
+
+// GET all transactions
+app.get('/api/transactions', async (req, res) => {
+  try {
+    const transactions = await Transaction.find({});
+    res.status(200).json({
+      success: true,
+      message: 'Transactions fetched successfully',
+      data: transactions
+    });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});

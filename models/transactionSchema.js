@@ -1,4 +1,7 @@
 // 3. Transaction schema for payment records
+
+const mongoose = require('mongoose');
+
 const transactionSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -35,4 +38,4 @@ const transactionSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-const Transaction = mongoose.model('Transaction', transactionSchema);
+module.exports  = mongoose.model('Transaction', transactionSchema);

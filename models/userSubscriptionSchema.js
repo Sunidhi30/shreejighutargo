@@ -1,4 +1,5 @@
 // 2. Create the user subscription schema (to track user subscriptions)
+const mongoose= require("mongoose")
 const userSubscriptionSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -38,4 +39,4 @@ const userSubscriptionSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-const UserSubscription = mongoose.model('UserSubscription', userSubscriptionSchema);
+module.exports  = mongoose.model('UserSubscription', userSubscriptionSchema);

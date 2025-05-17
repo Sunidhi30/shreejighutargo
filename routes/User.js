@@ -6,12 +6,9 @@ const dotenv = require('dotenv');
 const mongoose = require("mongoose");
 const ContinueWatching = require("../models/ContinueWatching")
 const User = require('../models/User');
-const ADMIN_EMAIL = "sunidhi@gmail.com";
 const cloudinary = require("cloudinary");
-const ADMIN_PHONE = "1234567890"; // Optional
 const  Language = require("../models/Language");
 const SubscriptionPlan= require("../models/SubscriptionPlan");
-const ADMIN_OTP = "0000";
 const VideoView = require('../models/videoView'); // Adjust the path according to your project structure
 const Comment = require('../models/Commet');
 const Type =require("../models/Type")
@@ -25,17 +22,18 @@ const Cast = require("../models/Cast");
 const JWT_SECRET = process.env.JWT_SECRET || "Apple";
 const razorpay = require('../utils/razorpay');
 const PlatformStats =require("../models/PlatformStats")
-// const { protect,verifyToken } = require('../middleware/auth');
 const { protect, isUser, verifyAdmin } = require("../middleware/auth");
 const { body, validationResult } = require('express-validator');
 const multer = require("multer");
 const storage = multer.memoryStorage();
 const  Admin = require("../models/Admin");
 const Package = require("../models/Package");
-const Transaction = require("../models/Transactions");
+const Transaction= require("../models/transactionSchema")
+// const Transaction = require("../models/Transactions");
 const PDFDocument = require("pdfkit");
 const upload = multer({ storage: storage });
-dotenv.config();
+const userSubscription=require("../models/userSubscriptionSchema")
+require('dotenv').config();
 const router = express.Router();
 const Video = require("../models/Video");
 const fs = require("fs");
@@ -170,13 +168,13 @@ router.post('/verify-signup-otp', async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
-});
+}); 
 async function getCoordinatesFromLocation(location) {
   const apiKey = '420a26521c014c6299ef2a241f068161';
   const res = await axios.get(`https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(location)}&key=${apiKey}`);
   const { lat, lng } = res.data.results[0].geometry;
   return { lat, lng };
-}
+} 
 // Step 1: Login - Send OTP
 router.post('/login', async (req, res) => {
   try {
@@ -196,15 +194,22 @@ router.post('/login', async (req, res) => {
 
     await sendOTPEmail(email, otp);
 
-    res.status(200).json({ message: 'OTP sent to email' });
+    req.session.email = email;
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'OTP sent to email' 
+    });
+    
   } catch (err) {
-    res.status(500).json({ message: 'Error sending OTP', error: err.message });
+    res.status(500).json({  success: false, message: 'Error sending OTP', error: err.message });
   }
 });
 // Step 2: Verify OTP and Login
 router.post('/verify-otp', async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { otp } = req.body;
+    const email = req.session.email; // Get email from session
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'user not found' });
 
@@ -299,22 +304,9 @@ router.get('/user-locations', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch user locations', error: err.message });
   }
 });
-// router.post('/init', async (req, res) => {
-//   const code = uuidv4().split('-')[0].toUpperCase(); // Short code like 'A1B2C3'
-//   // console.log("code this is ", code);
-//   try {
-//     const tvLogin = new TvLogin({  unique_code : code });
-//     // console.log("tv login ", tvLogin);
-//     await tvLogin.save();
-//     res.json({ success: true, code });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: 'Failed to initialize login' });
-//   }
-// });
-// POST /tv/init - Initialize TV Login with user_id
+//connect-tv
 router.post('/connect_tv', async (req, res) => {
   const { code, user_id, device_id } = req.body;
-
   try {
     const tvLogin = await TvLogin.findOne({ unique_code: code, user_id });
 
@@ -760,7 +752,44 @@ router.get('/get_languages', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-// get cast
+//this is with query langauge 
+router.get('/withquery-get_languages', async (req, res) => {
+  try {
+    const { name } = req.query;
+
+    // let query = {};
+    // if (name) {
+    //   // Case-insensitive search for language name
+    //   query.name = { $regex: new RegExp(name, 'i') };
+    // }
+
+    const languages = await Language.find({name}).sort({ name: 1 });
+
+    const results = await Promise.all(
+      languages.map(async (language) => {
+        const videos = await Video.find({ language_id: language._id, isApproved: true })
+                                  .select('name thumbnail video_720 status');
+        return {
+          _id: language._id,
+          name: language.name,
+          image: language.image,
+          status: language.status,
+          videos
+        };
+      })
+    );
+
+    return res.status(200).json({
+      message: 'Languages with videos fetched successfully',
+      data: results
+    });
+
+  } catch (error) {
+    console.error('Error fetching languages with videos:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+//get cast
 router.get('/get_cast', async (req, res) => {
   try {
     const languages = await Cast.find().sort({ name: 1 }); // Optional sorting by name
@@ -774,7 +803,7 @@ router.get('/get_cast', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-// do the investments in particular plan 
+//do the investments in particular plan 
 router.post('/invest-plan', async (req, res) => {
   const { userId, packageId } = req.body;
 
@@ -834,9 +863,9 @@ router.get('/plans', async (req, res) => {
     });
   }
 });
-// user subscribing to the plan
-// Subscribe to a plan
+//Subscribe to a plan
 router.post('/subscribe', isUser, async (req, res) => {
+  console.log("hy")
   try {
     const { planId, paymentMethod, paymentId } = req.body;
     
@@ -917,7 +946,47 @@ router.post('/subscribe', isUser, async (req, res) => {
     });
   }
 });
-// create the subscription 
+// //create the subscription 
+// router.post('/create-order', async (req, res) => {
+//   console.log("bye")
+//   const { planId, userId, paymentMethod } = req.body;
+
+//   try {
+//     const plan = await SubscriptionPlan.findById(planId);
+//     if (!plan) return res.status(404).json({ message: 'Plan not found' });
+
+//     const options = {
+//       amount: plan.price * 100, // Amount in paise
+//       currency: 'INR',
+//       receipt: `receipt_${new Date().getTime()}`,
+//     };
+
+//     const order = await razorpay.orders.create(options);
+//    console.log("order"+" "+order)
+//     // Create transaction
+//     const transaction = await Transaction.create({
+//       user: userId,
+//       amount: plan.price,
+//       paymentMethod,
+//       paymentId: order.id,
+//       status: 3,
+//       type: 'subscription',
+//       itemReference: planId,
+//       itemModel: 'SubscriptionPlan',
+//     });
+//    console.log("this is trsanctions"+" "+transaction)
+//     res.status(200).json({
+//       success: true,
+//       orderId: order.id,
+//       amount: options.amount,
+//       currency: options.currency,
+//       transactionId: transaction._id,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ success: false, message: 'Payment initiation failed' });
+//   }
+// });
 router.post('/create-order', async (req, res) => {
   const { planId, userId, paymentMethod } = req.body;
 
@@ -925,25 +994,29 @@ router.post('/create-order', async (req, res) => {
     const plan = await SubscriptionPlan.findById(planId);
     if (!plan) return res.status(404).json({ message: 'Plan not found' });
 
+    if (!plan.price) return res.status(400).json({ message: 'Plan price not set' });
+
     const options = {
-      amount: plan.price * 100, // Amount in paise
+      amount: plan.price * 100, // Razorpay requires amount in paisa
       currency: 'INR',
-      receipt: `receipt_${new Date().getTime()}`,
+      receipt: `receipt_${Date.now()}`,
     };
 
     const order = await razorpay.orders.create(options);
+    console.log("Razorpay Order Created:", order);
 
-    // Create transaction
     const transaction = await Transaction.create({
       user: userId,
       amount: plan.price,
       paymentMethod,
       paymentId: order.id,
-      status: 'pending',
+      status: 'pending', // ❗ Pass string from enum
       type: 'subscription',
       itemReference: planId,
       itemModel: 'SubscriptionPlan',
     });
+
+    console.log("Transaction Created:", transaction);
 
     res.status(200).json({
       success: true,
@@ -953,8 +1026,8 @@ router.post('/create-order', async (req, res) => {
       transactionId: transaction._id,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Payment initiation failed' });
+    console.error('Create Order Error:', err);
+    res.status(500).json({ success: false, message: 'Payment initiation failed', error: err.message });
   }
 });
 router.post('/verify-payment', async (req, res) => {
@@ -967,42 +1040,99 @@ router.post('/verify-payment', async (req, res) => {
     planId
   } = req.body;
 
-  const body = razorpay_order_id + '|' + razorpay_payment_id;
-  const expectedSignature = crypto
-    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-    .update(body.toString())
-    .digest('hex');
+  try {
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_SECRET)
+      .update(body.toString())
+      .digest('hex');
 
-  if (expectedSignature === razorpay_signature) {
-    const plan = await SubscriptionPlan.findById(planId);
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + plan.duration);
+    if (expectedSignature === razorpay_signature) {
+      const plan = await SubscriptionPlan.findById(planId);
+      if (!plan) return res.status(404).json({ message: 'Subscription plan not found' });
 
-    // Update transaction
-    await Transaction.findByIdAndUpdate(transactionId, {
-      status: 'completed',
-      paymentId: razorpay_payment_id,
-    });
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + plan.duration);
 
-    // Create user subscription
-    await UserSubscription.create({
-      user: userId,
-      plan: planId,
-      endDate,
-      paymentMethod: 'razorpay',
-      paymentId: razorpay_payment_id,
-      transactionId
-    });
+      await Transaction.findByIdAndUpdate(transactionId, {
+        status: 'completed',
+        paymentId: razorpay_payment_id,
+      });
 
-    return res.json({ success: true, message: 'Payment verified and subscription activated' });
-  } else {
-    await Transaction.findByIdAndUpdate(transactionId, {
-      status: 'failed',
-    });
-    return res.status(400).json({ success: false, message: 'Payment verification failed' });
+      await userSubscription.create({
+        user: userId,
+        plan: planId,
+        endDate,
+        paymentMethod: 'razorpay',
+        paymentId: razorpay_payment_id,
+        transactionId
+      });
+
+      return res.json({ success: true, message: 'Payment verified and subscription activated' });
+    } else {
+      await Transaction.findByIdAndUpdate(transactionId, {
+        status: 'failed',
+      });
+      return res.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+  } catch (err) {
+    console.error('Verify Payment Error:', err);
+    res.status(500).json({ success: false, message: 'Payment verification process failed', error: err.message });
   }
 });
-// Get current user's active subscription
+
+// router.post('/verify-payment', async (req, res) => {
+//   console.log("nitesh pgl je ")
+//   const {
+//     razorpay_order_id,
+//     razorpay_payment_id,
+//     razorpay_signature,
+//     transactionId,
+//     userId,
+//     planId
+//   } = req.body;
+//   console.log("hshshs"+" "+razorpay_signature)
+
+//   const body = razorpay_order_id + '|' + razorpay_payment_id;
+//   console.log("env "+process.env.RAZORPAY_SECRET)
+//   const expectedSignature = crypto
+//     .createHmac('sha256', process.env.RAZORPAY_SECRET)
+//     .update(body.toString())
+//     .digest('hex');
+//     console.log("Expected Signature:", expectedSignature);
+//     console.log("Received Signature:", razorpay_signature);
+//   if (expectedSignature === razorpay_signature) {
+   
+//     const plan = await SubscriptionPlan.findById(planId);
+//     const endDate = new Date();
+//     endDate.setDate(endDate.getDate() + plan.duration);
+
+//     // Update transaction
+//     await Transaction.findByIdAndUpdate(transactionId, {
+//       status: 1,
+//       paymentId: razorpay_payment_id,
+//     });
+
+//     // Create user subscription
+//     await userSubscription.create({
+//       user: userId,
+//       plan: planId,
+//       endDate,
+//       paymentMethod: 'razorpay',
+//       paymentId: razorpay_payment_id,
+//       transactionId
+//     });
+
+//     return res.json({ success: true, message: 'Payment verified and subscription activated' });
+//   } else {
+//     await Transaction.findByIdAndUpdate(transactionId, {
+//       status: 0,
+//     });
+//     return res.status(400).json({ success: false, message: 'Payment verification failed' });
+//   }
+// });
+
+//Get current user's active subscription
 router.get('/my-subscription', isUser, async (req, res) => {
   try {
     const subscription = await UserSubscription.findOne({
@@ -1029,7 +1159,7 @@ router.get('/my-subscription', isUser, async (req, res) => {
     });
   }
 });
-// Upgrade or change subscription plan
+//Upgrade or change subscription plan
 router.post('/change-plan', isUser, async (req, res) => {
   try {
     const { planId, paymentMethod, paymentId } = req.body;
@@ -1123,7 +1253,8 @@ router.post('/change-plan', isUser, async (req, res) => {
     });
   }
 });
-// Get subscription history
+
+//Get subscription history
 router.get('/subscription-history', isUser, async (req, res) => {
   try {
     const subscriptions = await UserSubscription.find({
@@ -1143,7 +1274,7 @@ router.get('/subscription-history', isUser, async (req, res) => {
     });
   }
 });
-// Cancel subscription (turn off auto-renewal)
+//Cancel subscription (turn off auto-renewal)
 router.patch('/cancel-subscription', isUser, async (req, res) => {
   try {
     const subscription = await UserSubscription.findOne({
@@ -1177,7 +1308,7 @@ router.patch('/cancel-subscription', isUser, async (req, res) => {
     });
   }
 });
-// 👉 Like a video
+//Like a video
 router.patch('/:videoId/like', async (req, res) => {
   try {
     const { videoId } = req.params;
@@ -1202,7 +1333,6 @@ router.patch('/:videoId/like', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong while liking the video.' });
   }
 });
-// 💬 Comment on a video
 // Add comment using token
 router.post('/:videoId/comment', isUser, async (req, res) => {
   try {
@@ -1566,6 +1696,7 @@ router.post('/track-video-progress', isUser, async (req, res) => {
     res.status(500).json({ success: false, message: 'Error tracking video progress' });
   }
 });
+// video-url with id 
 router.get('/video-url/:id', async (req, res) => {
   try {
     const video = await Video.findById(req.params.id);
