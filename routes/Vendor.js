@@ -1325,6 +1325,15 @@ router.post('/series', isVendor, upload.fields([
     });
   }
 });
+// Get all series uploaded by the logged-in vendor
+router.get('/series', isVendor, async (req, res) => {
+  try {
+    const seriesList = await Series.find({ vendor_id: req.vendor.id }).select('_id title');
+    res.status(200).json({ success: true, series: seriesList });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 // Add a new season to a series
 router.post('/series/:seriesId/seasons', isVendor, async (req, res) => {
   try {
@@ -1355,9 +1364,108 @@ router.post('/series/:seriesId/seasons', isVendor, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-// Add Episode to Season
+// // Add Episode to Season
+// router.post(
+//   '/series/:seriesId/seasons/:seasonId/episodes',
+//   isVendor,
+//   upload.fields([
+//     { name: 'thumbnail', maxCount: 1 },
+//     { name: 'video_320', maxCount: 1 },
+//     { name: 'video_480', maxCount: 1 },
+//     { name: 'video_720', maxCount: 1 },
+//     { name: 'video_1080', maxCount: 1 },
+//     { name: 'trailer', maxCount: 1 }
+//   ]),
+//   async (req, res) => {
+//     try {
+//       const {
+//         name,
+//         description,
+//         release_date,
+//         video_duration,
+//         episodeNumber,
+//         season_number,
+//         type_id,
+//         video_type,
+//         channel_id,
+//         producer_id,
+//         category_id,
+//         language_id,
+//         episode_number,
+//         cast_id,
+//         video_upload_type,
+//         video_extension
+//       } = req.body;
+
+//       const uploadFile = async (field, folder) => {
+//         if (req.files[field]) {
+//           const file = req.files[field][0];
+//           const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+//           return await uploadToCloudinary(base64, folder, file.mimetype);
+//         }
+//         return '';
+//       };
+
+//       const thumbnail = await uploadFile('thumbnail', 'episodes/thumbnails');
+//       const video_320 = await uploadFile('video_320', 'episodes/320');
+//       const video_480 = await uploadFile('video_480', 'episodes/480');
+//       const video_720 = await uploadFile('video_720', 'episodes/720');
+//       const video_1080 = await uploadFile('video_1080', 'episodes/1080');
+//       const trailer_url = await uploadFile('trailer', 'episodes/trailers');
+
+//       const season = await Season.findById(req.params.seasonId);
+//       if (!season) return res.status(404).json({ success: false, message: 'Season not found' });
+
+//       const episode = new Episode({
+//         name,
+//         description,
+//         release_date,
+//         video_duration: Number(video_duration),
+//         thumbnail,
+//         season_number,
+//         episode_number,
+//         video_320,
+//         video_480,
+//         video_720,
+//         video_1080,
+//         trailer_url,
+//         type_id: type_id ? new mongoose.Types.ObjectId(type_id) : null,
+//         video_type,
+//         channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
+//         producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
+//         category_id: category_id ? new mongoose.Types.ObjectId(category_id) : null,
+//         language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
+//         cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
+//         vendor_id: req.vendor._id,
+//         video_upload_type,
+//         video_extension,
+//         episodeNumber: episodeNumber || 1,
+//         isSeries: true,
+//         series_id: req.params.seriesId,
+//         season_id: req.params.seasonId,
+//         status: 'pending',
+//         isApproved: false
+//       });
+
+//       await episode.save();
+
+//       await Season.findByIdAndUpdate(req.params.seasonId, { $inc: { totalEpisodes: 1 } });
+//       await Series.findByIdAndUpdate(req.params.seriesId, { $inc: { totalEpisodes: 1 } });
+
+//       res.status(201).json({
+//         success: true,
+//         message: 'Episode uploaded successfully',
+//         episode
+//       });
+
+//     } catch (err) {
+//       console.error(err);
+//       res.status(500).json({ success: false, message: 'Episode upload failed', error: err.message });
+//     }
+//   }
+// );
 router.post(
-  '/series/:seriesId/seasons/:seasonId/episodes',
+  '/episodes',
   isVendor,
   upload.fields([
     { name: 'thumbnail', maxCount: 1 },
@@ -1374,47 +1482,65 @@ router.post(
         description,
         release_date,
         video_duration,
-        episodeNumber,
+        episode_number,
         season_number,
+        series_title,
         type_id,
         video_type,
         channel_id,
         producer_id,
         category_id,
         language_id,
-        episode_number,
         cast_id,
         video_upload_type,
-        video_extension
+        video_extension,
+        is_premium,
+        is_download,
+        is_like,
+        is_comment,
+        price,
+        rentDuration,
+        package_id,
+        packageType,
+        is_rent,
+        rent_day
       } = req.body;
+      console.log('Received files:', req.files);
 
+      // 1. Find Series
+      const series = await Series.findOne({ title: series_title, vendor_id: req.vendor._id });
+      if (!series)
+        return res.status(404).json({ success: false, message: 'Series not found for this vendor' });
+
+      // 2. Find Season
+      const season = await Season.findOne({ seasonNumber: season_number, series_id: series._id });
+      if (!season)
+        return res.status(404).json({ success: false, message: 'Season not found in this series' });
+
+      // 3. File Upload Helper
       const uploadFile = async (field, folder) => {
-        if (req.files[field]) {
-          const file = req.files[field][0];
-          const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-          return await uploadToCloudinary(base64, folder, file.mimetype);
-        }
-        return '';
-      };
+                if (req.files[field]) {
+                  const file = req.files[field][0];
+                  const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+                  return await uploadToCloudinary(base64, folder, file.mimetype);
+                }
+                return '';
+              };
+        
+              const thumbnail = await uploadFile('thumbnail', 'episodes/thumbnails');
+              const video_320 = await uploadFile('video_320', 'episodes/320');
+              const video_480 = await uploadFile('video_480', 'episodes/480');
+              const video_720 = await uploadFile('video_720', 'episodes/720');
+              const video_1080 = await uploadFile('video_1080', 'episodes/1080');
+              const trailer_url = await uploadFile('trailer', 'episodes/trailers');
 
-      const thumbnail = await uploadFile('thumbnail', 'episodes/thumbnails');
-      const video_320 = await uploadFile('video_320', 'episodes/320');
-      const video_480 = await uploadFile('video_480', 'episodes/480');
-      const video_720 = await uploadFile('video_720', 'episodes/720');
-      const video_1080 = await uploadFile('video_1080', 'episodes/1080');
-      const trailer_url = await uploadFile('trailer', 'episodes/trailers');
-
-      const season = await Season.findById(req.params.seasonId);
-      if (!season) return res.status(404).json({ success: false, message: 'Season not found' });
-
+      // 5. Create Episode Document
       const episode = new Episode({
         name,
         description,
         release_date,
         video_duration: Number(video_duration),
         thumbnail,
-        season_number,
-        episode_number,
         video_320,
         video_480,
         video_720,
@@ -1430,31 +1556,42 @@ router.post(
         vendor_id: req.vendor._id,
         video_upload_type,
         video_extension,
-        episodeNumber: episodeNumber || 1,
-        isSeries: true,
-        series_id: req.params.seriesId,
-        season_id: req.params.seasonId,
+        is_premium: Number(is_premium) || 0,
+        is_download: Number(is_download) || 0,
+        is_like: Number(is_like) || 0,
+        is_comment: Number(is_comment) || 0,
+        episode_number: Number(episode_number),
+        season_number: Number(season_number),
+        series_id: series._id,
+        season_id: season._id,
         status: 'pending',
-        isApproved: false
+        isApproved: false,
+        price: price ? Number(price) : null,
+        rentDuration: rentDuration ? Number(rentDuration) : null,
+        is_rent: Number(is_rent) || 0,
+        rent_day: Number(rent_day) || 0,
+        package_id: package_id ? new mongoose.Types.ObjectId(package_id) : null,
+        packageType
       });
 
       await episode.save();
 
-      await Season.findByIdAndUpdate(req.params.seasonId, { $inc: { totalEpisodes: 1 } });
-      await Series.findByIdAndUpdate(req.params.seriesId, { $inc: { totalEpisodes: 1 } });
+      // 6. Increment episode counters
+      await Season.findByIdAndUpdate(season._id, { $inc: { totalEpisodes: 1 } });
+      await Series.findByIdAndUpdate(series._id, { $inc: { totalEpisodes: 1 } });
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Episode uploaded successfully',
         episode
       });
-
     } catch (err) {
       console.error(err);
-      res.status(500).json({ success: false, message: 'Episode upload failed', error: err.message });
+      return res.status(500).json({ success: false, message: 'Episode upload failed', error: err.message });
     }
   }
 );
+
 // Get all episodes for a specific season
 router.get('/season/:seasonId', async (req, res) => {
   try {

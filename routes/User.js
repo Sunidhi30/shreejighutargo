@@ -863,89 +863,89 @@ router.get('/plans', async (req, res) => {
     });
   }
 });
-//Subscribe to a plan
-router.post('/subscribe', isUser, async (req, res) => {
-  console.log("hy")
-  try {
-    const { planId, paymentMethod, paymentId } = req.body;
+// //Subscribe to a plan
+// router.post('/subscribe', isUser, async (req, res) => {
+//   console.log("hy")
+//   try {
+//     const { planId, paymentMethod, paymentId } = req.body;
     
-    // Find the plan
-    const plan = await SubscriptionPlan.findById(planId);
-    if (!plan || !plan.isActive) {
-      return res.status(404).json({
-        success: false,
-        message: 'Subscription plan not found or inactive'
-      });
-    }
+//     // Find the plan
+//     const plan = await SubscriptionPlan.findById(planId);
+//     if (!plan || !plan.isActive) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Subscription plan not found or inactive'
+//       });
+//     }
     
-    // Calculate end date based on plan duration
-    const startDate = new Date();
-    const endDate = new Date(startDate);
+//     // Calculate end date based on plan duration
+//     const startDate = new Date();
+//     const endDate = new Date(startDate);
     
-    if (plan.durationType === 'day') {
-      endDate.setDate(endDate.getDate() + plan.duration);
-    } else if (plan.durationType === 'month') {
-      endDate.setMonth(endDate.getMonth() + plan.duration);
-    } else if (plan.durationType === 'year') {
-      endDate.setFullYear(endDate.getFullYear() + plan.duration);
-    }
+//     if (plan.durationType === 'day') {
+//       endDate.setDate(endDate.getDate() + plan.duration);
+//     } else if (plan.durationType === 'month') {
+//       endDate.setMonth(endDate.getMonth() + plan.duration);
+//     } else if (plan.durationType === 'year') {
+//       endDate.setFullYear(endDate.getFullYear() + plan.duration);
+//     }
     
-    // Create a transaction record
-    const transaction = new Transaction({
-      user: req.user._id,
-      amount: plan.price,
-      paymentMethod,
-      paymentId,
-      status: 'completed', // Assuming payment is already processed
-      type: 'subscription',
-      itemReference: plan._id,
-      itemModel: 'SubscriptionPlan'
-    });
+//     // Create a transaction record
+//     const transaction = new Transaction({
+//       user: req.user._id,
+//       amount: plan.price,
+//       paymentMethod,
+//       paymentId,
+//       status: 'completed', // Assuming payment is already processed
+//       type: 'subscription',
+//       itemReference: plan._id,
+//       itemModel: 'SubscriptionPlan'
+//     });
     
-    await transaction.save();
+//     await transaction.save();
     
-    // Create the subscription
-    const subscription = new UserSubscription({
-      user: req.user._id,
-      plan: plan._id,
-      startDate,
-      endDate,
-      paymentMethod,
-      paymentId,
-      transactionId: transaction._id
-    });
+//     // Create the subscription
+//     const subscription = new UserSubscription({
+//       user: req.user._id,
+//       plan: plan._id,
+//       startDate,
+//       endDate,
+//       paymentMethod,
+//       paymentId,
+//       transactionId: transaction._id
+//     });
     
-    await subscription.save();
+//     await subscription.save();
     
-    // Update the user's subscriptions array
-    await User.findByIdAndUpdate(
-      req.user._id,
-      { $push: { subscriptions: subscription._id, transactions: transaction._id } }
-    );
+//     // Update the user's subscriptions array
+//     await User.findByIdAndUpdate(
+//       req.user._id,
+//       { $push: { subscriptions: subscription._id, transactions: transaction._id } }
+//     );
     
-    // Update admin's wallet with the subscription amount
-    const planCreator = await Admin.findById(plan.createdBy);
-    if (planCreator) {
-      planCreator.wallet += plan.price;
-      await planCreator.save();
-    }
+//     // Update admin's wallet with the subscription amount
+//     const planCreator = await Admin.findById(plan.createdBy);
+//     if (planCreator) {
+//       planCreator.wallet += plan.price;
+//       await planCreator.save();
+//     }
     
-    res.status(201).json({
-      success: true,
-      message: 'Successfully subscribed to the plan',
-      data: {
-        subscription,
-        expiresAt: endDate
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error subscribing to plan',
-      error: error.message
-    });
-  }
-});
+//     res.status(201).json({
+//       success: true,
+//       message: 'Successfully subscribed to the plan',
+//       data: {
+//         subscription,
+//         expiresAt: endDate
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error subscribing to plan',
+//       error: error.message
+//     });
+//   }
+// });
 // //create the subscription 
 // router.post('/create-order', async (req, res) => {
 //   console.log("bye")
@@ -1080,8 +1080,6 @@ router.post('/verify-payment', async (req, res) => {
     res.status(500).json({ success: false, message: 'Payment verification process failed', error: err.message });
   }
 });
-
-// router.post('/verify-payment', async (req, res) => {
 //   console.log("nitesh pgl je ")
 //   const {
 //     razorpay_order_id,
@@ -1135,7 +1133,7 @@ router.post('/verify-payment', async (req, res) => {
 //Get current user's active subscription
 router.get('/my-subscription', isUser, async (req, res) => {
   try {
-    const subscription = await UserSubscription.findOne({
+    const subscription = await userSubscription.findOne({
       user: req.user._id,
       status: 'active'
     }).populate('plan');
@@ -1257,7 +1255,7 @@ router.post('/change-plan', isUser, async (req, res) => {
 //Get subscription history
 router.get('/subscription-history', isUser, async (req, res) => {
   try {
-    const subscriptions = await UserSubscription.find({
+    const subscriptions = await userSubscription.find({
       user: req.user._id
     }).populate('plan').sort({ createdAt: -1 });
     
@@ -1277,7 +1275,7 @@ router.get('/subscription-history', isUser, async (req, res) => {
 //Cancel subscription (turn off auto-renewal)
 router.patch('/cancel-subscription', isUser, async (req, res) => {
   try {
-    const subscription = await UserSubscription.findOne({
+    const subscription = await userSubscription.findOne({
       user: req.user._id,
       status: 'active'
     });
