@@ -38,6 +38,7 @@ const  tvShowSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
   vendor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
+  channel_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' },
   category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
   thumbnail: { type: String },
   landscape: { type: String },

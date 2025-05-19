@@ -116,7 +116,7 @@ router.post('/signup', async (req, res) => {
 
     await sendOTPEmail(email, otp);
 
-    res.status(200).json({ message: 'OTP sent to email. Please verify to complete signup.' });
+    res.status(200).json({success:true, message: 'OTP sent to email. Please verify to complete signup.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -158,9 +158,10 @@ router.post('/verify-signup-otp', async (req, res) => {
       expiresIn: '7d',
     });
 
-    res.status(201).json({
+    res.status(200).json({
       message: 'Signup successful',
       token,
+      success:true,
       user: {
         id: newUser._id,
         email: newUser.email,
@@ -267,6 +268,7 @@ if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('::ffff:127')) {
     res.status(200).json({
       message: 'Login successful',
       token,
+      success:true,
       user: {
         id: user._id,
         role: user.role,

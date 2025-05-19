@@ -1681,6 +1681,10 @@ router.post('/reset-password/:token', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+
+
+
 // create a tv show channel - tv show - season - episode 
 router.post('/tvshows', 
   isVendor, 
@@ -1690,7 +1694,7 @@ router.post('/tvshows',
   ]), 
   async (req, res) => {
     try {
-      const { title, description, category_id, releaseYear, totalSeasons, status, tags } = req.body;
+      const { title, description, category_id, releaseYear, totalSeasons, status, tags,  channel_id } = req.body;
       
       let thumbnailUrl = '';
       let landscapeUrl = '';
@@ -1725,6 +1729,7 @@ router.post('/tvshows',
 
       const tvShow = new TVShow({
         title,
+        channel_id,
         description: description || '',
         vendor_id: req.vendor.id,
         category_id: category_id || null,
@@ -1944,4 +1949,15 @@ router.post(
     }
   }
 );
+// Get all channels
+//Add this new endpoint to get channels
+router.get('/get-channels', async (req, res) => {
+  try {
+    const channels = await Channel.find();
+    console.log("channels"+" "+channels);
+    res.status(200).json({ channels });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
 module.exports = router;
