@@ -1714,10 +1714,10 @@ router.get('/video-url/:id', async (req, res) => {
 router.get('/sections', async (req, res) => {
   try {
     const sections = await HomeSection.find()
-      .populate('type_id', 'name')        // Assuming `Type` model has `name`
-      .populate('category_id', 'name')
-      .populate('language_id', 'name')
-      .populate('channel_id', 'name')
+      // .populate('type_id', 'name')        // Assuming `Type` model has `name`
+      // .populate('category_id', 'name')
+      // .populate('language_id', 'name')
+      // .populate('channel_id', 'name')
       .populate('videos')  // <-- add this if you want video details in GET
 
       .sort({ createdAt: -1 });
