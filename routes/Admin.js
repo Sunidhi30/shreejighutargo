@@ -1806,11 +1806,197 @@ router.get('/sections', async (req, res) => {
 });
 // Route to add a new section (equivalent to store)
 // Route: Add new section
-router.post('/add-section', async (req, res) => {
+// router.post('/add-section', async (req, res) => {
+//   try {
+//     const {
+//       is_home_screen,
+//       type_id,
+//       video_type,
+//       sub_video_type,
+//       title,
+//       short_title,
+//       category_id,
+//       language_id,
+//       channel_id,
+//       order_by_upload,
+//       order_by_like,
+//       order_by_view,
+//       screen_layout,
+//       premium_video,
+//       rent_video,
+//       no_of_content,
+//       view_all,
+//       sortable,
+//       status
+//     } = req.body;
+
+//     let videoQuery = {};
+//     if (category_id) videoQuery.category_id = category_id;
+//     if (language_id) videoQuery.language_id = language_id;
+//     if (channel_id) videoQuery.channel_id = channel_id;
+//     if (premium_video !== undefined) videoQuery.premium_video = premium_video;
+//     if (rent_video !== undefined) videoQuery.rent_video = rent_video;
+//     if (video_type) videoQuery.video_type = video_type;
+//     if (sub_video_type) videoQuery.sub_video_type = sub_video_type;
+
+//     const totalVideos = await Video.countDocuments(videoQuery);
+
+//     let sortCriteria = {};
+//     if (order_by_like) sortCriteria.likes = order_by_like === 'desc' ? -1 : 1;
+//     else if (order_by_view) sortCriteria.views = order_by_view === 'desc' ? -1 : 1;
+//     else if (order_by_upload) sortCriteria.upload_date = order_by_upload === 'desc' ? -1 : 1;
+//     else sortCriteria.upload_date = -1;
+
+//     const limitCount = Math.min(no_of_content || totalVideos, totalVideos);
+
+//     const videos = await Video.find(videoQuery).sort(sortCriteria).limit(limitCount);
+
+//     const newSection = new HomeSection({
+//       is_home_screen,
+//       type_id,
+//       video_type,
+//       sub_video_type,
+//       title,
+//       short_title,
+//       category_id,
+//       language_id,
+//       channel_id,
+//       order_by_upload,
+//       order_by_like,
+//       order_by_view,
+//       screen_layout,
+//       premium_video,
+//       rent_video,
+//       no_of_content: limitCount,
+//       view_all,
+//       sortable,
+//       status,
+//       videos,
+//     });
+
+//     await newSection.save();
+
+//     res.status(201).json({
+//       message: totalVideos < (no_of_content || 0)
+//         ? `Number of contents is less than requested, presenting only ${totalVideos} videos.`
+//         : 'Section created successfully',
+//       data: newSection,
+//       videos
+//     });
+//   } catch (error) {
+//     console.error('Error adding section:', error);
+//     res.status(500).json({ message: 'Internal Server Error', error });
+//   }
+// });
+// router.post('/add-section/:typeName', async (req, res) => {
+//   try {
+//     const { typeName } = req.params;
+
+//     // Find the type (case-insensitive)
+//     const type = await Type.findOne({ name: new RegExp(`^${typeName}$`, 'i') });
+//     console.log("type this is type "+" "+typeName+" "+type);
+//     if (!type) {
+//       return res.status(404).json({ message: 'Type not found' });
+//     }
+
+//     const {
+//       is_home_screen,
+//       video_type,
+//       sub_video_type,
+//       title,
+//       short_title,
+//       category_id,
+//       language_id,
+//       channel_id,
+//       order_by_upload,
+//       order_by_like,
+//       order_by_view,
+//       screen_layout,
+//       premium_video,
+//       rent_video,
+//       no_of_content = 3, // default to 10
+//       view_all,
+//       sortable,
+//       status
+//     } = req.body;
+
+//     // Build video query
+//     const videoQuery = {
+//       type_id: type._id,
+//       ...(category_id && { category_id }),
+//       ...(language_id && { language_id }),
+//       ...(channel_id && { channel_id }),
+//       ...(typeof premium_video !== 'undefined' && { premium_video }),
+//       ...(typeof rent_video !== 'undefined' && { rent_video }),
+//       ...(typeof video_type !== 'undefined' && { video_type }),
+//       ...(typeof sub_video_type !== 'undefined' && { sub_video_type }),
+//     };
+
+//     // Build sort criteria
+//     const sortCriteria = {};
+//     if (order_by_like) sortCriteria.likes = order_by_like === 'desc' ? -1 : 1;
+//     else if (order_by_view) sortCriteria.views = order_by_view === 'desc' ? -1 : 1;
+//     else if (order_by_upload) sortCriteria.upload_date = order_by_upload === 'desc' ? -1 : 1;
+//     else sortCriteria.upload_date = -1; // default sort
+
+//     const totalVideos = await Video.countDocuments(videoQuery);
+//     const limitCount = Math.min(no_of_content, totalVideos);
+
+//     const videos = await Video.find(videoQuery)
+//       .sort(sortCriteria)
+//       .limit(limitCount)
+//       .select('_id'); // optimize query by selecting only _id
+
+//     // Create the home section
+//     const newSection = new HomeSection({
+//       is_home_screen,
+//       type_id: type._id,
+//       video_type,
+//       sub_video_type,
+//       title,
+//       short_title,
+//       category_id,
+//       language_id,
+//       channel_id,
+//       order_by_upload,
+//       order_by_like,
+//       order_by_view,
+//       screen_layout,
+//       premium_video,
+//       rent_video,
+//       no_of_content: limitCount,
+//       view_all,
+//       sortable,
+//       status,
+//       videos: videos.map(video => video._id)
+//     });
+//      console.log("after saving it to database "+ type._id)
+//     await newSection.save();
+
+//     res.status(201).json({
+//       message: totalVideos < no_of_content
+//         ? `Only ${totalVideos} videos matched the criteria. Section created with available videos.`
+//         : 'Section created successfully',
+//       data: newSection
+//     });
+//   } catch (error) {
+//     console.error('Error adding section:', error);
+//     res.status(500).json({ message: 'Internal Server Error', error: error.message });
+//   }
+// });
+router.post('/add-section/:typeName', async (req, res) => {
   try {
+    const { typeName } = req.params;
+
+    // 🔍 Case-insensitive type search
+    const type = await Type.findOne({ name: new RegExp(`^${typeName}$`, 'i') });
+
+    if (!type) {
+      return res.status(404).json({ message: 'Type not found' });
+    }
+
     const {
       is_home_screen,
-      type_id,
       video_type,
       sub_video_type,
       title,
@@ -1824,36 +2010,42 @@ router.post('/add-section', async (req, res) => {
       screen_layout,
       premium_video,
       rent_video,
-      no_of_content,
+      no_of_content = 3,
       view_all,
       sortable,
       status
     } = req.body;
 
-    let videoQuery = {};
-    if (category_id) videoQuery.category_id = category_id;
-    if (language_id) videoQuery.language_id = language_id;
-    if (channel_id) videoQuery.channel_id = channel_id;
-    if (premium_video !== undefined) videoQuery.premium_video = premium_video;
-    if (rent_video !== undefined) videoQuery.rent_video = rent_video;
-    if (video_type) videoQuery.video_type = video_type;
-    if (sub_video_type) videoQuery.sub_video_type = sub_video_type;
+    const videoQuery = {
+      type_id: type._id,
+      ...(category_id && { category_id }),
+      ...(language_id && { language_id }),
+      ...(channel_id && { channel_id }),
+      status: 'approved',
+      isApproved: true,
+    };
+    console.log('Video query:', videoQuery);
+
+
+    // 🔃 Sorting logic
+    const sortCriteria = {};
+    if (order_by_like) sortCriteria.total_like = order_by_like === 'desc' ? -1 : 1;
+    else if (order_by_view) sortCriteria.total_view = order_by_view === 'desc' ? -1 : 1;
+    else if (order_by_upload) sortCriteria.createdAt = order_by_upload === 'desc' ? -1 : 1;
+    else sortCriteria.createdAt = -1;
 
     const totalVideos = await Video.countDocuments(videoQuery);
+    const limitCount = Math.min(no_of_content, totalVideos);
 
-    let sortCriteria = {};
-    if (order_by_like) sortCriteria.likes = order_by_like === 'desc' ? -1 : 1;
-    else if (order_by_view) sortCriteria.views = order_by_view === 'desc' ? -1 : 1;
-    else if (order_by_upload) sortCriteria.upload_date = order_by_upload === 'desc' ? -1 : 1;
-    else sortCriteria.upload_date = -1;
-
-    const limitCount = Math.min(no_of_content || totalVideos, totalVideos);
-
-    const videos = await Video.find(videoQuery).sort(sortCriteria).limit(limitCount);
-
+    const videos = await Video.find(videoQuery)
+      .sort(sortCriteria)
+      .limit(limitCount)
+      .select('_id');
+   console.log("videos "+" "+videos)
+    // 🧱 Create new home section
     const newSection = new HomeSection({
       is_home_screen,
-      type_id,
+      type_id: type._id,
       video_type,
       sub_video_type,
       title,
@@ -1871,23 +2063,24 @@ router.post('/add-section', async (req, res) => {
       view_all,
       sortable,
       status,
-      videos,
+      videos: videos.map(v => v._id)
     });
 
     await newSection.save();
 
-    res.status(201).json({
-      message: totalVideos < (no_of_content || 0)
-        ? `Number of contents is less than requested, presenting only ${totalVideos} videos.`
+    return res.status(201).json({
+      message: totalVideos < no_of_content
+        ? `Only ${totalVideos} videos matched the criteria. Section created with available videos.`
         : 'Section created successfully',
-      data: newSection,
-      videos
+      data: newSection
     });
   } catch (error) {
     console.error('Error adding section:', error);
-    res.status(500).json({ message: 'Internal Server Error', error });
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+
+
 // Route to update a section by id (equivalent to update)
 router.put('/update-section/:id', async (req, res) => {
   try {

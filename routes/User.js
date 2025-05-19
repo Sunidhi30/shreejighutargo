@@ -1718,6 +1718,8 @@ router.get('/sections', async (req, res) => {
       .populate('category_id', 'name')
       .populate('language_id', 'name')
       .populate('channel_id', 'name')
+      .populate('videos')  // <-- add this if you want video details in GET
+
       .sort({ createdAt: -1 });
 
     res.status(200).json({
