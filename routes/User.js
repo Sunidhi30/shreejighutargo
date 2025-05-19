@@ -1731,4 +1731,32 @@ router.get('/sections', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+router.get('/sections/:typeName', async (req, res) => {
+  try {
+    const { typeName } = req.params;
+
+    // 🔍 Find Type by name (case-insensitive)
+    const type = await Type.findOne({ name: new RegExp(`^${typeName}$`, 'i') });
+    if (!type) {
+      return res.status(404).json({ message: 'Type not found' });
+    }
+
+    // 🧲 Get all home sections with that type_id
+    const sections = await HomeSection.find({ type_id: type._id })
+      .populate('videos') // optionally populate video details
+      .populate('category_id') // optional
+      .populate('language_id') // optional
+      .populate('channel_id')  // optional
+      .sort({ createdAt: -1 }); // recent sections first
+
+    res.status(200).json({
+      message: `Found ${sections.length} section(s) for type: ${typeName}`,
+      data: sections
+    });
+  } catch (error) {
+    console.error('Error fetching sections:', error);
+    res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+});
+
 module.exports = router;
