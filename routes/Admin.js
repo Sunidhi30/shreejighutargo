@@ -1888,7 +1888,6 @@ router.post('/add-section', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error', error });
   }
 });
-
 // Route to update a section by id (equivalent to update)
 router.put('/update-section/:id', async (req, res) => {
   try {

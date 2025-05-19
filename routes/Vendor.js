@@ -1365,105 +1365,6 @@ router.post('/series/:seriesId/seasons', isVendor, async (req, res) => {
   }
 });
 // // Add Episode to Season
-// router.post(
-//   '/series/:seriesId/seasons/:seasonId/episodes',
-//   isVendor,
-//   upload.fields([
-//     { name: 'thumbnail', maxCount: 1 },
-//     { name: 'video_320', maxCount: 1 },
-//     { name: 'video_480', maxCount: 1 },
-//     { name: 'video_720', maxCount: 1 },
-//     { name: 'video_1080', maxCount: 1 },
-//     { name: 'trailer', maxCount: 1 }
-//   ]),
-//   async (req, res) => {
-//     try {
-//       const {
-//         name,
-//         description,
-//         release_date,
-//         video_duration,
-//         episodeNumber,
-//         season_number,
-//         type_id,
-//         video_type,
-//         channel_id,
-//         producer_id,
-//         category_id,
-//         language_id,
-//         episode_number,
-//         cast_id,
-//         video_upload_type,
-//         video_extension
-//       } = req.body;
-
-//       const uploadFile = async (field, folder) => {
-//         if (req.files[field]) {
-//           const file = req.files[field][0];
-//           const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-//           return await uploadToCloudinary(base64, folder, file.mimetype);
-//         }
-//         return '';
-//       };
-
-//       const thumbnail = await uploadFile('thumbnail', 'episodes/thumbnails');
-//       const video_320 = await uploadFile('video_320', 'episodes/320');
-//       const video_480 = await uploadFile('video_480', 'episodes/480');
-//       const video_720 = await uploadFile('video_720', 'episodes/720');
-//       const video_1080 = await uploadFile('video_1080', 'episodes/1080');
-//       const trailer_url = await uploadFile('trailer', 'episodes/trailers');
-
-//       const season = await Season.findById(req.params.seasonId);
-//       if (!season) return res.status(404).json({ success: false, message: 'Season not found' });
-
-//       const episode = new Episode({
-//         name,
-//         description,
-//         release_date,
-//         video_duration: Number(video_duration),
-//         thumbnail,
-//         season_number,
-//         episode_number,
-//         video_320,
-//         video_480,
-//         video_720,
-//         video_1080,
-//         trailer_url,
-//         type_id: type_id ? new mongoose.Types.ObjectId(type_id) : null,
-//         video_type,
-//         channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
-//         producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
-//         category_id: category_id ? new mongoose.Types.ObjectId(category_id) : null,
-//         language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
-//         cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
-//         vendor_id: req.vendor._id,
-//         video_upload_type,
-//         video_extension,
-//         episodeNumber: episodeNumber || 1,
-//         isSeries: true,
-//         series_id: req.params.seriesId,
-//         season_id: req.params.seasonId,
-//         status: 'pending',
-//         isApproved: false
-//       });
-
-//       await episode.save();
-
-//       await Season.findByIdAndUpdate(req.params.seasonId, { $inc: { totalEpisodes: 1 } });
-//       await Series.findByIdAndUpdate(req.params.seriesId, { $inc: { totalEpisodes: 1 } });
-
-//       res.status(201).json({
-//         success: true,
-//         message: 'Episode uploaded successfully',
-//         episode
-//       });
-
-//     } catch (err) {
-//       console.error(err);
-//       res.status(500).json({ success: false, message: 'Episode upload failed', error: err.message });
-//     }
-//   }
-// );
 router.post(
   '/episodes',
   isVendor,
@@ -1591,7 +1492,17 @@ router.post(
     }
   }
 );
-
+// Get all seasons for a specific series
+router.get('/seasons/:seriesId', async (req, res) => {
+  try {
+    const { seriesId } = req.params;
+    const seasons = await Season.find({ series_id: seriesId }).sort({ seasonNumber: 1 }); // sort by season number if you want
+    res.status(200).json({ success: true, seasons });
+  } catch (error) {
+    console.error('Error fetching seasons:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
 // Get all episodes for a specific season
 router.get('/season/:seasonId', async (req, res) => {
   try {

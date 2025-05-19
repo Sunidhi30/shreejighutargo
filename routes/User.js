@@ -6,6 +6,7 @@ const dotenv = require('dotenv');
 const mongoose = require("mongoose");
 const ContinueWatching = require("../models/ContinueWatching")
 const User = require('../models/User');
+const HomeSection = require('../models/HomeSection');
 const cloudinary = require("cloudinary");
 const  Language = require("../models/Language");
 const SubscriptionPlan= require("../models/SubscriptionPlan");
@@ -1707,6 +1708,25 @@ router.get('/video-url/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Error fetching video' });
+  }
+});
+
+router.get('/sections', async (req, res) => {
+  try {
+    const sections = await HomeSection.find()
+      .populate('type_id', 'name')        // Assuming `Type` model has `name`
+      .populate('category_id', 'name')
+      .populate('language_id', 'name')
+      .populate('channel_id', 'name')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: 'Sections fetched successfully',
+      data: sections
+    });
+  } catch (error) {
+    console.error('Error fetching sections:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 });
 module.exports = router;
