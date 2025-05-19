@@ -41,7 +41,7 @@ const path = require("path");
 const downloadsDir = path.join(__dirname, "../downloads");
 const Type = require("../models/Type");
 const bcrypt = require('bcryptjs');
-
+const TVSeason = require("../models/Tvshowsseason")
 const Vendor = require('../models/Vendor');
 const Cast = require('../models/Cast'); 
 const sendMail = require('../utils/sendEmail');
@@ -1628,7 +1628,7 @@ router.get('/admin-note/:videoId',  async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-// Create new home section
+// add sections 
 // router.post('/add-section', async (req, res) => {
 //   try {
 //     const {
@@ -1686,126 +1686,6 @@ router.get('/admin-note/:videoId',  async (req, res) => {
 //     res.status(500).json({ message: 'Internal Server Error', error });
 //   }
 // });
-router.post('/add-section', async (req, res) => {
-  try {
-    const {
-      is_home_screen,
-      type_id,
-      video_type,
-      sub_video_type,
-      title,
-      short_title,
-      category_id,
-      language_id,
-      channel_id,
-      order_by_upload,
-      order_by_like,
-      order_by_view,
-      screen_layout,
-      premium_video,
-      rent_video,
-      no_of_content,
-      view_all,
-      sortable,
-      status
-    } = req.body;
-    console.log("this is req body "+ req.body);
-    let videoQuery = {};
-
-    if (category_id) videoQuery.category_id = category_id;
-    if (language_id) videoQuery.language_id = language_id;
-    if (channel_id) videoQuery.channel_id = channel_id;
-    if (premium_video !== undefined) videoQuery.premium_video = premium_video;
-    if (rent_video !== undefined) videoQuery.rent_video = rent_video;
-    if (video_type) videoQuery.video_type = video_type;
-    if (sub_video_type) videoQuery.sub_video_type = sub_video_type;
-
-    const totalVideos = await Video.countDocuments(videoQuery);
-
-    let sortCriteria = {};
-
-    if (order_by_like) sortCriteria.likes = order_by_like === 'desc' ? -1 : 1;
-    else if (order_by_view) sortCriteria.views = order_by_view === 'desc' ? -1 : 1;
-    else if (order_by_upload) sortCriteria.upload_date = order_by_upload === 'desc' ? -1 : 1;
-    else sortCriteria.upload_date = -1;
-
-    const limitCount = Math.min(no_of_content || totalVideos, totalVideos);
-
-    const videos = await Video.find(videoQuery)
-      .sort(sortCriteria)
-      .limit(limitCount);
-      console.log("this is the video query "+" "+videoQuery);
-    // Better console log to see video objects:
-    console.log("this is videos:", videos);
-
-    // Step 4: Create the HomeSection entry
-    const newSection = new HomeSection({
-      is_home_screen,
-      type_id,
-      video_type,
-      sub_video_type,
-      title,
-      short_title,
-      category_id,
-      language_id,
-      channel_id,
-      order_by_upload,
-      order_by_like,
-      order_by_view,
-      screen_layout,
-      premium_video,
-      rent_video,
-      no_of_content: limitCount, // save the actual count used
-      view_all,
-      sortable,
-      status,
-      videos,  // assuming you want to store/embed video list here or you can omit it
-    });
-
-    await newSection.save();
-
-    // Step 5: Send response with message if videos less than requested
-    let message = 'Section created successfully';
-
-    if (totalVideos < (no_of_content || 0)) {
-      message = `Number of contents is less than requested, presenting only ${totalVideos} videos.`;
-    }
-
-    res.status(201).json({
-      message: totalVideos < (no_of_content || 0) 
-        ? `Number of contents is less than requested, presenting only ${totalVideos} videos.` 
-        : 'Section created successfully',
-      data: newSection,
-      videos
-    });
-  } catch (error) {
-    console.error('Error adding section:', error);
-    res.status(500).json({ message: 'Internal Server Error', error });
-  }
-});
-// Optional: Update schema references if needed
-// homeSectionSchema: Set `ref` if relations exist
-
-router.get('/sections', async (req, res) => {
-  try {
-    const sections = await HomeSection.find()
-      .populate('type_id', 'name')        // Assuming `Type` model has `name`
-      .populate('category_id', 'name')
-      .populate('language_id', 'name')
-      .populate('channel_id', 'name')
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      message: 'Sections fetched successfully',
-      data: sections
-    });
-  } catch (error) {
-    console.error('Error fetching sections:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
-// Route to add a new section (equivalent to store)
-// Route: Add new section
 // router.post('/add-section', async (req, res) => {
 //   try {
 //     const {
@@ -1829,8 +1709,9 @@ router.get('/sections', async (req, res) => {
 //       sortable,
 //       status
 //     } = req.body;
-
+//     console.log("this is req body "+ req.body);
 //     let videoQuery = {};
+
 //     if (category_id) videoQuery.category_id = category_id;
 //     if (language_id) videoQuery.language_id = language_id;
 //     if (channel_id) videoQuery.channel_id = channel_id;
@@ -1842,6 +1723,7 @@ router.get('/sections', async (req, res) => {
 //     const totalVideos = await Video.countDocuments(videoQuery);
 
 //     let sortCriteria = {};
+
 //     if (order_by_like) sortCriteria.likes = order_by_like === 'desc' ? -1 : 1;
 //     else if (order_by_view) sortCriteria.views = order_by_view === 'desc' ? -1 : 1;
 //     else if (order_by_upload) sortCriteria.upload_date = order_by_upload === 'desc' ? -1 : 1;
@@ -1849,8 +1731,14 @@ router.get('/sections', async (req, res) => {
 
 //     const limitCount = Math.min(no_of_content || totalVideos, totalVideos);
 
-//     const videos = await Video.find(videoQuery).sort(sortCriteria).limit(limitCount);
+//     const videos = await Video.find(videoQuery)
+//       .sort(sortCriteria)
+//       .limit(limitCount);
+//       console.log("this is the video query "+" "+videoQuery);
+//     // Better console log to see video objects:
+//     console.log("this is videos:", videos);
 
+//     // Step 4: Create the HomeSection entry
 //     const newSection = new HomeSection({
 //       is_home_screen,
 //       type_id,
@@ -1867,18 +1755,25 @@ router.get('/sections', async (req, res) => {
 //       screen_layout,
 //       premium_video,
 //       rent_video,
-//       no_of_content: limitCount,
+//       no_of_content: limitCount, // save the actual count used
 //       view_all,
 //       sortable,
 //       status,
-//       videos,
+//       videos,  // assuming you want to store/embed video list here or you can omit it
 //     });
 
 //     await newSection.save();
 
+//     // Step 5: Send response with message if videos less than requested
+//     let message = 'Section created successfully';
+
+//     if (totalVideos < (no_of_content || 0)) {
+//       message = `Number of contents is less than requested, presenting only ${totalVideos} videos.`;
+//     }
+
 //     res.status(201).json({
-//       message: totalVideos < (no_of_content || 0)
-//         ? `Number of contents is less than requested, presenting only ${totalVideos} videos.`
+//       message: totalVideos < (no_of_content || 0) 
+//         ? `Number of contents is less than requested, presenting only ${totalVideos} videos.` 
 //         : 'Section created successfully',
 //       data: newSection,
 //       videos
@@ -1888,102 +1783,7 @@ router.get('/sections', async (req, res) => {
 //     res.status(500).json({ message: 'Internal Server Error', error });
 //   }
 // });
-// router.post('/add-section/:typeName', async (req, res) => {
-//   try {
-//     const { typeName } = req.params;
-
-//     // Find the type (case-insensitive)
-//     const type = await Type.findOne({ name: new RegExp(`^${typeName}$`, 'i') });
-//     console.log("type this is type "+" "+typeName+" "+type);
-//     if (!type) {
-//       return res.status(404).json({ message: 'Type not found' });
-//     }
-
-//     const {
-//       is_home_screen,
-//       video_type,
-//       sub_video_type,
-//       title,
-//       short_title,
-//       category_id,
-//       language_id,
-//       channel_id,
-//       order_by_upload,
-//       order_by_like,
-//       order_by_view,
-//       screen_layout,
-//       premium_video,
-//       rent_video,
-//       no_of_content = 3, // default to 10
-//       view_all,
-//       sortable,
-//       status
-//     } = req.body;
-
-//     // Build video query
-//     const videoQuery = {
-//       type_id: type._id,
-//       ...(category_id && { category_id }),
-//       ...(language_id && { language_id }),
-//       ...(channel_id && { channel_id }),
-//       ...(typeof premium_video !== 'undefined' && { premium_video }),
-//       ...(typeof rent_video !== 'undefined' && { rent_video }),
-//       ...(typeof video_type !== 'undefined' && { video_type }),
-//       ...(typeof sub_video_type !== 'undefined' && { sub_video_type }),
-//     };
-
-//     // Build sort criteria
-//     const sortCriteria = {};
-//     if (order_by_like) sortCriteria.likes = order_by_like === 'desc' ? -1 : 1;
-//     else if (order_by_view) sortCriteria.views = order_by_view === 'desc' ? -1 : 1;
-//     else if (order_by_upload) sortCriteria.upload_date = order_by_upload === 'desc' ? -1 : 1;
-//     else sortCriteria.upload_date = -1; // default sort
-
-//     const totalVideos = await Video.countDocuments(videoQuery);
-//     const limitCount = Math.min(no_of_content, totalVideos);
-
-//     const videos = await Video.find(videoQuery)
-//       .sort(sortCriteria)
-//       .limit(limitCount)
-//       .select('_id'); // optimize query by selecting only _id
-
-//     // Create the home section
-//     const newSection = new HomeSection({
-//       is_home_screen,
-//       type_id: type._id,
-//       video_type,
-//       sub_video_type,
-//       title,
-//       short_title,
-//       category_id,
-//       language_id,
-//       channel_id,
-//       order_by_upload,
-//       order_by_like,
-//       order_by_view,
-//       screen_layout,
-//       premium_video,
-//       rent_video,
-//       no_of_content: limitCount,
-//       view_all,
-//       sortable,
-//       status,
-//       videos: videos.map(video => video._id)
-//     });
-//      console.log("after saving it to database "+ type._id)
-//     await newSection.save();
-
-//     res.status(201).json({
-//       message: totalVideos < no_of_content
-//         ? `Only ${totalVideos} videos matched the criteria. Section created with available videos.`
-//         : 'Section created successfully',
-//       data: newSection
-//     });
-//   } catch (error) {
-//     console.error('Error adding section:', error);
-//     res.status(500).json({ message: 'Internal Server Error', error: error.message });
-//   }
-// });
+// Route: Add new section
 router.post('/add-section/:typeName', async (req, res) => {
   try {
     const { typeName } = req.params;
@@ -2079,6 +1879,25 @@ router.post('/add-section/:typeName', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+router.get('/sections', async (req, res) => {
+  try {
+    const sections = await HomeSection.find()
+      .populate('type_id', 'name')        // Assuming `Type` model has `name`
+      .populate('category_id', 'name')
+      .populate('language_id', 'name')
+      .populate('channel_id', 'name')
+      .populate('videos')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: 'Sections fetched successfully',
+      data: sections
+    });
+  } catch (error) {
+    console.error('Error fetching sections:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 // Route to update a section by id (equivalent to update)
 router.put('/update-section/:id', async (req, res) => {
   try {
@@ -2170,4 +1989,6 @@ router.put('/update-section/:id', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error', error });
   }
 });
+
+
 module.exports = router;

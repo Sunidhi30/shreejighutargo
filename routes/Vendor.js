@@ -4,11 +4,14 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const TVShow = require("../models/TVShow")
 const Contest = require("../models/Content")
 const router = express.Router();
 const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
 const cloudinary = require('cloudinary').v2;
+const TVSeason = require("../models/Tvshowsseason")
+const TvEpisode = require('../models/TvshowEpisode');
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const storage = multer.memoryStorage();
 const Series = require('../models/Series');
@@ -1678,6 +1681,267 @@ router.post('/reset-password/:token', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+// create a tv show channel - tv show - season - episode 
+router.post('/tvshows', 
+  isVendor, 
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'landscape', maxCount: 1 }
+  ]), 
+  async (req, res) => {
+    try {
+      const { title, description, category_id, releaseYear, totalSeasons, status, tags } = req.body;
+      
+      let thumbnailUrl = '';
+      let landscapeUrl = '';
 
+      const uploadFile = async (field, folder) => {
+        if (req.files && req.files[field] && req.files[field][0]) {
+          const file = req.files[field][0];
+          const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+          return await uploadToCloudinary(base64, folder, file.mimetype);
+        }
+        return '';
+      };
 
+      try {
+        thumbnailUrl = await uploadFile('thumbnail', 'tvshows/thumbnails');
+        landscapeUrl = await uploadFile('landscape', 'tvshows/landscapes');
+      } catch (uploadError) {
+        console.error('File upload error:', uploadError);
+        return res.status(400).json({
+          success: false,
+          error: 'File upload failed',
+          details: uploadError.message
+        });
+      }
+
+      if (!title) {
+        return res.status(400).json({
+          success: false,
+          error: 'Title is required'
+        });
+      }
+
+      const tvShow = new TVShow({
+        title,
+        description: description || '',
+        vendor_id: req.vendor.id,
+        category_id: category_id || null,
+        thumbnail: thumbnailUrl,
+        landscape: landscapeUrl,
+        releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(),
+        totalSeasons: totalSeasons ? Number(totalSeasons) : 1,
+        status: status || 'ongoing',
+        tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+        isApproved: false,
+        rating: 0
+      });
+
+      await tvShow.save();
+
+      res.status(201).json({
+        success: true,
+        message: 'TV Show created successfully',
+        tvShow
+      });
+    } catch (error) {
+      console.error('TV Show creation error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to create TV Show',
+        details: error.message
+      });
+    }
+  });
+// POST /tvshows/:showId/seasons
+router.post('/tvshows/:showId/seasons', isVendor, async (req, res) => {
+  try {
+    const { showId } = req.params;
+    const { seasons } = req.body;
+
+    // Ensure the TV Show exists
+    const tvShow = await TVShow.findById(showId);
+    if (!tvShow) {
+      return res.status(404).json({
+        success: false,
+        error: 'TV Show not found'
+      });
+    }
+
+    // Parse and validate seasons input
+    let seasonArray = [];
+    try {
+      seasonArray = typeof seasons === 'string' ? JSON.parse(seasons) : seasons;
+    } catch {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid seasons format. Expected a valid JSON array.'
+      });
+    }
+
+    const createdSeasons = [];
+
+    for (const season of seasonArray) {
+      if (!season.name) continue;
+
+      const newSeason = new TVSeason({
+        show_id: showId,
+        name: season.name,
+        description: season.description || '',
+        status: 1
+      });
+
+      await newSeason.save();
+      createdSeasons.push(newSeason);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Seasons added successfully',
+      seasons: createdSeasons
+    });
+
+  } catch (error) {
+    console.error('Add Season error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add seasons',
+      details: error.message
+    });
+  }
+});
+// Add Episode to TV Show Season
+router.post(
+  '/tv-episodes',
+  isVendor,
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'landscape', maxCount: 1 },
+    { name: 'video_320', maxCount: 1 },
+    { name: 'video_480', maxCount: 1 },
+    { name: 'video_720', maxCount: 1 },
+    { name: 'video_1080', maxCount: 1 },
+    { name: 'trailer', maxCount: 1 }
+  ]),
+  async (req, res) => {
+    try {
+      const {
+        show_id,
+        season_id,
+        episode_number,
+        title,
+        description,
+        video_upload_type,
+        video_extension,
+        video_duration,
+        trailer_type,
+        release_date,
+        is_premium,
+        is_rent,
+        price,
+        rent_day,
+        is_like,
+        is_comment,
+        cast_id,
+        producer_id,
+        language_id,
+        category_id,
+        subtitles,
+        tags
+      } = req.body;
+
+      // ✅ Validate Show
+      if (!mongoose.Types.ObjectId.isValid(show_id)) {
+        return res.status(400).json({ success: false, message: 'Invalid show ID' });
+      }
+      const show = await TVShow.findOne({ _id: show_id, vendor_id: req.vendor._id });
+      if (!show) return res.status(404).json({ success: false, message: 'TV show not found' });
+
+      // ✅ Validate Season
+      if (!mongoose.Types.ObjectId.isValid(season_id)) {
+        return res.status(400).json({ success: false, message: 'Invalid season ID' });
+      }
+      const season = await TVSeason.findOne({ _id: season_id, show_id: show_id });
+      if (!season) return res.status(404).json({ success: false, message: 'TV season not found for the given show' });
+
+      // ✅ Upload helper
+      const uploadFile = async (field, folder) => {
+        if (req.files && req.files[field]) {
+          const file = req.files[field][0];
+          const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+          return await uploadToCloudinary(base64, folder, file.mimetype);
+        }
+        return '';
+      };
+
+      // ✅ Upload media
+      const thumbnail = await uploadFile('thumbnail', 'tv/episodes/thumbnails');
+      const landscape = await uploadFile('landscape', 'tv/episodes/landscape');
+      const video_320 = await uploadFile('video_320', 'tv/episodes/320');
+      const video_480 = await uploadFile('video_480', 'tv/episodes/480');
+      const video_720 = await uploadFile('video_720', 'tv/episodes/720');
+      const video_1080 = await uploadFile('video_1080', 'tv/episodes/1080');
+      const trailer_url = await uploadFile('trailer', 'tv/episodes/trailers');
+
+      // ✅ Parse subtitles
+      let parsedSubtitles = [];
+      if (subtitles) {
+        try {
+          parsedSubtitles = JSON.parse(subtitles); // expecting format: [{ language: '', url: '' }]
+        } catch (err) {
+          return res.status(400).json({ success: false, message: 'Invalid subtitles format' });
+        }
+      }
+
+      // ✅ Create and save episode
+      const episode = new TvEpisode({
+        show_id: show._id,
+        season_id: season._id,
+        episode_number: Number(episode_number),
+        title,
+        description,
+        thumbnail,
+        landscape,
+        video_upload_type,
+        video_extension,
+        video_duration: Number(video_duration),
+        video_320,
+        video_480,
+        video_720,
+        video_1080,
+        trailer_type,
+        trailer_url,
+        subtitles: parsedSubtitles,
+        cast_id,
+        producer_id,
+        language_id,
+        category_id,
+        is_premium: Number(is_premium) || 0,
+        is_rent: Number(is_rent) || 0,
+        price: Number(price) || 0,
+        rent_day: Number(rent_day) || 0,
+        is_like: Number(is_like) || 0,
+        is_comment: Number(is_comment) || 0,
+        vendor_id: req.vendor._id,
+        release_date,
+        tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+        status: 'pending',
+        isApproved: false
+      });
+
+      await episode.save();
+
+      return res.status(201).json({
+        success: true,
+        message: 'TV Episode created successfully',
+        episode
+      });
+
+    } catch (err) {
+      console.error('Episode creation error:', err);
+      res.status(500).json({ success: false, message: 'Error creating episode', error: err.message });
+    }
+  }
+);
 module.exports = router;
