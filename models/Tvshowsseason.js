@@ -43,7 +43,7 @@ const seasonSchema = new mongoose.Schema({
     default: 1 // 1 = active, 0 = inactive (optional interpretation)
   }
 }, {
-  collection: 'tbl_season',
+  collection: 'TVSeason',
   timestamps: true
 });
 

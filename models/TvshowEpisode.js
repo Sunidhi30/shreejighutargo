@@ -95,7 +95,7 @@ const episodeSchema = new mongoose.Schema({
   release_date: String
 
 }, {
-  collection: 'tbl_episodes',
+  collection: 'TVEpisode',
   timestamps: true
 });
 

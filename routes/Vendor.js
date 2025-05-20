@@ -1682,9 +1682,6 @@ router.post('/reset-password/:token', async (req, res) => {
   }
 });
 
-
-
-
 // create a tv show channel - tv show - season - episode 
 router.post('/tvshows', 
   isVendor, 
@@ -1759,6 +1756,152 @@ router.post('/tvshows',
       });
     }
   });
+  // Get list of TV shows
+router.get('/tvshows', isVendor, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      channel_id,
+      search,
+      sort = 'createdAt',
+      order = 'desc'
+    } = req.query;
+
+    // Build query
+    const query = {
+      vendor_id: req.vendor.id // Only get shows for the current vendor
+    };
+
+    // Add filters if provided
+    if (status) query.status = status;
+    if (channel_id) query.channel_id = channel_id;
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { tags: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Calculate skip value for pagination
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Build sort object
+    const sortObject = {};
+    sortObject[sort] = order === 'desc' ? -1 : 1;
+
+    // Get total count for pagination
+    const total = await TVShow.countDocuments(query);
+
+    // Get TV shows
+    const tvShows = await TVShow.find(query)
+      .sort(sortObject)
+      .skip(skip)
+      .limit(Number(limit))
+      .populate('channel_id', 'name') // Populate channel information
+      .populate('category_id', 'name') // Populate category information
+      .lean();
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / Number(limit));
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tvShows,
+        pagination: {
+          total,
+          page: Number(page),
+          totalPages,
+          hasNextPage,
+          hasPrevPage,
+          limit: Number(limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get TV Shows error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch TV shows',
+      details: error.message
+    });
+  }
+});
+router.post(
+    '/tvshows/:tvShowId/seasons/:seasonId/episodes',
+    isVendor,
+    upload.single('thumbnail'),
+    async (req, res) => {
+      try {
+        const { tvShowId, seasonId } = req.params;
+        const { title, description, videoUrl, duration } = req.body;
+  
+        // Validate required fields
+        if (!title || !videoUrl) {
+          return res.status(400).json({
+            success: false,
+            message: 'Title and video URL are required'
+          });
+        }
+  
+        // Upload thumbnail if provided
+        let thumbnailUrl = '';
+        if (req.file) {
+          try {
+            const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+            thumbnailUrl = await uploadToCloudinary(base64, 'episodes/thumbnails', req.file.mimetype);
+          } catch (uploadError) {
+            console.error('Thumbnail upload error:', uploadError);
+            return res.status(400).json({
+              success: false,
+              message: 'Failed to upload thumbnail'
+            });
+          }
+        }
+  
+        // Create new episode
+        const episode = new Episode({
+          title,
+          description: description || '',
+          videoUrl,
+          duration: duration || 0,
+          thumbnail: thumbnailUrl,
+          tvShowId,
+          seasonId,
+          vendor_id: req.vendor.id
+        });
+  
+        await episode.save();
+  
+        // Update season with new episode
+        await Season.findByIdAndUpdate(
+          seasonId,
+          { $push: { episodes: episode._id } },
+          { new: true }
+        );
+  
+        res.status(201).json({
+          success: true,
+          message: 'Episode created successfully',
+          episode
+        });
+      } catch (error) {
+        console.error('Episode creation error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to create episode',
+          error: error.message
+        });
+      }
+    }
+  );
+  
 // POST /tvshows/:showId/seasons
 router.post('/tvshows/:showId/seasons', isVendor, async (req, res) => {
   try {
@@ -1816,6 +1959,37 @@ router.post('/tvshows/:showId/seasons', isVendor, async (req, res) => {
     });
   }
 });
+// GET /tvshows/:showId/seasons
+router.get('/tvshows/:showId/seasons', async (req, res) => {
+  try {
+    const { showId } = req.params;
+
+    // Ensure the TV Show exists
+    const tvShow = await TVShow.findById(showId);
+    if (!tvShow) {
+      return res.status(404).json({
+        success: false,
+        error: 'TV Show not found'
+      });
+    }
+
+    // Find all seasons linked to this TV show
+    const seasons = await TVSeason.find({ show_id: showId });
+
+    res.status(200).json({
+      success: true,
+      seasons
+    });
+  } catch (error) {
+    console.error('Get Seasons error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve seasons',
+      details: error.message
+    });
+  }
+});
+
 // Add Episode to TV Show Season
 router.post(
   '/tv-episodes',
