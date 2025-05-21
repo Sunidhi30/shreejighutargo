@@ -208,12 +208,84 @@ router.post('/login', async (req, res) => {
   }
 });
 // Step 2: Verify OTP and Login
-router.post('/verify-otp', async (req, res) => {
+// router.post('/verify-otp', async (req, res) => {
+//   try {
+//     const { otp } = req.body;
+//     const email = req.session.email; // Get email from session
+//     const user = await User.findOne({ email });
+//     if (!user) return res.status(404).json({ message: 'user not found' });
+
+//     if (user.otp !== otp || user.otpExpiry < new Date()) {
+//       return res.status(400).json({ message: 'Invalid or expired OTP' });
+//     }
+
+//     // Clear OTP after verification
+//     user.otp = null;
+//     user.otpExpiry = null;
+
+//     // Capture metadata
+//     // const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+//     const device = req.headers['user-agent'];
+//   let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+// if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('::ffff:127')) {
+//   ip = '8.8.8.8'; // Fallback for local testing
+// }
+//     let location = 'Unknown';
+
+//     try {
+//       // Step 1: Get coordinates from IP
+//       const ipLocationRes = await axios.get(`https://ipapi.co/${ip}/json/`);
+//       const { latitude, longitude } = ipLocationRes.data;
+
+//       // Step 2: Convert coordinates to readable location using OpenCage
+//       const openCageApiKey = '420a26521c014c6299ef2a241f068161'; // 🔁 Replace with your actual key
+//       const geoRes = await axios.get(`https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${openCageApiKey}`);
+      
+//       if (geoRes.data.results && geoRes.data.results.length > 0) {
+//         location = geoRes.data.results[0].formatted;
+//       } else {
+//         location = 'Location not available';
+//       }
+//     } catch (geoErr) {
+//       console.error('Geolocation failed:', geoErr.message);
+//       location = 'Location fetch failed';
+//     }
+
+//     // Save login info
+//     user.lastLogin = {
+//       ip,
+//       device,
+//       location,
+//       time: new Date(),
+//     };
+
+//     await user.save();
+
+//     const token = jwt.sign({ userID: user._id, email: user.email, role: user.role }, JWT_SECRET, {
+//       expiresIn: '7d',
+//     });
+
+//     res.status(200).json({
+//       message: 'Login successful',
+//       token,
+//       success: 200,
+//       user: {
+//         id: user._id,
+//         role: user.role,
+//         email: user.email,
+//         lastLogin: user.lastLogin,
+//       },
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: 'OTP verification failed', error: err.message });
+//   }
+// });
+router.post('/login-verify-otp', async (req, res) => {
   try {
-    const { otp } = req.body;
-    const email = req.session.email; // Get email from session
+    const { email, otp } = req.body;
+
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'user not found' });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (user.otp !== otp || user.otpExpiry < new Date()) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
@@ -223,24 +295,22 @@ router.post('/verify-otp', async (req, res) => {
     user.otp = null;
     user.otpExpiry = null;
 
-    // Capture metadata
-    // const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // Get device and IP info
     const device = req.headers['user-agent'];
-  let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('::ffff:127')) {
-  ip = '8.8.8.8'; // Fallback for local testing
-}
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('::ffff:127')) {
+      ip = '8.8.8.8'; // fallback for local testing
+    }
+
     let location = 'Unknown';
 
     try {
-      // Step 1: Get coordinates from IP
       const ipLocationRes = await axios.get(`https://ipapi.co/${ip}/json/`);
       const { latitude, longitude } = ipLocationRes.data;
 
-      // Step 2: Convert coordinates to readable location using OpenCage
-      const openCageApiKey = '420a26521c014c6299ef2a241f068161'; // 🔁 Replace with your actual key
+      const openCageApiKey = '420a26521c014c6299ef2a241f068161'; // replace with your actual key
       const geoRes = await axios.get(`https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${openCageApiKey}`);
-      
+
       if (geoRes.data.results && geoRes.data.results.length > 0) {
         location = geoRes.data.results[0].formatted;
       } else {

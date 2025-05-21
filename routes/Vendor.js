@@ -1328,15 +1328,71 @@ router.post('/series', isVendor, upload.fields([
     });
   }
 });
+// // Get all series uploaded by the logged-in vendor
+// router.get('/series', isVendor, async (req, res) => {
+//   try {
+//     const seriesList = await Series.find({ vendor_id: req.vendor.id }).select('_id title');
+//     res.status(200).json({ success: true, series: seriesList });
+//   } catch (error) {
+//     res.status(500).json({ success: false, error: error.message });
+//   }
+// });
+// Get all seasons for a specific series
+router.get('/seasons/:seriesId', isVendor, async (req, res) => {
+  try {
+    const { seriesId } = req.params;
+    
+    // Validate seriesId
+    if (!seriesId) {
+      return res.status(400).json({ success: false, error: 'Series ID is required' });
+    }
+
+    // Check if series exists and belongs to the vendor
+    const series = await Series.findOne({ 
+      _id: seriesId, 
+      vendor_id: req.vendor.id 
+    });
+
+    if (!series) {
+      return res.status(404).json({ success: false, error: 'Series not found or unauthorized' });
+    }
+
+    const seasons = await Season.find({ series_id: seriesId })
+      .sort({ seasonNumber: 1 })
+      .select('_id title seasonNumber releaseDate');
+
+    res.status(200).json({ success: true, seasons });
+  } catch (error) {
+    console.error('Error fetching seasons:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server error', 
+      message: error.message 
+    });
+  }
+});
+
 // Get all series uploaded by the logged-in vendor
 router.get('/series', isVendor, async (req, res) => {
   try {
-    const seriesList = await Series.find({ vendor_id: req.vendor.id }).select('_id title');
-    res.status(200).json({ success: true, series: seriesList });
+    const seriesList = await Series.find({ vendor_id: req.vendor.id })
+      .select('_id title')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ 
+      success: true, 
+      series: seriesList 
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error fetching series:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch series', 
+      message: error.message 
+    });
   }
 });
+
 // Add a new season to a series
 router.post('/series/:seriesId/seasons', isVendor, async (req, res) => {
   try {
@@ -1496,7 +1552,7 @@ router.post(
   }
 );
 // Get all seasons for a specific series
-router.get('/seasons/:seriesId', async (req, res) => {
+router.get('/seasons/:seriesId',isVendor,async (req, res) => {
   try {
     const { seriesId } = req.params;
     const seasons = await Season.find({ series_id: seriesId }).sort({ seasonNumber: 1 }); // sort by season number if you want
