@@ -4,6 +4,8 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const WithdrawalRequest = require('../models/WithdrawalRequest');
+
 const TVShow = require("../models/TVShow")
 const Contest = require("../models/Content")
 const router = express.Router();
@@ -1685,7 +1687,6 @@ router.get('/reset-password/:token', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-
 // Reset password route
 router.post('/reset-password/:token', async (req, res) => {
   try {
@@ -1737,7 +1738,6 @@ router.post('/reset-password/:token', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-
 // create a tv show channel - tv show - season - episode 
 router.post('/tvshows', 
   isVendor, 
@@ -2188,6 +2188,201 @@ router.get('/get-channels', async (req, res) => {
     res.status(200).json({ channels });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+
+
+
+
+// testting all below 
+// Middleware to update vendor's wallet with earnings
+const updateVendorWallet = async (vendorId, earnings) => {
+  try {
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      throw new Error('Vendor not found');
+    }
+
+    // 90-day lock period logic
+    vendor.lockedBalance += earnings; // New earnings go to locked balance
+    await vendor.save();
+
+    return vendor;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Get vendor earnings and update wallet
+router.get('/testing-vendor-earnings', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id;
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    const admin = await Admin.findOne();
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+
+    const earnings = vendor.totalViews * admin.pricePerView;
+    
+    // Update vendor's wallet with new earnings
+    await updateVendorWallet(vendorId, earnings);
+
+    // Calculate available and locked balance
+    const currentDate = new Date();
+    const ninetyDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 90));
+
+    // Move balance from locked to available if 90 days have passed
+    if (vendor.lockedBalance > 0) {
+      const availableAmount = vendor.lockedBalance;
+      vendor.wallet += availableAmount;
+      vendor.lockedBalance -= availableAmount;
+      await vendor.save();
+    }
+
+    res.json({
+      success: true,
+      vendorId: vendor._id,
+      totalViews: vendor.totalViews,
+      pricePerView: admin.pricePerView,
+      totalEarnings: earnings,
+      availableBalance: vendor.wallet,
+      lockedBalance: vendor.lockedBalance,
+      totalBalance: vendor.wallet + vendor.lockedBalance,
+      vendor
+    });
+
+  } catch (error) {
+    console.error('Error fetching vendor earnings:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Get vendor wallet details
+router.get('/wallet-details', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id;
+    const vendor = await Vendor.findById(vendorId);
+    
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    res.json({
+      success: true,
+      availableBalance: vendor.wallet,
+      lockedBalance: vendor.lockedBalance,
+      totalBalance: vendor.wallet + vendor.lockedBalance
+    });
+
+  } catch (error) {
+    console.error('Error fetching wallet details:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Periodic task to update locked balance (should be run daily)
+const updateLockedBalances = async () => {
+  try {
+    const vendors = await Vendor.find({ lockedBalance: { $gt: 0 } });
+    const currentDate = new Date();
+    const ninetyDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 90));
+
+    for (const vendor of vendors) {
+      // Move balance from locked to available if 90 days have passed
+      const availableAmount = vendor.lockedBalance;
+      vendor.wallet += availableAmount;
+      vendor.lockedBalance -= availableAmount;
+      await vendor.save();
+    }
+  } catch (error) {
+    console.error('Error updating locked balances:', error);
+  }
+};
+
+// Schedule the task to run daily
+// You can use a job scheduler like node-cron
+const cron = require('node-cron');
+cron.schedule('0 0 * * *', () => {
+  updateLockedBalances();
+});
+
+
+
+// Vendor creates withdrawal request
+router.post('/request-withdrawal', isVendor, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const vendorId = req.vendor.id;
+
+    // Find vendor
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    // Check if amount is available in wallet
+    if (vendor.wallet < amount) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Insufficient balance in wallet' 
+      });
+    }
+
+    // Check 90-day lock period
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    if (vendor.lockedBalance > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Some amount is still in 90-day lock period' 
+      });
+    }
+
+    // Create withdrawal request
+    const withdrawalRequest = new WithdrawalRequest({
+      vendor: vendorId,
+      amount,
+      status: 'pending'
+    });
+
+    // Move amount from wallet to lockedBalance
+    vendor.wallet -= amount;
+    vendor.lockedBalance += amount;
+
+    await withdrawalRequest.save();
+    await vendor.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Withdrawal request created successfully',
+      data: withdrawalRequest
+    });
+
+  } catch (error) {
+    console.error('Error in withdrawal request:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+// Vendor gets their withdrawal requests
+router.get('/my-requests', isVendor, async (req, res) => {
+  try {
+    const requests = await WithdrawalRequest.find({ vendor: req.vendor.id })
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: requests
+    });
+  } catch (error) {
+    console.error('Error fetching requests:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 module.exports = router;

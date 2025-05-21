@@ -7,6 +7,7 @@ const dotenv = require('dotenv');
 const RentalLimit = require("../models/RentalLimit");
 const HomeSection = require('../models/HomeSection');
 const User = require('../models/User');
+const WithdrawalRequest = require('../models/WithdrawalRequest');
 const ExcelJS = require('exceljs');
 const Package = require("../models/Package");
 const  Setting = require("../models/LikesSetting");
@@ -1989,6 +1990,78 @@ router.put('/update-section/:id', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error', error });
   }
 });
+// Admin gets all withdrawal requests
+router.get('/all-requests', verifyAdmin, async (req, res) => {
+  try {
+    const requests = await WithdrawalRequest.find()
+      .populate('vendor', 'username email')
+      .sort({ createdAt: -1 });
 
+    res.json({
+      success: true,
+      data: requests
+    });
+  } catch (error) {
+    console.error('Error fetching all requests:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Admin processes withdrawal request
+router.put('/process-request/:requestId', verifyAdmin, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { status, remarks } = req.body;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid status' 
+      });
+    }
+
+    const withdrawalRequest = await WithdrawalRequest.findById(requestId);
+    if (!withdrawalRequest) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Withdrawal request not found' 
+      });
+    }
+
+    const vendor = await Vendor.findById(withdrawalRequest.vendor);
+    if (!vendor) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Vendor not found' 
+      });
+    }
+
+    withdrawalRequest.status = status;
+    withdrawalRequest.remarks = remarks;
+
+    if (status === 'approved') {
+      // Remove amount from locked balance
+      vendor.lockedBalance -= withdrawalRequest.amount;
+      withdrawalRequest.withdrawalDate = new Date();
+    } else if (status === 'rejected') {
+      // Return amount to wallet
+      vendor.wallet += withdrawalRequest.amount;
+      vendor.lockedBalance -= withdrawalRequest.amount;
+    }
+
+    await withdrawalRequest.save();
+    await vendor.save();
+
+    res.json({
+      success: true,
+      message: `Withdrawal request ${status} successfully`,
+      data: withdrawalRequest
+    });
+
+  } catch (error) {
+    console.error('Error processing request:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
 
 module.exports = router;
