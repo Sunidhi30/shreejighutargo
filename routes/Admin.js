@@ -360,7 +360,7 @@ router.get('/get_types', async (req, res) => {
   }
 });
 // add language 
-router.post('/add_category', upload.single('image'), async (req, res) => {
+router.post('/add_category',verifyAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, status } = req.body;
     console.log(req.body);
@@ -402,7 +402,7 @@ router.get('/get_categories', async (req, res) => {
   }
 });
 // POST /api/languages/add_language
-router.post('/add_language', upload.single('image'), async (req, res) => {
+router.post('/add_language',verifyAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, status } = req.body;
     console.log(req.body);
@@ -491,7 +491,7 @@ router.put(
     }
 );
 // Delete a category
-router.delete("/:id", async (req, res) => {
+router.delete("/:id",verifyAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const category = await Category.findById(id);
@@ -615,7 +615,7 @@ router.get('/get-casts', async (req, res) => {
   });
 
 // get admin users
-router.get('/admin/users', async (req, res) => {
+router.get('/admin/users', verifyAdmin,async (req, res) => {
   try {
     const users = await User.find({ deleted: false }).select(
       'profileImage fullName username email mobile createdAt'
@@ -627,7 +627,7 @@ router.get('/admin/users', async (req, res) => {
   }
 });
 // get movies
-router.get('/admin/movies', async (req, res) => {
+router.get('/admin/movies', verifyAdmin,async (req, res) => {
   try {
     const movies = await Video.find({ status: 'approved' }).select('title');
 
@@ -717,7 +717,7 @@ router.get('/types/:type', async (req, res) => {
   }
 });
 // upcoming banners 
-router.post('/upcoming-banners', upload.single('banner'), async (req, res) => {
+router.post('/upcoming-banners',verifyAdmin, upload.single('banner'), async (req, res) => {
   try {
     const {
       title,
@@ -772,7 +772,7 @@ router.post('/upcoming-banners', upload.single('banner'), async (req, res) => {
   }
 });
 // add channel( like startplus)
-router.post('/add-channel', upload.fields([
+router.post('/add-channel', verifyAdmin,upload.fields([
   { name: 'portrait_img', maxCount: 1 },
   { name: 'landscape_img', maxCount: 1 }
 ]), async (req, res) => {
@@ -821,7 +821,7 @@ router.get('/get-channels', async (req, res) => {
   }
 });
 // add producer 
-router.post('/add-producer', upload.single('image'), async (req, res) => {
+router.post('/add-producer',verifyAdmin, upload.single('image'), async (req, res) => {
   try {
     const { user_name, full_name, email, password, mobile_number, status } = req.body;
 
@@ -873,7 +873,7 @@ router.get('/get-producers', async (req, res) => {
   }
 });
 // approves the video for the vendor 
-router.post('/approve/:videoId', async (req, res) => {
+router.post('/approve/:videoId', verifyAdmin,async (req, res) => {
   try {
     const { videoId } = req.params;
     const updatedVideo = await Video.findByIdAndUpdate(videoId, { isApproved: true }, { new: true });
@@ -889,7 +889,7 @@ router.post('/approve/:videoId', async (req, res) => {
   }
 });
 // POST /api/banners - Add new banner
-router.post('/banners', async (req, res) => {
+router.post('/banners',verifyAdmin, async (req, res) => {
   try {
     const {
       is_home_screen = 0,
@@ -1191,7 +1191,7 @@ router.get('/wallet-balance', async (req, res) => {
   }
 });
 // ✅ Set or Update Target
-router.post('/set-target', async (req, res) => {
+router.post('/set-target',verifyAdmin, async (req, res) => {
   const { adminId, targetAmount } = req.body;
   try {
     const admin = await Admin.findByIdAndUpdate(adminId, {
@@ -1296,7 +1296,7 @@ router.get('/plans-summary', async (req, res) => {
 });
 // POST /admin/upload-profile-image
 // Upload profile image
-router.post('/admin/upload-profile-image', verifyToken, upload.single('profileImage'), async (req, res) => {
+router.post('/admin/upload-profile-image',verifyAdmin, upload.single('profileImage'), async (req, res) => {
   try {
     const userId = req.user.id; // Extracted from JWT
     const file = req.file;
@@ -1324,7 +1324,7 @@ router.post('/admin/upload-profile-image', verifyToken, upload.single('profileIm
   }
 });
 // Get admin profile
-router.get('/profile', verifyToken, async (req, res) => {
+router.get('/profile', verifyAdmin, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -1338,7 +1338,7 @@ router.get('/profile', verifyToken, async (req, res) => {
   }
 });
 // Define your routes below not working 
-router.patch('/update-profile', verifyToken, async (req, res) => {
+router.patch('/update-profile', verifyAdmin, async (req, res) => {
   try {
     const userId = req.user.id;
     const { profileImage } = req.body; // Fields that can be updated
@@ -1784,7 +1784,7 @@ router.get('/admin-note/:videoId',  async (req, res) => {
 //   }
 // });
 // Route: Add new section
-router.post('/add-section/:typeName', async (req, res) => {
+router.post('/add-section/:typeName',verifyAdmin, async (req, res) => {
   try {
     const { typeName } = req.params;
 
