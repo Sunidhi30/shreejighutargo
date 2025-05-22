@@ -781,6 +781,32 @@ router.get('/get_types', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
+router.get('/get_videos_by_type', async (req, res) => {
+  try {
+    const videos = await Video.find({ isApproved: true })
+      .populate('type_id', 'name') // populate type name
+      .sort({ createdAt: -1 }); // optional: latest first
+
+    // Group videos by type
+    const groupedVideos = {};
+
+    videos.forEach(video => {
+      const typeName = video.type_id?.name || 'Unknown';
+      if (!groupedVideos[typeName]) {
+        groupedVideos[typeName] = [];
+      }
+      groupedVideos[typeName].push(video);
+    });
+
+    return res.status(200).json({
+      message: 'Videos grouped by type fetched successfully',
+      data: groupedVideos
+    });
+  } catch (error) {
+    console.error('Error fetching videos by type:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
 // get category action , romance 
 router.get('/get_categories', async (req, res) => {
   try {

@@ -2383,138 +2383,117 @@ router.get('/my-requests', isVendor, async (req, res) => {
 //upload video  (its simple uploading without doing the rentals videos and all )
 // POST /create-short - Upload a short video (thumbnail + single video)
 // POST /api/shorts - Create new short (with video upload)
-router.post('/upload-shorts', upload.single('video'), async (req, res) => {
+const cpUpload = upload.fields([
+  { name: 'video', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 }
+]);
+router.post('/upload-shorts', cpUpload, async (req, res) => {
   try {
     const {
-      title,
+      name,
       description,
-      vendor_id,
-      channel_id,
+      vendor_id, 
       category_id,
-      language_id,
-      tags,
-      hashtags,
-      is_comment_enabled,
-      is_download_enabled,
-      is_share_enabled,
-      is_premium,
-      is_public
+      language_id
     } = req.body;
 
-    // Validate required fields
-    if (!title || !description || !vendor_id) {
+    if (!name || !vendor_id || !req.files['video']) {
       return res.status(400).json({
         success: false,
-        message: 'Title, description, and vendor_id are required'
+        message: 'Name, vendor_id, and video are required'
       });
     }
 
-    // Check if video file is provided
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'Video file is required'
-      });
-    }
+    const videoFile = req.files['video'][0];
 
     // Upload video to Cloudinary
-    const videoUploadResult = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
+    const videoUpload = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
         {
           resource_type: 'video',
           folder: 'shorts/videos',
-          quality: 'auto',
           format: 'mp4',
           transformation: [
             { width: 720, height: 1280, crop: 'limit' },
             { quality: 'auto:good' }
           ]
         },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
+        (error, result) => error ? reject(error) : resolve(result)
       );
-      uploadStream.end(req.file.buffer);
+      stream.end(videoFile.buffer);
     });
 
-    // Generate thumbnail from video
-    const thumbnailResult = await cloudinary.uploader.upload(videoUploadResult.secure_url, {
-      resource_type: 'video',
-      folder: 'shorts/thumbnails',
-      format: 'jpg',
-      transformation: [
-        { width: 360, height: 640, crop: 'fill' },
-        { start_offset: '2s' }
-      ]
-    });
+    let thumbnailUrl = '';
 
-    // Get video duration
-    let videoDuration = videoUploadResult.duration || 0;
-    let fileSize = req.file.size;
-
-    // Validate duration (shorts should be under 60 seconds)
-    if (videoDuration > 60) {
-      await cloudinary.uploader.destroy(videoUploadResult.public_id, { resource_type: 'video' });
-      await cloudinary.uploader.destroy(thumbnailResult.public_id);
-      
-      return res.status(400).json({
-        success: false,
-        message: 'Video duration must be 60 seconds or less for shorts'
+    if (req.files['thumbnail']) {
+      const thumbnailFile = req.files['thumbnail'][0];
+      const thumbUpload = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'shorts/thumbnails',
+            resource_type: 'image',
+            format: 'jpg',
+            transformation: [{ width: 360, height: 640, crop: 'fill' }]
+          },
+          (error, result) => error ? reject(error) : resolve(result)
+        );
+        stream.end(thumbnailFile.buffer);
+      });
+      thumbnailUrl = thumbUpload.secure_url;
+    } else {
+      // Auto-generate thumbnail from video
+      thumbnailUrl = cloudinary.url(videoUpload.public_id + '.jpg', {
+        resource_type: 'video',
+        format: 'jpg',
+        transformation: [
+          { width: 360, height: 640, crop: 'fill' },
+          { start_offset: '2' }
+        ]
       });
     }
 
-    // Create new short document
+    const duration = videoUpload.duration || 0;
+    if (duration > 60) {
+      await cloudinary.uploader.destroy(videoUpload.public_id, { resource_type: 'video' });
+      return res.status(400).json({
+        success: false,
+        message: 'Video must be 60 seconds or shorter'
+      });
+    }
+
     const newShort = new Shorts({
-      title: title.trim(),
-      description: description.trim(),
-      video_url: videoUploadResult.secure_url,
-      thumbnail_url: thumbnailResult.secure_url,
-      video_duration: Math.round(videoDuration),
       vendor_id,
-      channel_id: channel_id || null,
       category_id: category_id || null,
       language_id: language_id || null,
-      tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim())) : [],
-      hashtags: hashtags ? (Array.isArray(hashtags) ? hashtags : hashtags.split(',').map(tag => tag.trim())) : [],
-      is_comment_enabled: is_comment_enabled !== undefined ? Boolean(is_comment_enabled) : true,
-      is_download_enabled: is_download_enabled !== undefined ? Boolean(is_download_enabled) : false,
-      is_share_enabled: is_share_enabled !== undefined ? Boolean(is_share_enabled) : true,
-      is_premium: is_premium !== undefined ? Boolean(is_premium) : false,
-      is_public: is_public !== undefined ? Boolean(is_public) : true,
-      original_filename: req.file.originalname,
-      file_size: fileSize,
-      cloudinary_public_id: videoUploadResult.public_id,
-      cloudinary_version: videoUploadResult.version,
-      cloudinary_signature: videoUploadResult.signature,
-      upload_source: 'api'
+      name: name.trim(),
+      description: description || '',
+      thumbnail: thumbnailUrl,
+      video_url: videoUpload.secure_url,
+      video_extension: videoUpload.format,
+      video_duration: Math.round(duration),
     });
 
-    // Save to database
-    const savedShort = await newShort.save();
+    const saved = await newShort.save();
 
-    // Populate references
-    const populatedShort = await Shorts.findById(savedShort._id)
+    const populated = await Shorts.findById(saved._id)
       .populate('vendor_id', 'name email')
-      .populate('channel_id', 'name')
       .populate('category_id', 'name')
       .populate('language_id', 'name');
 
     res.status(201).json({
       success: true,
-      message: 'Short created successfully',
-      data: populatedShort
+      message: 'Short uploaded successfully',
+      data: populated
     });
 
-  } catch (error) {
-    console.error('Error creating short:', error);
+  } catch (err) {
+    console.error('Upload Error:', err);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
-      error: error.message
+      message: 'Internal Server Error',
+      error: err.message
     });
   }
 });
-
 
 module.exports = router;
