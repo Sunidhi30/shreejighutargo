@@ -4,8 +4,9 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const VendorLockPeriod = require('../models/LockPeriod'); // adjust the path as needed
 const WithdrawalRequest = require('../models/WithdrawalRequest');
-const Short = require('../models/Short'); // Adjust path as needed
+const Shorts = require('../models/Short'); // Adjust path as needed
 const TVShow = require("../models/TVShow")
 const Contest = require("../models/Content")
 const router = express.Router();
@@ -1228,22 +1229,67 @@ router.get('/top-performing-videos', isVendor, async (req, res) => {
     });
   }
 });
-// GET vendor earnings using token
+// GET vendor earnings using token without lock period
+// router.get('/vendor-earnings', isVendor, async (req, res) => {
+//   try {
+//     const vendorId = req.vendor.id;
+//     const vendor = await Vendor.findById(vendorId);
+//     if (!vendor) {
+//       return res.status(404).json({ success: false, message: 'Vendor not found' });
+//     }
+//     console.log("vendor.totalViews:", vendor.totalViews);
+//     const admin = await Admin.findOne();
+//     console.log("admin", admin);
+//     if (!admin) {
+//       return res.status(404).json({ success: false, message: 'Admin not found' });
+//     }
+//     const earnings = vendor.totalViews * admin.pricePerView;
+//     console.log("earningis :", earnings);
+//     res.json({
+//       success: true,
+//       vendorId: vendor._id,
+//       totalViews: vendor.totalViews,
+//       pricePerView: admin.pricePerView,
+//       earnings
+//     });
+//   } catch (error) {
+//     console.error('Error fetching vendor earnings:', error);
+//     res.status(500).json({ success: false, message: 'Internal server error' });
+//   }
+// });
 router.get('/vendor-earnings', isVendor, async (req, res) => {
   try {
     const vendorId = req.vendor.id;
+
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
-    console.log("vendor.totalViews:", vendor.totalViews);
+
     const admin = await Admin.findOne();
-    console.log("admin", admin);
     if (!admin) {
       return res.status(404).json({ success: false, message: 'Admin not found' });
     }
+
+    // 🔒 Check if there's an active lock period
+    const lockPeriod = await VendorLockPeriod.findOne({
+      vendorId,
+      isActive: true,
+      endDate: { $gt: new Date() }
+    });
+    console.log("end date"+lockPeriod.endDate.toISOString());
+    if (lockPeriod) {
+      const remainingDays = lockPeriod.getRemainingDays ? lockPeriod.getRemainingDays() : 0;
+     console.log("remain days ", remainingDays);
+      return res.status(403).json({
+        success: false,
+        message: `Earnings are locked. You can access your earnings after ${remainingDays} day(s).`
+      });
+    }
+
+    // ✅ Lock period is either not set or completed
     const earnings = vendor.totalViews * admin.pricePerView;
-    console.log("earningis :", earnings);
+
     res.json({
       success: true,
       vendorId: vendor._id,
@@ -1251,6 +1297,7 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
       pricePerView: admin.pricePerView,
       earnings
     });
+
   } catch (error) {
     console.error('Error fetching vendor earnings:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -1373,7 +1420,6 @@ router.get('/seasons/:seriesId', isVendor, async (req, res) => {
     });
   }
 });
-
 // Get all series uploaded by the logged-in vendor
 router.get('/series', isVendor, async (req, res) => {
   try {
@@ -1394,7 +1440,6 @@ router.get('/series', isVendor, async (req, res) => {
     });
   }
 });
-
 // Add a new season to a series
 router.post('/series/:seriesId/seasons', isVendor, async (req, res) => {
   try {
@@ -2308,6 +2353,62 @@ cron.schedule('0 0 * * *', () => {
   updateLockedBalances();
 });
 
+// // Vendor creates withdrawal request
+// router.post('/request-withdrawal', isVendor, async (req, res) => {
+//   try {
+//     const { amount } = req.body;
+//     const vendorId = req.vendor.id;
+
+//     // Find vendor
+//     const vendor = await Vendor.findById(vendorId);
+//     if (!vendor) {
+//       return res.status(404).json({ success: false, message: 'Vendor not found' });
+//     }
+
+//     // Check if amount is available in wallet
+//     if (vendor.wallet < amount) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Insufficient balance in wallet' 
+//       });
+//     }
+
+//     // Check 90-day lock period
+//     const ninetyDaysAgo = new Date();
+//     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+//     if (vendor.lockedBalance > 0) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Some amount is still in 90-day lock period' 
+//       });
+//     }
+
+//     // Create withdrawal request
+//     const withdrawalRequest = new WithdrawalRequest({
+//       vendor: vendorId,
+//       amount,
+//       status: 'pending'
+//     });
+
+//     // Move amount from wallet to lockedBalance
+//     vendor.wallet -= amount;
+//     vendor.lockedBalance += amount;
+
+//     await withdrawalRequest.save();
+//     await vendor.save();
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Withdrawal request created successfully',
+//       data: withdrawalRequest
+//     });
+
+//   } catch (error) {
+//     console.error('Error in withdrawal request:', error);
+//     res.status(500).json({ success: false, message: 'Internal server error' });
+//   }
+// });
 // Vendor creates withdrawal request
 router.post('/request-withdrawal', isVendor, async (req, res) => {
   try {
@@ -2320,7 +2421,23 @@ router.post('/request-withdrawal', isVendor, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
-    // Check if amount is available in wallet
+    // 🔒 Check active lock period
+    const lockPeriod = await VendorLockPeriod.findOne({
+      vendorId,
+      isActive: true,
+      endDate: { $gt: new Date() }
+    });
+
+    if (lockPeriod) {
+      const remainingDays = lockPeriod.getRemainingDays ? lockPeriod.getRemainingDays() : 0;
+
+      return res.status(403).json({
+        success: false,
+        message: `Withdrawals are locked. You can request a withdrawal after ${remainingDays} day(s).`
+      });
+    }
+
+    // 💰 Check if amount is available in wallet
     if (vendor.wallet < amount) {
       return res.status(400).json({ 
         success: false, 
@@ -2328,18 +2445,7 @@ router.post('/request-withdrawal', isVendor, async (req, res) => {
       });
     }
 
-    // Check 90-day lock period
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    if (vendor.lockedBalance > 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Some amount is still in 90-day lock period' 
-      });
-    }
-
-    // Create withdrawal request
+    // 🪙 Create withdrawal request
     const withdrawalRequest = new WithdrawalRequest({
       vendor: vendorId,
       amount,
@@ -2495,5 +2601,31 @@ router.post('/upload-shorts', cpUpload, async (req, res) => {
     });
   }
 });
+// router.get('/get-shortbyid',async(req,res)=>{
+
+// })
+router.get('/get_shorts', async (req, res) => {
+  try {
+    // Adjust this query as needed
+    const shorts = await Video.find({
+      isApproved: true,
+      $or: [
+        { video_type: 'short' },
+        { video_duration: { $lt: 60 } }
+      ]
+    })
+    .populate('type_id', 'name') // optionally include type name
+    .sort({ createdAt: -1 }); // optional: newest first
+
+    return res.status(200).json({
+      message: 'Short videos fetched successfully',
+      data: shorts
+    });
+  } catch (error) {
+    console.error('Error fetching short videos:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 
 module.exports = router;

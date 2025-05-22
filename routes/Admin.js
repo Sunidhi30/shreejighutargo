@@ -23,6 +23,7 @@ const Channel = require("../models/Channel");
 const Banner = require("../models/Banner");
 const TVShow = require("../models/TVShow");
 const Season = require("../models/Season");
+const VendorLockPeriod= require("../models/LockPeriod")
 const Comment = require("../models/Commet");
 const Transaction  = require("../models/Transactions");
 const Subscription = require('../models/Subscription'); // adjust the path if needed
@@ -2061,6 +2062,177 @@ router.put('/process-request/:requestId', verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+// Route: Admin sets/updates lock period for a vendor
+// Route: Admin sets/updates lock period for a vendor
+router.post('/set-vendor-lock', verifyAdmin, async (req, res) => {
+  try {
+    const { vendorId, lockPeriodDays, reason } = req.body;
+    const adminId = req.admin.id; // from auth middleware
+
+    // Validate input
+    if (!vendorId || !lockPeriodDays || lockPeriodDays < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vendor ID and a lock period of at least 1 day are required'
+      });
+    }
+
+    // Ensure vendor exists
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found'
+      });
+    }
+
+    // Look for an existing lock
+    let lock = await VendorLockPeriod.findOne({ vendorId });
+
+    if (lock) {
+      // Update existing
+      lock.lockPeriodDays = lockPeriodDays;
+      lock.reason = reason?.trim() || lock.reason;
+      lock.adminId = adminId;
+      lock.isActive = true;
+      lock.startDate = new Date(); // reset
+      await lock.save();
+       console.log("lock "+lock);
+      // Populate refs
+      await lock.populate([
+        { path: 'vendorId', select: 'username fullName email wallet lockedBalance' },
+        { path: 'adminId',  select: 'email role' }
+      ]);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Vendor lock period updated successfully',
+        data: {
+          lockPeriod: lock,
+          vendor: {
+            username: lock.vendorId.username,
+            currentWallet: lock.vendorId.wallet,
+            currentLockedBalance: lock.vendorId.lockedBalance
+          }
+        }
+      });
+    }
+
+    // Create new lock period
+    lock = new VendorLockPeriod({
+      vendorId,
+      adminId,
+      lockPeriodDays,
+      reason: reason?.trim() || undefined
+    });
+    console.log("venodr lock period"+lock);
+    try {
+      await lock.save();
+    } catch (err) {
+      // Handle duplicate‐key (race condition) gracefully
+      if (err.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: 'A lock period already exists for this vendor'
+        });
+      }
+      throw err;
+    }
+
+    await lock.populate([
+      { path: 'vendorId', select: 'username fullName email wallet lockedBalance' },
+      { path: 'adminId',  select: 'email role' }
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: 'Vendor lock period set successfully',
+      data: {
+        lockPeriod: lock,
+        vendor: {
+          username: lock.vendorId.username,
+          currentWallet: lock.vendorId.wallet,
+          currentLockedBalance: lock.vendorId.lockedBalance
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error setting vendor lock period:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+// Route: Admin gets all vendor lock periods with pagination
+// Route: Admin gets all vendor lock periods with pagination
+router.get('/vendor-lock-periods',verifyAdmin, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    
+    const { status, vendorId, search } = req.query;
+    
+    let query = {};
+    
+    // Filter by status
+    if (status === 'active') {
+      query = { isActive: true, endDate: { $gt: new Date() } };
+    } else if (status === 'expired') {
+      query = { $or: [{ isActive: false }, { endDate: { $lte: new Date() } }] };
+    }
+    
+    // Filter by specific vendor
+    if (vendorId) {
+      query.vendorId = vendorId;
+    }
+
+    const lockPeriods = await VendorLockPeriod.find(query)
+      .populate('vendorId', 'username fullName email wallet lockedBalance')
+      .populate('adminId', 'email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await VendorLockPeriod.countDocuments(query);
+
+    // Add remaining days and status to each lock period
+    const lockPeriodsWithDetails = lockPeriods.map(lock => ({
+      ...lock.toObject(),
+      remainingDays: lock.getRemainingDays(),
+      isCurrentlyActive: lock.isLockActive(),
+      vendor: {
+        ...lock.vendorId.toObject(),
+        totalBalance: lock.vendorId.wallet + lock.vendorId.lockedBalance
+      }
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        lockPeriods: lockPeriodsWithDetails,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalRecords: total,
+          hasNext: page < Math.ceil(total / limit),
+          hasPrev: page > 1
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching vendor lock periods:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
 

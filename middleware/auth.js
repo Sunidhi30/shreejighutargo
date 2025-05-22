@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User'); // Ensure correct path
 const Admin = require("../models/Admin");
 const Vendor = require("../models/Vendor");
+const LockPeriod = require("../models/LockPeriod")
 require('dotenv').config();
 // exports.isVendor = async (req, res, next) => {
 //     try {
@@ -68,6 +69,70 @@ exports.isVendor = async (req, res, next) => {
     res.status(401).json({ message: 'Invalid or expired token', error: err.message });
   }
 };
+exports. checkVendorLock = async (req, res, next) => {
+  try {
+    const vendorId = req.vendor.id; // from auth middleware
+
+    // Find active lock period for this vendor
+    const activeLock = await LockPeriod.findOne({
+      vendor: vendorId,
+      status: 'locked'
+    });
+
+    if (!activeLock) {
+      return next(); // No lock, proceed
+    }
+
+    // Calculate if lock period has expired
+    const unlocksAt = new Date(activeLock.lockedAt.getTime() + (activeLock.durationDays * 24 * 60 * 60 * 1000));
+    const now = new Date();
+
+    if (now >= unlocksAt) {
+      // Lock period has expired, automatically unlock
+      activeLock.status = 'unlocked';
+      await activeLock.save();
+
+      // Move ALL locked balance back to wallet (including new earnings during lock period)
+      const vendor = await Vendor.findById(vendorId);
+      vendor.wallet += vendor.lockedBalance;
+      vendor.lockedBalance = 0;
+      await vendor.save();
+
+      return next(); // Lock expired, proceed
+    }
+
+    // Vendor is still locked - move any new earnings to locked balance
+    const vendor = await Vendor.findById(vendorId);
+    if (vendor.wallet > 0) {
+      vendor.lockedBalance += vendor.wallet;
+      vendor.wallet = 0;
+      await vendor.save();
+    }
+
+    // Vendor is still locked
+    const remainingDays = Math.ceil((unlocksAt - now) / (24 * 60 * 60 * 1000));
+    
+    return res.status(403).json({
+      success: false,
+      message: 'Account is temporarily locked from transactions. All earnings are locked during this period.',
+      lockDetails: {
+        lockedAt: activeLock.lockedAt,
+        durationDays: activeLock.durationDays,
+        unlocksAt: unlocksAt,
+        remainingDays: remainingDays,
+        totalLockedAmount: vendor.lockedBalance
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking vendor lock:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking account status'
+    });
+  }
+};
+
 /**
  * 🔹 Middleware to verify JWT authentication
  */
