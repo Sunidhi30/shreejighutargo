@@ -10,6 +10,7 @@ const Shorts = require('../models/Short'); // Adjust path as needed
 const TVShow = require("../models/TVShow")
 const Contest = require("../models/Content")
 const router = express.Router();
+
 const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
 const cloudinary = require('cloudinary').v2;
@@ -247,6 +248,15 @@ router.post(
        
       } = req.body;
       const vendorId = req.vendor.id;
+      let typeIdToUse = type_id;
+
+if (!type_id) {
+  const defaultType = await Type.findOne({ name: 'movie' });
+  if (!defaultType) {
+    return res.status(400).json({ success: false, message: 'Default type "Movie" not found in database.' });
+  }
+  typeIdToUse = defaultType._id;
+}
       // console.log("", vendorId);
       // console.log(req.body)
       let thumbnailUrl = '', landscapeUrl = '', video_320Url = '', video_480Url = '', video_720Url = '', video_1080Url = '', trailerUrl = '';
@@ -269,7 +279,7 @@ router.post(
       trailerUrl = await uploadFile('trailer', 'videos/trailers');
 
       const newVideo = new Video({
-        type_id: type_id ? new mongoose.Types.ObjectId(type_id) : null,
+        // type_id: type_id ? new mongoose.Types.ObjectId(type_id) : null,
         video_type,
         vendor_id: new mongoose.Types.ObjectId(vendorId),
         channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
@@ -323,7 +333,7 @@ router.post(
       await newVideo.save();
   
       const populatedVideo = await Video.findById(newVideo._id)
-        .populate('type_id', 'name')
+        // .populate('type_id', 'name')
         .populate('category_id', 'name')
         .populate('cast_id', 'name')
         .populate('language_id', 'name')
@@ -1178,14 +1188,16 @@ router.get('/videos-by-status', isVendor, async (req, res) => {
     for (let video of videos) {
       // Assuming you have a FinalPackage model to get the package details
       const package = await finalPackage.findById(video.finalPackage_id);
-
+     console.log("package id "+package)
       // If the package is found, add the price to the video
       if (package) {
         video.price = package.price;
+        console.log(video.price);
       } else {
         video.price = 0; // Default price if no package is found
       }
     }
+      
 
     // Return the response with the video data including the price
     return res.status(200).json({
@@ -2624,6 +2636,153 @@ router.get('/get_shorts', async (req, res) => {
   } catch (error) {
     console.error('Error fetching short videos:', error);
     return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+router.post("/set-target", isVendor, async (req, res) => {
+  const { target } = req.body;
+
+  if (!target || isNaN(target)) {
+    return res.status(400).json({ success: false, message: "Invalid target amount" });
+  }
+
+  try {
+    const vendor = await Vendor.findById(req.vendor.id);
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found" });
+
+    vendor.monthlyTarget = target;
+    await vendor.save();
+    const monthly_target= vendor.monthlyTarget
+    res.json({ success: true, monthly_target, message: "Target updated successfully" });
+  } catch (error) {
+    console.error("Error setting target:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+// GET /get-target - Get vendor's current monthly target
+router.get("/get-target", isVendor, async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.vendor.id);
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found" });
+
+    res.json({ success: true, monthly_target: vendor.monthlyTarget || 0 });
+  } catch (error) {
+    console.error("Error fetching target:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+// set target for users 
+// Update Monthly Target
+router.post("/set-target-users", isVendor, async (req, res) => {
+  const { target } = req.body;
+
+  if (!target || isNaN(target)) {
+    return res.status(400).json({ success: false, message: "Invalid target amount" });
+  }
+
+  try {
+    const vendor = await Vendor.findById(req.vendor.id);
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found" });
+
+    vendor.monthlyTargetUser = target;
+    await vendor.save();
+    const monthly_target_users= vendor.monthlyTargetUser
+    res.json({ success: true, monthly_target_users, message: "Target updated successfully" });
+  } catch (error) {
+    console.error("Error setting target:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+// GET /get-target-users - Get vendor's current monthly users target
+router.get("/get-target-users", isVendor, async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.vendor.id);
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found" });
+
+    res.json({ success: true, monthly_target_users: vendor.monthlyTargetUser || 0 });
+  } catch (error) {
+    console.error("Error fetching target:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// In your video routes file
+router.get('/filter-videos-by', async (req, res) => {
+  try {
+    const { type, category } = req.query;
+    
+    // Input validation
+    if (!type) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Type parameter is required' 
+      });
+    }
+
+    // First try to find by name
+    let videoType = await Type.findOne({
+      name: { $regex: new RegExp(`^${type}$`, 'i') }
+    });
+    console.log("video type"+videoType)
+
+    // If not found by name, try to find by type number
+    if (!videoType) {
+      videoType = await Type.findOne({ type: Number(type) });
+    }
+    
+    if (!videoType) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Video type '${type}' not found` 
+      });
+    }
+
+    // Build the base query with both type_id and video_type
+    let query = {
+      $or: [
+        { type_id: videoType._id },
+        { video_type: videoType.name.toLowerCase() }
+      ]
+    };
+      console.log(query);
+    // Add category filter if provided
+    if (category) {
+      query.category_id = category;
+    }
+
+    console.log('Query:', query); // Debug log
+
+    // Fetch videos with populated fields
+    const videos = await Video.find(query)
+      .populate('category_id', 'name')
+      .populate('type_id', 'name type')
+      .populate('finalPackage_id', 'name price')
+      .populate('vendor_id', 'name')
+      .populate('channel_id', 'name')
+      .populate('producer_id', 'name')
+      .sort({ createdAt: -1 });
+
+    console.log('Found videos:', videos.length); // Debug log
+
+    // Return success response with videos
+    res.json({
+      success: true,
+      count: videos.length,
+      type: videoType.name,
+      typeId: videoType._id, // Include type ID in response
+      videos: videos.map(video => ({
+        ...video.toObject(),
+        type_name: videoType.name,
+        type_number: videoType.type
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error in filter-videos:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching videos',
+      error: error.message 
+    });
   }
 });
 

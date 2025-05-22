@@ -327,12 +327,21 @@ router.put('/set-price-per-view', verifyAdmin, async (req, res) => {
   }
 });
 // add type 
-router.post('/add_type',verifyAdmin, async (req, res) => {
+router.post('/add_type', verifyAdmin, async (req, res) => {
   try {
-    const { name, type, status = 1 } = req.body;
+    let { name, type, status = 1 } = req.body;
 
     if (!name || typeof type !== 'number') {
       return res.status(400).json({ message: 'Missing required fields: name or type' });
+    }
+
+    // Normalize name to lowercase
+    name = name.toLowerCase();
+
+    // Check if type with same name already exists (case-insensitive)
+    const existingType = await Type.findOne({ name: { $regex: `^${name}$`, $options: 'i' } });
+    if (existingType) {
+      return res.status(400).json({ message: 'Type already exists with this name' });
     }
 
     const newType = new Type({ name, type, status });
@@ -347,6 +356,7 @@ router.post('/add_type',verifyAdmin, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
+
 // get types 
 router.get('/get_types', async (req, res) => {
   try {

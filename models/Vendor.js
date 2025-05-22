@@ -7,6 +7,8 @@ const vendorSchema = new mongoose.Schema({
   fullName: String,
   email: { type: String, unique: true },
   mobile: String,
+  monthlyTarget: Number,
+  monthlyTargetUser:Number,
   totalViews: { type: Number, default: 0 },
   totalUsers: { type: Number, default: 0 },
   totalVideos: { type: Number, default: 0 },

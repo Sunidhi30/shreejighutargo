@@ -821,6 +821,17 @@ router.get('/get_categories', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+// GET /api/users/get_video_types
+router.get('/get_video_types', async (req, res) => {
+  try {
+    const types = await Type.find({ status: 1 }); // Fetch only active types
+    res.status(200).json({ success: true, data: types });
+  } catch (error) {
+    console.error('Error fetching video types:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching video types' });
+  }
+});
+
 // get language  
 router.get('/get_languages', async (req, res) => {
   try {

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const  Type  = require("../models/Type")
 const videoSchema = new mongoose.Schema({
   type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Type' },
   video_type: { type: String },
@@ -83,5 +84,21 @@ episodeNumber: { type: Number },
 }, {
   collection: 'tbl_video',
   timestamps: true
+});
+// 🔁 Automatically assign "Movie" type if not manually set
+videoSchema.pre('save', async function(next) {
+  if (!this.type_id) {
+    try {
+      const movieType = await Type.findOne({ type: 1 }); // 1 corresponds to Movie
+      if (movieType) {
+        this.type_id = movieType._id;
+      } else {
+        console.warn("Movie type not found in 'tbl_type'.");
+      }
+    } catch (err) {
+      return next(err);
+    }
+  }
+  next();
 });
 module.exports = mongoose.model('Video', videoSchema);
