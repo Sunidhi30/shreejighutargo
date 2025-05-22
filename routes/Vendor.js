@@ -5,7 +5,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const WithdrawalRequest = require('../models/WithdrawalRequest');
-
+const Short = require('../models/Short'); // Adjust path as needed
 const TVShow = require("../models/TVShow")
 const Contest = require("../models/Content")
 const router = express.Router();
@@ -2377,6 +2377,142 @@ router.get('/my-requests', isVendor, async (req, res) => {
   } catch (error) {
     console.error('Error fetching requests:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+//upload video  (its simple uploading without doing the rentals videos and all )
+// POST /create-short - Upload a short video (thumbnail + single video)
+// POST /api/shorts - Create new short (with video upload)
+router.post('/upload-shorts', upload.single('video'), async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      vendor_id,
+      channel_id,
+      category_id,
+      language_id,
+      tags,
+      hashtags,
+      is_comment_enabled,
+      is_download_enabled,
+      is_share_enabled,
+      is_premium,
+      is_public
+    } = req.body;
+
+    // Validate required fields
+    if (!title || !description || !vendor_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title, description, and vendor_id are required'
+      });
+    }
+
+    // Check if video file is provided
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Video file is required'
+      });
+    }
+
+    // Upload video to Cloudinary
+    const videoUploadResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'video',
+          folder: 'shorts/videos',
+          quality: 'auto',
+          format: 'mp4',
+          transformation: [
+            { width: 720, height: 1280, crop: 'limit' },
+            { quality: 'auto:good' }
+          ]
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    // Generate thumbnail from video
+    const thumbnailResult = await cloudinary.uploader.upload(videoUploadResult.secure_url, {
+      resource_type: 'video',
+      folder: 'shorts/thumbnails',
+      format: 'jpg',
+      transformation: [
+        { width: 360, height: 640, crop: 'fill' },
+        { start_offset: '2s' }
+      ]
+    });
+
+    // Get video duration
+    let videoDuration = videoUploadResult.duration || 0;
+    let fileSize = req.file.size;
+
+    // Validate duration (shorts should be under 60 seconds)
+    if (videoDuration > 60) {
+      await cloudinary.uploader.destroy(videoUploadResult.public_id, { resource_type: 'video' });
+      await cloudinary.uploader.destroy(thumbnailResult.public_id);
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Video duration must be 60 seconds or less for shorts'
+      });
+    }
+
+    // Create new short document
+    const newShort = new Shorts({
+      title: title.trim(),
+      description: description.trim(),
+      video_url: videoUploadResult.secure_url,
+      thumbnail_url: thumbnailResult.secure_url,
+      video_duration: Math.round(videoDuration),
+      vendor_id,
+      channel_id: channel_id || null,
+      category_id: category_id || null,
+      language_id: language_id || null,
+      tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim())) : [],
+      hashtags: hashtags ? (Array.isArray(hashtags) ? hashtags : hashtags.split(',').map(tag => tag.trim())) : [],
+      is_comment_enabled: is_comment_enabled !== undefined ? Boolean(is_comment_enabled) : true,
+      is_download_enabled: is_download_enabled !== undefined ? Boolean(is_download_enabled) : false,
+      is_share_enabled: is_share_enabled !== undefined ? Boolean(is_share_enabled) : true,
+      is_premium: is_premium !== undefined ? Boolean(is_premium) : false,
+      is_public: is_public !== undefined ? Boolean(is_public) : true,
+      original_filename: req.file.originalname,
+      file_size: fileSize,
+      cloudinary_public_id: videoUploadResult.public_id,
+      cloudinary_version: videoUploadResult.version,
+      cloudinary_signature: videoUploadResult.signature,
+      upload_source: 'api'
+    });
+
+    // Save to database
+    const savedShort = await newShort.save();
+
+    // Populate references
+    const populatedShort = await Shorts.findById(savedShort._id)
+      .populate('vendor_id', 'name email')
+      .populate('channel_id', 'name')
+      .populate('category_id', 'name')
+      .populate('language_id', 'name');
+
+    res.status(201).json({
+      success: true,
+      message: 'Short created successfully',
+      data: populatedShort
+    });
+
+  } catch (error) {
+    console.error('Error creating short:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
 
