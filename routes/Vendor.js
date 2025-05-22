@@ -2191,10 +2191,6 @@ router.get('/get-channels', async (req, res) => {
   }
 });
 
-
-
-
-
 // testting all below 
 // Middleware to update vendor's wallet with earnings
 const updateVendorWallet = async (vendorId, earnings) => {
@@ -2312,8 +2308,6 @@ cron.schedule('0 0 * * *', () => {
   updateLockedBalances();
 });
 
-
-
 // Vendor creates withdrawal request
 router.post('/request-withdrawal', isVendor, async (req, res) => {
   try {
@@ -2385,4 +2379,6 @@ router.get('/my-requests', isVendor, async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
+
+
 module.exports = router;
