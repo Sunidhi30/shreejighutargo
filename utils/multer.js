@@ -23,7 +23,7 @@ const videoStorage = multer.diskStorage({
 
 // File filter to allow only images
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png/;
+  const allowedImageTypes = /jpeg|jpg|png|heic|heif/;
   const allowedVideoTypes = /mp4|mkv|avi|mov/;
 
   const extname =

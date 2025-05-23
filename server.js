@@ -9,6 +9,7 @@ const users = require("./routes/User");
 const path = require('path');
 const vendors = require("./routes/Vendor")
 const PORT = process.env.PORT || 6000;
+
 const section = require("./routes/Section")
 require('dotenv').config()
 db();

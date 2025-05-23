@@ -10,6 +10,7 @@ const Shorts = require('../models/Short'); // Adjust path as needed
 const TVShow = require("../models/TVShow")
 const Contest = require("../models/Content")
 const router = express.Router();
+const heicConvert = require('heic-convert');
 
 const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
@@ -1328,15 +1329,36 @@ router.post('/series', isVendor, upload.fields([
     let landscapeUrl = '';
 
     // Helper function to handle file upload
+    // const uploadFile = async (field, folder) => {
+    //   if (req.files && req.files[field] && req.files[field][0]) {
+    //     const file = req.files[field][0];
+    //     const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+    //     return await uploadToCloudinary(base64, folder, file.mimetype);
+    //   }
+    //   return '';
+    // };
     const uploadFile = async (field, folder) => {
       if (req.files && req.files[field] && req.files[field][0]) {
         const file = req.files[field][0];
-        const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-        return await uploadToCloudinary(base64, folder, file.mimetype);
+    
+        let buffer = file.buffer;
+        let mimetype = file.mimetype;
+    
+        if (mimetype === 'image/heic' || mimetype === 'image/heif') {
+          const outputBuffer = await heicConvert({
+            buffer: buffer, // the HEIC file buffer
+            format: 'JPEG',
+            quality: 1
+          });
+          buffer = outputBuffer;
+          mimetype = 'image/jpeg';
+        }
+    
+        const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
+        return await uploadToCloudinary(base64, folder, mimetype);
       }
       return '';
     };
-
     try {
       // Upload thumbnail
       thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
@@ -1359,12 +1381,21 @@ router.post('/series', isVendor, upload.fields([
       });
     }
 
+    // ✅ Fetch default type_id for "web-series"
+    const webSeriesType = await Type.findOne({ name: 'web-series' });
+    if (!webSeriesType) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Default type "web-series" not found in Type collection' 
+      });
+    }
     // Create new series
     const series = new Series({
       title,
       description: description || '',
       vendor_id: req.vendor.id,
       category_id: category_id || null,
+      type_id: webSeriesType._id, // ✅ Set default type_id here
       thumbnail: thumbnailUrl,
       landscape: landscapeUrl,
       releaseYear: releaseYear || new Date().getFullYear(),
@@ -2750,7 +2781,7 @@ router.get('/filter-videos-by', async (req, res) => {
     }
 
     console.log('Query:', query); // Debug log
-
+     
     // Fetch videos with populated fields
     const videos = await Video.find(query)
       .populate('category_id', 'name')
@@ -2760,7 +2791,7 @@ router.get('/filter-videos-by', async (req, res) => {
       .populate('channel_id', 'name')
       .populate('producer_id', 'name')
       .sort({ createdAt: -1 });
-
+    console.log("videos this are"+videos)
     console.log('Found videos:', videos.length); // Debug log
 
     // Return success response with videos
@@ -2785,6 +2816,213 @@ router.get('/filter-videos-by', async (req, res) => {
     });
   }
 });
+// In your video routes file
+router.get('/filter-videos-bywebseries', async (req, res) => {
+  try {
+    const { type, category } = req.query;
+    
+    // Input validation
+    if (!type) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Type parameter is required' 
+      });
+    }
 
+    // First try to find by name
+    let videoType = await Type.findOne({
+      name: { $regex: new RegExp(`^${type}$`, 'i') }
+    });
+    console.log("video type"+videoType)
+
+    // If not found by name, try to find by type number
+    if (!videoType) {
+      videoType = await Type.findOne({ type: Number(type) });
+    }
+    
+    if (!videoType) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Video type '${type}' not found` 
+      });
+    }
+
+    // Build the base query with both type_id and video_type
+    let query = {
+      $or: [
+        { type_id: videoType._id },
+        { video_type: videoType.name.toLowerCase() }
+      ]
+    };
+      console.log(query);
+    // Add category filter if provided
+    if (category) {
+      query.category_id = category;
+    }
+
+    console.log('Query:', query); // Debug log
+     
+    // Fetch videos with populated fields
+    const videos = await Series.find(query)
+      .populate('category_id', 'name')
+      .populate('type_id', 'name type')
+      // .populate('finalPackage_id', 'name price')
+      .populate('vendor_id', 'name')
+      // .populate('channel_id', 'name')
+      // .populate('producer_id', 'name')
+      .sort({ createdAt: -1 });
+    console.log("videos this are"+videos)
+    console.log('Found videos:', videos.length); // Debug log
+
+    // Return success response with videos
+    res.json({
+      success: true,
+      count: videos.length,
+      type: videoType.name,
+      typeId: videoType._id, // Include type ID in response
+      videos: videos.map(video => ({
+        ...video.toObject(),
+        type_name: videoType.name,
+        type_number: videoType.type
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error in filter-videos:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching videos',
+      error: error.message 
+    });
+  }
+});
+// get the series , season , all its episode 
+router.get('/get-seriesrelatedinformation', async (req, res) => {
+  try {
+    const { type, category } = req.query;
+
+    if (!type) {
+      return res.status(400).json({ success: false, message: 'Type parameter is required' });
+    }
+
+    let videoType = await Type.findOne({ name: new RegExp(`^${type}$`, 'i') });
+
+    if (!videoType) {
+      videoType = await Type.findOne({ type: Number(type) });
+    }
+
+    if (!videoType) {
+      return res.status(404).json({ success: false, message: `Video type '${type}' not found` });
+    }
+
+    const query = {
+      $or: [
+        { type_id: videoType._id },
+        { video_type: videoType.name.toLowerCase() }
+      ]
+    };
+
+    if (category) {
+      query.category_id = category;
+    }
+
+    const seriesList = await Series.find(query)
+      .populate('category_id', 'name')
+      .populate('type_id', 'name type')
+      .populate('vendor_id', 'name')
+      .sort({ createdAt: -1 });
+
+    const result = await Promise.all(seriesList.map(async (series) => {
+      const seasons = await Season.find({ series_id: series._id }).sort({ seasonNumber: 1 });
+
+      const seasonsWithEpisodes = await Promise.all(seasons.map(async (season) => {
+        const episodes = await Episode.find({ series_id: series._id, season_id: season._id })
+          .sort({ episode_number: 1 });
+        return {
+          ...season.toObject(),
+          episodes
+        };
+      }));
+
+      return {
+        ...series.toObject(),
+        seasons: seasonsWithEpisodes
+      };
+    }));
+
+    res.json({
+      success: true,
+      count: result.length,
+      type: videoType.name,
+      typeId: videoType._id,
+      series: result
+    });
+
+  } catch (error) {
+    console.error('Error fetching web series:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching web series data',
+      error: error.message
+    });
+  }
+});
+// GET /admin/series-by-approval?status=approved|pending|rejected
+router.get('/series-by-approval', async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    if (!['approved', 'pending', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const series = await Series.find({ approvalStatus: status })
+      // .populate('vendor_id', 'name email')
+      // .populate('approvedBy', 'name email');
+
+    return res.status(200).json({ success: true, series });
+  } catch (error) {
+    console.error('Error fetching series by approval status:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// GET full series details with seasons and episodes
+router.get('/:id/details', async (req, res) => {
+  try {
+    const seriesId = req.params.id;
+
+    // Get the series
+    const series = await Series.findById(seriesId).lean();
+    if (!series) return res.status(404).json({ message: 'Series not found' });
+
+    // Get seasons for the series
+    const seasons = await Season.find({ series_id: seriesId }).sort({ seasonNumber: 1 }).lean();
+
+    // For each season, get its episodes
+    const seasonsWithEpisodes = await Promise.all(
+      seasons.map(async (season) => {
+        const episodes = await Episode.find({ season_id: season._id })
+          .sort({ episode_number: 1 })
+          .lean();
+
+        return {
+          ...season,
+          episodes: episodes
+        };
+      })
+    );
+
+    // Final response
+    return res.json({
+      ...series,
+      seasons: seasonsWithEpisodes
+    });
+
+  } catch (err) {
+    console.error('Error fetching series details:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;

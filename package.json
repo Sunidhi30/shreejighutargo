@@ -17,6 +17,7 @@
     "express-session": "^1.18.1",
     "express-validator": "^7.2.1",
     "fs": "^0.0.1-security",
+    "heic-convert": "^2.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.15.0",
     "mongoose": "^8.13.2",

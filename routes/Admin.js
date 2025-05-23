@@ -6,6 +6,7 @@ const Producer = require("../models/Producer");
 const dotenv = require('dotenv');
 const RentalLimit = require("../models/RentalLimit");
 const HomeSection = require('../models/HomeSection');
+const Series =require("../models/Series")
 const User = require('../models/User');
 const WithdrawalRequest = require('../models/WithdrawalRequest');
 const ExcelJS = require('exceljs');
@@ -593,29 +594,40 @@ router.get('/get-vendors', async (req, res) => {
   }
 });
   // add cast 
-router.post('/add-cast', verifyAdmin, upload.single('image'), async (req, res) => {
+  router.post('/add-cast', verifyAdmin, upload.single('image'), async (req, res) => {
     try {
-      const { name, role } = req.body;
+      const { name, type } = req.body;
       const file = req.file;
   
-      if (!name || !role) {
-        return res.status(400).json({ message: "Name and role are required" });
+      if (!name || !type) {
+        return res.status(400).json({ message: "Name and type are required" });
       }
-      const base64 = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
-      const cloudinaryResult = await uploadToCloudinary(base64, "image", file.mimetype);
+  
+      if (!file) {
+        return res.status(400).json({ message: "Image file is required" });
+      }
+  
+      const imageUrl = await uploadToCloudinary(file.buffer, "image", file.mimetype);
+  
+      if (!imageUrl) {
+        return res.status(500).json({ message: "Cloudinary upload failed", error: "No URL returned" });
+      }
   
       const newCast = new Cast({
         name,
-        role,
-        image: cloudinaryResult.secure_url
+        type,
+        image: imageUrl
       });
   
       const savedCast = await newCast.save();
       res.status(201).json({ message: "Cast member added successfully", cast: savedCast });
+  
     } catch (err) {
+      console.error(err);
       res.status(500).json({ message: "Server error", error: err.message });
     }
   });
+  
   // get cast 
 router.get('/get-casts', async (req, res) => {
     try {
@@ -2245,5 +2257,34 @@ router.get('/vendor-lock-periods',verifyAdmin, async (req, res) => {
     });
   }
 });
+// approve a series 
+// Approve series by admin
+// PATCH /admin/series/approve/:id
+router.patch('/series/approve/:id', verifyAdmin, async (req, res) => {
+  try {
+    const seriesId = req.params.id;
+    const { status, adminNotes } = req.body;
 
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const series = await Series.findById(seriesId);
+    if (!series) return res.status(404).json({ success: false, message: 'Series not found' });
+
+    series.approvalStatus = status;
+    series.isApproved = status === 'approved';
+    series.approvedBy = req.admin.id; // assuming req.admin is set by isAdmin middleware
+    series.adminNotes = adminNotes || '';
+
+    await series.save();
+
+    // Optionally send email here using nodemailer or emailjs
+
+    return res.status(200).json({ success: true, message: `Series ${status}` });
+  } catch (error) {
+    console.error('Error approving/rejecting series:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
 module.exports = router;
