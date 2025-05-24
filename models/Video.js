@@ -8,7 +8,8 @@ const videoSchema = new mongoose.Schema({
   producer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Producer' }, // ✅ Updated
   category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
   language_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Language' },
-  cast_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Cast' },
+  // cast_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Cast' },
+  cast_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cast' }], // Changed from single cast_id to array of cast_ids
   name: { type: String },
   thumbnail: { type: String },
   landscape: { type: String },
@@ -59,6 +60,7 @@ const videoSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
+  
   isTop10: { type: Boolean, default: false },
   package_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Package' },
   packageType: { type: String, enum: ['rental', 'view', 'ad'] },

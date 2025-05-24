@@ -27,6 +27,7 @@ const vendorSchema = new mongoose.Schema({
   },
   resetToken: String,
 resetTokenExpiry: Date,
+monthlyTargetVideo:Number,
   paymentMethods: [{
     type: String,
     methodType: { type: String, enum: ['bank_transfer', 'paypal', 'stripe', 'other'] },

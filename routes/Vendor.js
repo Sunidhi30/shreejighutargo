@@ -81,33 +81,177 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS // Admin email password (use env variables for security)
   }
 });
+const generatePDF = async (videoData, outputPath) => {
+  const doc = new PDFDocument({
+    margins: {
+      top: 50,
+      bottom: 50,
+      left: 50,
+      right: 50
+    }
+  });
+  const stream = fs.createWriteStream(outputPath);
 
-const generatePDF = (videoData, filePath) => {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument();
-    const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
-    doc.fontSize(18).text('Video Submission Agreement', { underline: true });
-    doc.moveDown();
-    doc.fontSize(12).text(`Name: ${videoData.name}`);
-    doc.text(`Description: ${videoData.description}`);
-    doc.text(`Video Type: ${videoData.video_type}`);
-    doc.text(`Duration: ${videoData.video_duration}`);
-    doc.text(`Release Date: ${videoData.release_date}`);
-    doc.text(`Language: ${videoData.language_id?.name || 'N/A'}`);
-    doc.text(`Category: ${videoData.category_id?.name || 'N/A'}`);
-    doc.text(`Producer: ${videoData.producer_id?.name || 'N/A'}`);
-    doc.text(`Vendor: ${videoData.vendor_id?.name || 'N/A'}`);
-    doc.text(`Status: ${videoData.status}`);
-    doc.moveDown().text('Agreement Terms...');
-    doc.text('By uploading this video, the vendor agrees to platform terms and conditions.');
+    // Helper functions
+    const addHeader = () => {
+      doc.fontSize(10).text('Mega Frame Entertainment Pvt. Ltd.', { align: 'center' });
+      doc.fontSize(8).text('Plot No - J1/32B, Street - 38, Chanakya place - 1, Uttam Nagar, New Delhi West - 110059', { align: 'center' });
+      doc.moveDown(2);
+    };
 
+    const addSection = (title) => {
+      doc.fontSize(12).text(title, { underline: true });
+      doc.moveDown(1);
+    };
+
+    // Cover Page
+    addHeader();
+    doc.fontSize(16).text('VENDOR AGREEMENT', { align: 'center' });
+    doc.moveDown(2);
+
+    // Agreement Preamble
+    doc.fontSize(10).text(`This Agreement ("Agreement") is entered into by and between Mega Frame Entertainment Private Limited, a company registered under the Companies Act, 2013, having its registered office at Plot No - J1/32B, Street - 38, Chanakya place - 1, Uttam Nagar, New Delhi West - 110059, hereinafter referred to as "Gutargoo+" or the "Platform," and ${videoData.vendor_id?.name || '[Vendor Name]'} ("Vendor"), which includes any individual, group, company, firm, or partnership who submits content for digital streaming and monetization through the Gutargoo+ OTT Platform.`, { align: 'justify' });
+    doc.moveDown(1);
+
+    // Purpose statement
+    doc.text('The purpose of this Agreement is to establish the full terms, rights, responsibilities, and liabilities pertaining to the submission, hosting, monetization, and ongoing management of audiovisual content by the Vendor on the Gutargoo+ Platform.', { align: 'justify' });
+    doc.moveDown(2);
+
+    // Table of Contents
+    addSection('TABLE OF CONTENTS');
+    const sections = [
+      'Section 1: Definitions and Interpretation',
+      'Section 2: Appointment and Scope of Agreement',
+      'Section 3: Rights Granted by Vendor',
+      'Section 4: Content Submission Procedure',
+      'Section 5: Document and Certificate Compliance',
+      'Section 6: Exclusivity vs. Non-Exclusivity Models',
+      'Section 7: Verification, Review, and Approval',
+      'Section 8: Gutargoo+ View Monetization Models',
+      'Section 9: Advertisement Policy',
+      'Section 10: Rental View Policy',
+      'Section 11: Per-View Earnings Policy',
+      'Section 12: Payment Terms',
+      'Section 13: Content Submission and Approval',
+      'Section 14: Content Guidelines',
+      'Section 15: Vendor Obligations',
+      'Section 16: Termination and Suspension',
+      'Section 17: Governing Law and Dispute Resolution',
+      'Section 18: Miscellaneous',
+      'Section 19: Signature and Execution',
+      'Section 20: Final Provisions'
+    ];
+
+    sections.forEach((section, index) => {
+      doc.text(`${index + 1}. ${section}`);
+    });
+    doc.addPage();
+
+    // Add all sections from the agreement
+    // Section 1: Definitions and Interpretation
+    addHeader();
+    addSection('Section 1: Definitions and Interpretation');
+    doc.text('1.1 Definitions', { underline: true });
+    doc.moveDown(1);
+    
+    // Add definitions
+    
+
+    definitions.forEach(def => {
+      doc.text(`${def.term}:`, { continued: true });
+      doc.text(` ${def.def}`, { align: 'justify' });
+      doc.moveDown(1);
+    });
+
+    // Continue adding all sections...
+    // [Additional sections would be added here following the same pattern]
+
+    // Video Submission Details
+    doc.addPage();
+    addHeader();
+    addSection('VIDEO SUBMISSION DETAILS');
+
+    const details = [
+      { label: 'Content Title', value: videoData.name },
+      { label: 'Content Type', value: videoData.video_type },
+      { label: 'Category', value: videoData.category_id?.name },
+      { label: 'Language', value: videoData.language_id?.name },
+      { label: 'Duration', value: `${videoData.video_duration} minutes` },
+      { label: 'Release Date', value: new Date(videoData.release_date).toLocaleDateString() },
+      { label: 'Producer', value: videoData.producer_id?.name },
+      { label: 'Channel', value: videoData.channel_id?.name }
+    ];
+
+    details.forEach(detail => {
+      doc.text(`${detail.label}: ${detail.value || 'Not specified'}`, { continued: false });
+    });
+
+    // Signature Section
+    doc.addPage();
+    addHeader();
+    doc.moveDown(4);
+    doc.text('IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first above written.');
+    doc.moveDown(2);
+
+    // Vendor Signature
+    doc.text('For the Vendor:', { underline: true });
+    doc.moveDown(2);
+    doc.text('Signature: _______________________');
+    doc.text(`Name: ${videoData.vendor_id?.name || '[Vendor Name]'}`);
+    doc.text('Date: ' + new Date().toLocaleDateString());
+    doc.moveDown(2);
+
+    // Platform Signature
+    doc.text('For Gutargoo+:', { underline: true });
+    doc.moveDown(2);
+    doc.text('Signature: _______________________');
+    doc.text('Name: _________________________');
+    doc.text('Designation: ____________________');
+    doc.text('Date: ' + new Date().toLocaleDateString());
+
+    // Finalize PDF
     doc.end();
-    stream.on('finish', () => resolve());
-    stream.on('error', err => reject(err));
+
+    stream.on('finish', () => {
+      resolve();
+    });
+
+    stream.on('error', (error) => {
+      reject(error);
+    });
   });
 };
+
+
+// const generatePDF = (videoData, filePath) => {
+//   return new Promise((resolve, reject) => {
+//     const doc = new PDFDocument();
+//     const stream = fs.createWriteStream(filePath);
+//     doc.pipe(stream);
+
+//     doc.fontSize(18).text('Video Submission Agreement', { underline: true });
+//     doc.moveDown();
+//     doc.fontSize(12).text(`Name: ${videoData.name}`);
+//     doc.text(`Description: ${videoData.description}`);
+//     doc.text(`Video Type: ${videoData.video_type}`);
+//     doc.text(`Duration: ${videoData.video_duration}`);
+//     doc.text(`Release Date: ${videoData.release_date}`);
+//     doc.text(`Language: ${videoData.language_id?.name || 'N/A'}`);
+//     doc.text(`Category: ${videoData.category_id?.name || 'N/A'}`);
+//     doc.text(`Producer: ${videoData.producer_id?.name || 'N/A'}`);
+//     doc.text(`Vendor: ${videoData.vendor_id?.name || 'N/A'}`);
+//     doc.text(`Status: ${videoData.status}`);
+//     doc.moveDown().text('Agreement Terms...');
+//     doc.text('By uploading this video, the vendor agrees to platform terms and conditions.');
+
+//     doc.end();
+//     stream.on('finish', () => resolve());
+//     stream.on('error', err => reject(err));
+//   });
+// };
 // Fields for upload
 const uploadFields = [
   { name: 'video', maxCount: 1 },
@@ -226,156 +370,410 @@ router.get('/get-profile', isVendor, async (req, res) => {
   }
 });
 //upload video  (its simple uploading without doing the rentals videos and all )
-router.post(
-  '/create-video',isVendor,
-  upload.fields([
-    { name: 'thumbnail', maxCount: 1 },
-    { name: 'landscape', maxCount: 1 },
-    { name: 'video_320', maxCount: 1 },
-    { name: 'video_480', maxCount: 1 },
-    { name: 'video_720', maxCount: 1 },
-    { name: 'video_1080', maxCount: 1 },
-    { name: 'trailer', maxCount: 1 }
-  ]),
-  async (req, res) => {
-    try {
+// router.post(
+//   '/create-video',isVendor,
+//   upload.fields([
+//     { name: 'thumbnail', maxCount: 1 },
+//     { name: 'landscape', maxCount: 1 },
+//     { name: 'video_320', maxCount: 1 },
+//     { name: 'video_480', maxCount: 1 },
+//     { name: 'video_720', maxCount: 1 },
+//     { name: 'video_1080', maxCount: 1 },
+//     { name: 'trailer', maxCount: 1 }
+//   ]),
+//   async (req, res) => {
+//     try {
       
-      const { 
-        type_id, video_type,channel_id, producer_id, category_id,finalPackage_id,
-        language_id, cast_id, name, description, video_upload_type, video_extension,
-        video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
-        subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
-        is_title, is_download, is_like, is_comment, total_like, total_view, is_rent,
+//       const { 
+//         type_id, video_type,channel_id, producer_id, category_id,finalPackage_id,
+//         language_id, cast_id, name, description, video_upload_type, video_extension,
+//         video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
+//         subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
+//         is_title, is_download, is_like, is_comment, total_like, total_view, is_rent,
        
-      } = req.body;
-      const vendorId = req.vendor.id;
-      let typeIdToUse = type_id;
+//       } = req.body;
+//       const vendorId = req.vendor.id;
+//       let typeIdToUse = type_id;
 
-if (!type_id) {
-  const defaultType = await Type.findOne({ name: 'movie' });
-  if (!defaultType) {
-    return res.status(400).json({ success: false, message: 'Default type "Movie" not found in database.' });
-  }
-  typeIdToUse = defaultType._id;
-}
-      // console.log("", vendorId);
-      // console.log(req.body)
-      let thumbnailUrl = '', landscapeUrl = '', video_320Url = '', video_480Url = '', video_720Url = '', video_1080Url = '', trailerUrl = '';
+// if (!type_id) {
+//   const defaultType = await Type.findOne({ name: 'movie' });
+//   if (!defaultType) {
+//     return res.status(400).json({ success: false, message: 'Default type "Movie" not found in database.' });
+//   }
+//   typeIdToUse = defaultType._id;
+// }
+//       // console.log("", vendorId);
+//       // console.log(req.body)
+//       let thumbnailUrl = '', landscapeUrl = '', video_320Url = '', video_480Url = '', video_720Url = '', video_1080Url = '', trailerUrl = '';
 
-      const uploadFile = async (field, folder) => {
-        if (req.files[field]) {
-          const file = req.files[field][0];
-          const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-          return await uploadToCloudinary(base64, folder, file.mimetype);
-        }
-        return '';
-      };
+//       const uploadFile = async (field, folder) => {
+//         if (req.files[field]) {
+//           const file = req.files[field][0];
+//           const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+//           return await uploadToCloudinary(base64, folder, file.mimetype);
+//         }
+//         return '';
+//       };
 
-      thumbnailUrl = await uploadFile('thumbnail', 'videos/thumbnails');
-      landscapeUrl = await uploadFile('landscape', 'videos/landscapes');
-      video_320Url = await uploadFile('video_320', 'videos/320');
-      video_480Url = await uploadFile('video_480', 'videos/480');
-      video_720Url = await uploadFile('video_720', 'videos/720');
-      video_1080Url = await uploadFile('video_1080', 'videos/1080');
-      trailerUrl = await uploadFile('trailer', 'videos/trailers');
+//       thumbnailUrl = await uploadFile('thumbnail', 'videos/thumbnails');
+//       landscapeUrl = await uploadFile('landscape', 'videos/landscapes');
+//       video_320Url = await uploadFile('video_320', 'videos/320');
+//       video_480Url = await uploadFile('video_480', 'videos/480');
+//       video_720Url = await uploadFile('video_720', 'videos/720');
+//       video_1080Url = await uploadFile('video_1080', 'videos/1080');
+//       trailerUrl = await uploadFile('trailer', 'videos/trailers');
 
-      const newVideo = new Video({
-        // type_id: type_id ? new mongoose.Types.ObjectId(type_id) : null,
-        video_type,
-        vendor_id: new mongoose.Types.ObjectId(vendorId),
-        channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
-        producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
-        category_id: category_id ? new mongoose.Types.ObjectId(category_id) : null,
-        language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
-        finalPackage_id: finalPackage_id ? new mongoose.Types.ObjectId(finalPackage_id) : null,
-        cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
-        name,
-        // monetizationType,
-        comments: [],
-        thumbnail: thumbnailUrl,
-        landscape: landscapeUrl,
-        description,
-        video_upload_type,
-        video_320: video_320Url,
-        video_480: video_480Url,
-        video_720: video_720Url,
-        video_1080: video_1080Url,
-        video_extension,
-        video_duration: Number(video_duration),
-        trailer_type,
-        trailer_url: trailerUrl,
-        subtitle_type,
-        subtitle_lang_1,
-        subtitle_1,
-        subtitle_lang_2,
-        subtitle_2,
-        subtitle_lang_3,
-        subtitle_3,
-        release_date,
-        is_premium: Number(is_premium),
-        is_title: Number(is_title),
-        is_download: Number(is_download),
-        is_like: Number(is_like),
-        is_comment: Number(is_comment),
-        total_like: Number(total_like),
-        total_view: Number(total_view),
-        is_rent: Number(is_rent),
-        // price: Number(price),
-        // rent_day: Number(rent_day),
-        status:"pending",
-        isApproved: false
-        // packageType: package.revenueType,
-        // packageDetails: {
-        //   price: req.body.price || package.price,
-        //   viewThreshold: package.viewThreshold,
-        //   commissionRate: package.commissionRate
-        // }
-      });
-      await newVideo.save();
+//       const newVideo = new Video({
+//         // type_id: type_id ? new mongoose.Types.ObjectId(type_id) : null,
+//         video_type,
+//         vendor_id: new mongoose.Types.ObjectId(vendorId),
+//         channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
+//         producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
+//         category_id: category_id ? new mongoose.Types.ObjectId(category_id) : null,
+//         language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
+//         finalPackage_id: finalPackage_id ? new mongoose.Types.ObjectId(finalPackage_id) : null,
+//         cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
+//         name,
+//         // monetizationType,
+//         comments: [],
+//         thumbnail: thumbnailUrl,
+//         landscape: landscapeUrl,
+//         description,
+//         video_upload_type,
+//         video_320: video_320Url,
+//         video_480: video_480Url,
+//         video_720: video_720Url,
+//         video_1080: video_1080Url,
+//         video_extension,
+//         video_duration: Number(video_duration),
+//         trailer_type,
+//         trailer_url: trailerUrl,
+//         subtitle_type,
+//         subtitle_lang_1,
+//         subtitle_1,
+//         subtitle_lang_2,
+//         subtitle_2,
+//         subtitle_lang_3,
+//         subtitle_3,
+//         release_date,
+//         is_premium: Number(is_premium),
+//         is_title: Number(is_title),
+//         is_download: Number(is_download),
+//         is_like: Number(is_like),
+//         is_comment: Number(is_comment),
+//         total_like: Number(total_like),
+//         total_view: Number(total_view),
+//         is_rent: Number(is_rent),
+//         // price: Number(price),
+//         // rent_day: Number(rent_day),
+//         status:"pending",
+//         isApproved: false
+//         // packageType: package.revenueType,
+//         // packageDetails: {
+//         //   price: req.body.price || package.price,
+//         //   viewThreshold: package.viewThreshold,
+//         //   commissionRate: package.commissionRate
+//         // }
+//       });
+//       await newVideo.save();
   
-      const populatedVideo = await Video.findById(newVideo._id)
-        // .populate('type_id', 'name')
-        .populate('category_id', 'name')
-        .populate('cast_id', 'name')
-        .populate('language_id', 'name')
-        .populate('producer_id', 'name')
-        .populate('channel_id', 'name')
-        .populate('vendor_id', 'name')
-        .populate({
-          path: 'comments',
-          populate: {
-            path: 'user_id',
-            select: 'name'
-          }
-        })
-        .populate('finalPackage_id',name);
-         // ✅ Fetch admin email from DB
-      const admin = await Admin.findOne({ role: 'admin' }); // adjust if role is stored differently
-      if (!admin || !admin.email) {
-        throw new Error('Admin email not found.');
+//       const populatedVideo = await Video.findById(newVideo._id)
+//         // .populate('type_id', 'name')
+//         .populate('category_id', 'name')
+//         .populate('cast_id', 'name')
+//         .populate('language_id', 'name')
+//         .populate('producer_id', 'name')
+//         .populate('channel_id', 'name')
+//         .populate('vendor_id', 'name')
+//         .populate({
+//           path: 'comments',
+//           populate: {
+//             path: 'user_id',
+//             select: 'name'
+//           }
+//         })
+//         .populate('finalPackage_id',name);
+//          // ✅ Fetch admin email from DB
+//       const admin = await Admin.findOne({ role: 'admin' }); // adjust if role is stored differently
+//       if (!admin || !admin.email) {
+//         throw new Error('Admin email not found.');
+//       }
+
+//       // ✅ Generate PDF and email it to admin
+//       const pdfPath = path.join(__dirname, `../temp/video-${newVideo._id}.pdf`);
+//       await generatePDF(populatedVideo, pdfPath);
+//       await sendEmailWithPDF(populatedVideo, pdfPath, admin.email);
+
+//       // ✅ Delete PDF after sending
+//       fs.unlink(pdfPath, err => {
+//         if (err) console.error('Failed to delete PDF:', err);
+//       });
+//       res.status(201).json({
+//         success: true,
+//         message: 'Video created successfully',
+//         video: populatedVideo
+//       });
+
+//     } catch (err) {
+//       console.error(err);
+//       res.status(500).json({ success: false, message: 'Video creation failed', error: err.message });
+//     }
+//   }
+// );
+router.post('/create-video', isVendor, upload.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'landscape', maxCount: 1 },
+  { name: 'video_320', maxCount: 1 },
+  { name: 'video_480', maxCount: 1 },
+  { name: 'video_720', maxCount: 1 },
+  { name: 'video_1080', maxCount: 1 },
+  { name: 'trailer', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const { 
+      type_id, video_type, channel_id, producer_id, category_id, finalPackage_id,
+      language_id, cast_ids, name, description, video_upload_type, video_extension,
+      video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
+      subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
+      is_title, is_download, is_like, is_comment, total_like, total_view, is_rent
+    } = req.body;
+
+    let castIdsArray = [];
+    if (cast_ids) {
+      // If cast_ids is a string, parse it (in case it's sent as JSON string)
+      if (typeof cast_ids === 'string') {
+        try {
+          castIdsArray = JSON.parse(cast_ids);
+        } catch (e) {
+          castIdsArray = cast_ids.split(',').map(id => id.trim()); // Alternative: split by comma if sent as comma-separated string
+        }
+      } else if (Array.isArray(cast_ids)) {
+        castIdsArray = cast_ids;
       }
 
-      // ✅ Generate PDF and email it to admin
-      const pdfPath = path.join(__dirname, `../temp/video-${newVideo._id}.pdf`);
-      await generatePDF(populatedVideo, pdfPath);
-      await sendEmailWithPDF(populatedVideo, pdfPath, admin.email);
-
-      // ✅ Delete PDF after sending
-      fs.unlink(pdfPath, err => {
-        if (err) console.error('Failed to delete PDF:', err);
-      });
-      res.status(201).json({
-        success: true,
-        message: 'Video created successfully',
-        video: populatedVideo
-      });
-
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, message: 'Video creation failed', error: err.message });
+      // Convert all cast IDs to ObjectId
+      castIdsArray = castIdsArray.map(id => new mongoose.Types.ObjectId(id));
     }
+    const vendorId = req.vendor.id;
+
+    // Initialize rental-related variables
+    let videoPrice = 0;
+    let rentDuration = null;
+    let selectedPackage = null;
+
+    // Handle rental video logic
+    if (Number(is_rent) === 1) {
+      // Validate package selection for rental videos
+      if (!finalPackage_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Final package selection is required for rental videos'
+        });
+      }
+
+      // Fetch package details
+      selectedPackage = await finalPackage.findById(finalPackage_id);
+      if (!selectedPackage) {
+        return res.status(400).json({
+          success: false,
+          message: 'Selected package not found'
+        });
+      }
+
+      // Set price and duration from package
+      videoPrice = selectedPackage.price;
+      rentDuration = selectedPackage.rentalDuration;
+    }
+
+    // Handle type_id
+    let typeIdToUse = type_id;
+    if (!type_id) {
+      const defaultType = await Type.findOne({ name: 'movie' });
+      if (!defaultType) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Default type "Movie" not found in database.' 
+        });
+      }
+      typeIdToUse = defaultType._id;
+    }
+
+    // File upload logic
+    let thumbnailUrl = '', landscapeUrl = '', video_320Url = '', 
+        video_480Url = '', video_720Url = '', video_1080Url = '', trailerUrl = '';
+
+    // const uploadFile = async (field, folder) => {
+    //   if (req.files[field]) {
+    //     const file = req.files[field][0];
+    //     const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+    //     return await uploadToCloudinary(base64, folder, file.mimetype);
+    //   }
+    //   return '';
+    // };
+    const uploadFile = async (field, folder) => {
+      if (req.files && req.files[field] && req.files[field][0]) {
+        const file = req.files[field][0];
+    
+        let buffer = file.buffer;
+        let mimetype = file.mimetype;
+    
+        if (mimetype === 'image/heic' || mimetype === 'image/heif') {
+          const outputBuffer = await heicConvert({
+            buffer: buffer, // the HEIC file buffer
+            format: 'JPEG',
+            quality: 1
+          });
+          buffer = outputBuffer;
+          mimetype = 'image/jpeg';
+        }
+    
+        const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
+        return await uploadToCloudinary(base64, folder, mimetype);
+      }
+      return '';
+    };
+    try {
+      // Upload thumbnail
+      thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
+      // Upload landscape
+      landscapeUrl = await uploadFile('landscape', 'series/landscapes');
+    } catch (uploadError) {
+      console.error('File upload error:', uploadError);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'File upload failed',
+        details: uploadError.message 
+      });
+    }
+    // Upload all files
+    thumbnailUrl = await uploadFile('thumbnail', 'videos/thumbnails');
+    landscapeUrl = await uploadFile('landscape', 'videos/landscapes');
+    video_320Url = await uploadFile('video_320', 'videos/320');
+    video_480Url = await uploadFile('video_480', 'videos/480');
+    video_720Url = await uploadFile('video_720', 'videos/720');
+    video_1080Url = await uploadFile('video_1080', 'videos/1080');
+    trailerUrl = await uploadFile('trailer', 'videos/trailers');
+
+    // Create new video object
+    const newVideo = new Video({
+      video_type,
+      vendor_id: new mongoose.Types.ObjectId(vendorId),
+      channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
+      producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
+      category_id: category_id ? new mongoose.Types.ObjectId(category_id) : null,
+      language_id: language_id ? new mongoose.Types.ObjectId(language_id) : null,
+      // cast_id: cast_id ? new mongoose.Types.ObjectId(cast_id) : null,
+      cast_ids: castIdsArray, // Use the array of cast IDs
+
+      // Rental-specific fields
+      is_rent: Number(is_rent),
+      price: videoPrice,
+      rent_day: rentDuration,
+      finalPackage_id: Number(is_rent) === 1 ? new mongoose.Types.ObjectId(finalPackage_id) : null,
+      
+      // Basic fields
+      name,
+      description,
+      comments: [],
+      
+      // Media URLs
+      thumbnail: thumbnailUrl,
+      landscape: landscapeUrl,
+      video_320: video_320Url,
+      video_480: video_480Url,
+      video_720: video_720Url,
+      video_1080: video_1080Url,
+      video_extension,
+      video_duration: Number(video_duration),
+      trailer_type,
+      trailer_url: trailerUrl,
+      
+      // Subtitle information
+      subtitle_type,
+      subtitle_lang_1,
+      subtitle_1,
+      subtitle_lang_2,
+      subtitle_2,
+      subtitle_lang_3,
+      subtitle_3,
+      
+      // Additional settings
+      release_date,
+      is_premium: Number(is_premium),
+      is_title: Number(is_title),
+      is_download: Number(is_download),
+      is_like: Number(is_like),
+      is_comment: Number(is_comment),
+      total_like: Number(total_like),
+      total_view: Number(total_view),
+      
+      // Status
+      status: "pending",
+      isApproved: false
+    });
+
+    await newVideo.save();
+
+    // Populate video details
+    const populatedVideo = await Video.findById(newVideo._id)
+      .populate('category_id', 'name')
+      .populate('cast_ids', 'name') // Changed from cast_id to cast_ids
+      .populate('language_id', 'name')
+      .populate('producer_id', 'name')
+      .populate('channel_id', 'name')
+      .populate('vendor_id', 'name')
+      .populate('finalPackage_id')
+      .populate({
+        path: 'comments',
+        populate: {
+          path: 'user_id',
+          select: 'name'
+        }
+      });
+
+    // Handle admin notification
+    const admin = await Admin.findOne({ role: 'admin' });
+    if (!admin || !admin.email) {
+      throw new Error('Admin email not found.');
+    }
+    const handleCastSelection = (e) => {
+      // Get selected options from the multiple select
+      const selectedOptions = Array.from(e.target.selectedOptions);
+      const selectedCastIds = selectedOptions.map(option => option.value);
+      
+      setFormData(prev => ({
+        ...prev,
+        cast_ids: selectedCastIds
+      }));
+    };
+    
+    // Generate and send PDF
+    const pdfPath = path.join(__dirname, `../temp/video-${newVideo._id}.pdf`);
+    await generatePDF(populatedVideo, pdfPath);
+    await sendEmailWithPDF(populatedVideo, pdfPath, admin.email);
+
+    // Cleanup PDF
+    fs.unlink(pdfPath, err => {
+      if (err) console.error('Failed to delete PDF:', err);
+    });
+
+    // Send response
+    res.status(201).json({
+      success: true,
+      message: 'Video created successfully',
+      video: populatedVideo
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Video creation failed', 
+      error: err.message 
+    });
   }
-);
+});
+
 // update the videos 
 router.put(
   '/update-video/:videoId', 
@@ -1167,40 +1565,73 @@ router.get('/vendor/videos', isVendor, async (req, res) => {
   }
 });
 // get videos by status
+// router.get('/videos-by-status', isVendor, async (req, res) => {
+//   try {
+//     const vendorId = req.vendor.id;
+//     const { status } = req.query; // 'pending', 'approved', or 'rejected'
+
+//     // Initialize the query to search for the vendor's videos
+//     const query = { vendor_id: vendorId };
+
+//     // If a status is provided, add it to the query
+//     if (status) {
+//       query.status = status;
+//     }
+
+//     // Fetch the videos with the required fields
+//     const videos = await Video.find(query).select(
+//       'name thumbnail video_type status finalPackage_id' // Add 'finalPackage_id' to query
+//     );
+
+//     // For each video, retrieve the associated price from the final package
+//     for (let video of videos) {
+//       // Assuming you have a FinalPackage model to get the package details
+//       const package = await finalPackage.findById(video.finalPackage_id);
+//      console.log("package id "+package)
+//       // If the package is found, add the price to the video
+//       if (package) {
+//         video.price = package.price;
+//         console.log(video.price);
+//       } else {
+//         video.price = 0; // Default price if no package is found
+//       }
+//     }
+      
+
+//     // Return the response with the video data including the price
+//     return res.status(200).json({
+//       success: true,
+//       videos,
+//     });
+//   } catch (error) {
+//     console.error('Error fetching videos:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal Server Error',
+//     });
+//   }
+// });
+// get videos by status
 router.get('/videos-by-status', isVendor, async (req, res) => {
   try {
     const vendorId = req.vendor.id;
     const { status } = req.query; // 'pending', 'approved', or 'rejected'
 
-    // Initialize the query to search for the vendor's videos
     const query = { vendor_id: vendorId };
+    if (status) query.status = status;
 
-    // If a status is provided, add it to the query
-    if (status) {
-      query.status = status;
-    }
+    // Fetch videos with populated category and selected fields
+    let videos = await Video.find(query)
+      .select('name thumbnail video_type status finalPackage_id category_id') // Include category_id
+      .populate('category_id', 'name'); // Populate category name
 
-    // Fetch the videos with the required fields
-    const videos = await Video.find(query).select(
-      'name thumbnail video_type status finalPackage_id' // Add 'finalPackage_id' to query
-    );
-
-    // For each video, retrieve the associated price from the final package
+    // Add price from final package
     for (let video of videos) {
-      // Assuming you have a FinalPackage model to get the package details
-      const package = await finalPackage.findById(video.finalPackage_id);
-     console.log("package id "+package)
-      // If the package is found, add the price to the video
-      if (package) {
-        video.price = package.price;
-        console.log(video.price);
-      } else {
-        video.price = 0; // Default price if no package is found
-      }
+      const pkg = await finalPackage.findById(video.finalPackage_id);
+      video.price = pkg ? pkg.price : 0;
     }
-      
 
-    // Return the response with the video data including the price
+    // Return videos with populated category
     return res.status(200).json({
       success: true,
       videos,
@@ -1213,6 +1644,7 @@ router.get('/videos-by-status', isVendor, async (req, res) => {
     });
   }
 });
+
 // get top performing
 router.get('/top-performing-videos', isVendor, async (req, res) => {
   try {
@@ -1568,14 +2000,39 @@ router.post(
         return res.status(404).json({ success: false, message: 'Season not found in this series' });
 
       // 3. File Upload Helper
+      // const uploadFile = async (field, folder) => {
+      //           if (req.files[field]) {
+      //             const file = req.files[field][0];
+      //             const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      //             return await uploadToCloudinary(base64, folder, file.mimetype);
+      //           }
+      //           return '';
+      //         };
+      // 3. File Upload Helper with HEIC support
       const uploadFile = async (field, folder) => {
-                if (req.files[field]) {
-                  const file = req.files[field][0];
-                  const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-                  return await uploadToCloudinary(base64, folder, file.mimetype);
-                }
-                return '';
-              };
+        if (req.files && req.files[field] && req.files[field][0]) {
+          const file = req.files[field][0];
+
+          let buffer = file.buffer;
+          let mimetype = file.mimetype;
+
+          // Convert HEIC/HEIF to JPEG
+          if (mimetype === 'image/heic' || mimetype === 'image/heif') {
+            const outputBuffer = await heicConvert({
+              buffer: buffer,
+              format: 'JPEG',
+              quality: 1
+            });
+            buffer = outputBuffer;
+            mimetype = 'image/jpeg';
+          }
+
+          const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
+          return await uploadToCloudinary(base64, folder, mimetype);
+        }
+        return '';
+      };
+
         
               const thumbnail = await uploadFile('thumbnail', 'episodes/thumbnails');
               const video_320 = await uploadFile('video_320', 'episodes/320');
@@ -1827,45 +2284,145 @@ router.post('/reset-password/:token', async (req, res) => {
   }
 });
 // create a tv show channel - tv show - season - episode 
-router.post('/tvshows', 
-  isVendor, 
+// router.post('/tvshows', 
+//   isVendor, 
+//   upload.fields([
+//     { name: 'thumbnail', maxCount: 1 },
+//     { name: 'landscape', maxCount: 1 }
+//   ]), 
+//   async (req, res) => {
+//     try {
+//       const { title, description, category_id, releaseYear, totalSeasons, status, tags,  channel_id } = req.body;
+      
+//       let thumbnailUrl = '';
+//       if (req.file) {
+//         try {
+//           let mimeType = req.file.mimetype;
+//           let imageBuffer = req.file.buffer;
+
+//           // Convert HEIC to JPEG
+//           if (mimeType === 'image/heic' || mimeType === 'image/heif') {
+//             const outputBuffer = await heicConvert({
+//               buffer: imageBuffer,
+//               format: 'JPEG',
+//               quality: 1
+//             });
+//             imageBuffer = outputBuffer;
+//             mimeType = 'image/jpeg';
+//           }
+
+//           const base64 = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+//           thumbnailUrl = await uploadToCloudinary(base64, 'episodes/thumbnails', mimeType);
+
+//         } catch (uploadError) {
+//           console.error('Thumbnail upload error:', uploadError);
+//           return res.status(400).json({
+//             success: false,
+//             message: 'Failed to upload thumbnail'
+//           });
+//         }
+//       }
+  
+//       try {
+//         thumbnailUrl = await uploadFile('thumbnail', 'tvshows/thumbnails');
+//         landscapeUrl = await uploadFile('landscape', 'tvshows/landscapes');
+//       } catch (uploadError) {
+//         console.error('File upload error:', uploadError);
+//         return res.status(400).json({
+//           success: false,
+//           error: 'File upload failed',
+//           details: uploadError.message
+//         });
+//       }
+
+//       if (!title) {
+//         return res.status(400).json({
+//           success: false,
+//           error: 'Title is required'
+//         });
+//       }
+
+//       const tvShow = new TVShow({
+//         title,
+//         channel_id,
+//         description: description || '',
+//         vendor_id: req.vendor.id,
+//         category_id: category_id || null,
+//         thumbnail: thumbnailUrl,
+//         landscape: landscapeUrl,
+//         releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(),
+//         totalSeasons: totalSeasons ? Number(totalSeasons) : 1,
+//         status: status || 'ongoing',
+//         tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+//         isApproved: false,
+//         rating: 0
+//       });
+
+//       await tvShow.save();
+
+//       res.status(201).json({
+//         success: true,
+//         message: 'TV Show created successfully',
+//         tvShow
+//       });
+//     } catch (error) {
+//       console.error('TV Show creation error:', error);
+//       res.status(500).json({
+//         success: false,
+//         error: 'Failed to create TV Show',
+//         details: error.message
+//       });
+//     }
+//   });
+router.post('/tvshows',
+  isVendor,
   upload.fields([
     { name: 'thumbnail', maxCount: 1 },
     { name: 'landscape', maxCount: 1 }
-  ]), 
+  ]),
   async (req, res) => {
     try {
-      const { title, description, category_id, releaseYear, totalSeasons, status, tags,  channel_id } = req.body;
-      
+      const { title, description, category_id, releaseYear, totalSeasons, status, tags, channel_id } = req.body;
+
+      if (!title) {
+        return res.status(400).json({ success: false, error: 'Title is required' });
+      }
+
       let thumbnailUrl = '';
       let landscapeUrl = '';
 
-      const uploadFile = async (field, folder) => {
-        if (req.files && req.files[field] && req.files[field][0]) {
-          const file = req.files[field][0];
-          const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-          return await uploadToCloudinary(base64, folder, file.mimetype);
+      const thumbnailFile = req.files?.thumbnail?.[0];
+      const landscapeFile = req.files?.landscape?.[0];
+
+      const processUpload = async (file, folder) => {
+        let mimeType = file.mimetype;
+        let imageBuffer = file.buffer;
+
+        if (mimeType === 'image/heic' || mimeType === 'image/heif') {
+          const outputBuffer = await heicConvert({
+            buffer: imageBuffer,
+            format: 'JPEG',
+            quality: 1
+          });
+          imageBuffer = outputBuffer;
+          mimeType = 'image/jpeg';
         }
-        return '';
+
+        const base64 = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+        return await uploadToCloudinary(base64, folder, mimeType);
       };
 
       try {
-        thumbnailUrl = await uploadFile('thumbnail', 'tvshows/thumbnails');
-        landscapeUrl = await uploadFile('landscape', 'tvshows/landscapes');
-      } catch (uploadError) {
-        console.error('File upload error:', uploadError);
-        return res.status(400).json({
-          success: false,
-          error: 'File upload failed',
-          details: uploadError.message
-        });
-      }
+        if (thumbnailFile) {
+          thumbnailUrl = await processUpload(thumbnailFile, 'tvshows/thumbnails');
+        }
 
-      if (!title) {
-        return res.status(400).json({
-          success: false,
-          error: 'Title is required'
-        });
+        if (landscapeFile) {
+          landscapeUrl = await processUpload(landscapeFile, 'tvshows/landscapes');
+        }
+      } catch (uploadError) {
+        console.error('Upload error:', uploadError);
+        return res.status(400).json({ success: false, error: 'Image upload failed', details: uploadError.message });
       }
 
       const tvShow = new TVShow({
@@ -1881,6 +2438,7 @@ router.post('/tvshows',
         status: status || 'ongoing',
         tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
         isApproved: false,
+        adminApproval: { status: 'pending', notes: '' },
         rating: 0
       });
 
@@ -1899,7 +2457,8 @@ router.post('/tvshows',
         details: error.message
       });
     }
-  });
+  }
+);
   // Get list of TV shows
 router.get('/tvshows', isVendor, async (req, res) => {
   try {
@@ -1977,6 +2536,7 @@ router.get('/tvshows', isVendor, async (req, res) => {
     });
   }
 });
+// upload 
 router.post(
     '/tvshows/:tvShowId/seasons/:seasonId/episodes',
     isVendor,
@@ -1993,21 +2553,35 @@ router.post(
             message: 'Title and video URL are required'
           });
         }
-  
-        // Upload thumbnail if provided
-        let thumbnailUrl = '';
-        if (req.file) {
-          try {
-            const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-            thumbnailUrl = await uploadToCloudinary(base64, 'episodes/thumbnails', req.file.mimetype);
-          } catch (uploadError) {
-            console.error('Thumbnail upload error:', uploadError);
-            return res.status(400).json({
-              success: false,
-              message: 'Failed to upload thumbnail'
+
+      let thumbnailUrl = '';
+      if (req.file) {
+        try {
+          let mimeType = req.file.mimetype;
+          let imageBuffer = req.file.buffer;
+
+          // Convert HEIC to JPEG
+          if (mimeType === 'image/heic' || mimeType === 'image/heif') {
+            const outputBuffer = await heicConvert({
+              buffer: imageBuffer,
+              format: 'JPEG',
+              quality: 1
             });
+            imageBuffer = outputBuffer;
+            mimeType = 'image/jpeg';
           }
+
+          const base64 = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+          thumbnailUrl = await uploadToCloudinary(base64, 'episodes/thumbnails', mimeType);
+
+        } catch (uploadError) {
+          console.error('Thumbnail upload error:', uploadError);
+          return res.status(400).json({
+            success: false,
+            message: 'Failed to upload thumbnail'
+          });
         }
+      }
   
         // Create new episode
         const episode = new Episode({
@@ -2735,7 +3309,6 @@ router.get("/get-target-users", isVendor, async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-
 // In your video routes file
 router.get('/filter-videos-by', async (req, res) => {
   try {
@@ -2977,6 +3550,7 @@ router.get('/series-by-approval', async (req, res) => {
     }
 
     const series = await Series.find({ approvalStatus: status })
+    .populate('category_id', 'name') // ✅ This is the key line
       // .populate('vendor_id', 'name email')
       // .populate('approvedBy', 'name email');
 
@@ -2986,7 +3560,6 @@ router.get('/series-by-approval', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-
 // GET full series details with seasons and episodes
 router.get('/:id/details', async (req, res) => {
   try {
@@ -3024,5 +3597,104 @@ router.get('/:id/details', async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 });
+// GET full TV show details with channel, seasons, and episodes
+router.get('/:id/details-tvshows', async (req, res) => {
+  try {
+    const showId = req.params.id;
 
+    // Fetch the TV show by ID, populate channel info (name, etc.)
+    const tvShow = await TVShow.findById(showId)
+      .populate('channel_id', 'name description') // adjust fields as needed
+      .lean();
+
+    if (!tvShow) {
+      return res.status(404).json({ message: 'TV show not found' });
+    }
+
+    // Get seasons for this show, sorted by creation or name
+    const seasons = await TVSeason.find({ show_id: showId })
+      .sort({ name: 1 }) // or any season order you want
+      .lean();
+
+    // For each season, get episodes sorted by episode_number
+    const seasonsWithEpisodes = await Promise.all(
+      seasons.map(async (season) => {
+        const episodes = await TvEpisode.find({ season_id: season._id })
+          .sort({ episode_number: 1 })
+          .lean();
+
+        return {
+          ...season,
+          episodes
+        };
+      })
+    );
+
+    // Final combined response
+    return res.json({
+      ...tvShow,
+      seasons: seasonsWithEpisodes
+    });
+
+  } catch (err) {
+    console.error('Error fetching TV show details:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+router.get('/tvshows-by-approval', async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'Status query parameter is required' });
+    }
+
+    const allowedStatuses = ['pending', 'approved', 'rejected'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const series = await TVShow.find({ approvalStatus: status })
+      .populate('vendor_id', 'name email')
+      .populate('category_id', 'name')
+      .populate('channel_id', 'name')
+
+    return res.status(200).json({ success: true, series });
+  } catch (error) {
+    console.error('Error fetching series by approval status:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+router.post("/set-target-videos", isVendor, async (req, res) => {
+  const { target } = req.body;
+
+  if (!target || isNaN(target)) {
+    return res.status(400).json({ success: false, message: "Invalid target amount" });
+  }
+
+  try {
+    const vendor = await Vendor.findById(req.vendor.id);
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found" });
+
+    vendor.monthlyTargetVideo = target;
+    await vendor.save();
+    const monthly_target_videos= vendor.monthlyTargetVideo
+    res.json({ success: true, monthly_target_videos, message: "Target updated successfully" });
+  } catch (error) {
+    console.error("Error setting target:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+// GET /get-target-users - Get vendor's current monthly users target
+router.get("/get-target-videos", isVendor, async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.vendor.id);
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found" });
+
+    res.json({ success: true, monthlyTargetVideo: vendor.monthlyTargetVideo || 0 });
+  } catch (error) {
+    console.error("Error fetching target:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 module.exports = router;

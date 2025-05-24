@@ -330,12 +330,12 @@ router.put('/set-price-per-view', verifyAdmin, async (req, res) => {
 // add type 
 router.post('/add_type', verifyAdmin, async (req, res) => {
   try {
+    console.log(req.body)
     let { name, type, status = 1 } = req.body;
-
+    console.log(req.body)
     if (!name || typeof type !== 'number') {
       return res.status(400).json({ message: 'Missing required fields: name or type' });
     }
-
     // Normalize name to lowercase
     name = name.toLowerCase();
 
@@ -594,7 +594,7 @@ router.get('/get-vendors', async (req, res) => {
   }
 });
   // add cast 
-  router.post('/add-cast', verifyAdmin, upload.single('image'), async (req, res) => {
+router.post('/add-cast', verifyAdmin, upload.single('image'), async (req, res) => {
     try {
       const { name, type } = req.body;
       const file = req.file;
@@ -1614,8 +1614,9 @@ router.get('/admin-note/:videoId',  async (req, res) => {
   try {
     const video = await Video.findById(videoId)
       .populate('vendor_id', 'name email')
+      .populate('category_id','name')
       .populate('approvedBy', 'name email'); // Optional: get admin details
-
+ 
     if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
@@ -2287,4 +2288,40 @@ router.patch('/series/approve/:id', verifyAdmin, async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
+//approve a tv show 
+// PUT /admin/tvshows/:id/approval
+router.put('/admin/tvshows/:id/approval', verifyAdmin, async (req, res) => {
+  const { status, notes } = req.body;
+
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'Invalid approval status' });
+  }
+
+  try {
+    const tvShow = await TVShow.findById(req.params.id);
+    if (!tvShow) {
+      return res.status(404).json({ success: false, error: 'TV Show not found' });
+    }
+
+    tvShow.approvalStatus = status;
+    tvShow.isApproved = (status === 'approved');
+    tvShow.approvalNotes = notes || '';
+
+    await tvShow.save();
+
+    res.json({
+      success: true,
+      message: `TV Show has been ${status}`,
+      tvShow
+    });
+  } catch (error) {
+    console.error('Approval error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update approval status',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

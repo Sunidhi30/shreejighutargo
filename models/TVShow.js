@@ -1,55 +1,40 @@
 
-
-// const mongoose = require('mongoose');
-// const tvShowSchema = new mongoose.Schema({
-//   type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Type' },
-//   video_type: { type: String },
-//   channel_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' },
-//   producer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Producer' },
-//   category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },  // Comma-separated string of category IDs
-//   language_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Language' },  // Comma-separated string of language IDs
-//   cast_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Cast' },      // Comma-separated string of cast IDs
-//   name: { type: String },
-//   thumbnail: { type: String },
-//   landscape: { type: String },
-//   trailer_type: { type: String },
-//   trailer_url: { type: String },
-//   description: { type: String },
-//   release_date: { type: String },  // Can also use Date type if standardized
-//   is_title: { type: Number, default: 0 },
-//   is_like: { type: Number, default: 0 },
-//   is_comment: { type: Number, default: 0 },
-//   total_like: { type: Number, default: 0 },
-//   total_view: { type: Number, default: 0 },
-//   is_rent: { type: Number, default: 0 },
-//   price: { type: Number, default: 0 },
-//   rent_day: { type: Number, default: 0 },
-//   status: { type: Number, default: 1 },
-// }, {
-//   collection: 'tbl_tv_show',
-//   timestamps: true
-// });
-// module.exports = mongoose.model('TVShow', tvShowSchema);
-
-
 const mongoose = require('mongoose');
-
+const Type = require("../models/Type")
 const  tvShowSchema = new mongoose.Schema({
   title: { type: String, required: true },
+
   description: { type: String },
   vendor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
   channel_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' },
   category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+  type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Types' },
   thumbnail: { type: String },
   landscape: { type: String },
   releaseYear: { type: Number },
   totalSeasons: { type: Number, default: 1 },
   status: { type: String, enum: ['ongoing', 'completed'], default: 'ongoing' },
+  // Admin approval fields
   isApproved: { type: Boolean, default: false },
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  approvalNotes: { type: String, default: '' },
   rating: { type: Number, default: 0 },
   tags: [String]
 }, {
   timestamps: true
+});
+tvShowSchema.pre('save', async function (next) {
+  if (!this.type_id) {
+    const webSeriesType = await mongoose.model('Type').findOne({ name: 'show' });
+    if (webSeriesType) {
+      this.type_id = webSeriesType._id;
+    }
+  }
+  next();
 });
 
 module.exports = mongoose.model('tvShowSchema',  tvShowSchema);
