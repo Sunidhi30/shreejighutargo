@@ -25,6 +25,7 @@ const vendorSchema = new mongoose.Schema({
     ifscCode: String,
     swiftCode: String
   },
+  
   resetToken: String,
 resetTokenExpiry: Date,
 monthlyTargetVideo:Number,
