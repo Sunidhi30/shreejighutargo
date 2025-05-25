@@ -10,6 +10,9 @@ const adminSchema = new mongoose.Schema({
   profileImage: { type: String }, // 👈 New field for profile picture
   targetAmount: { type: Number, default: 0 },  // 👈 Add this line
   pricePerView: { type: Number, default: 1 } , // ✅ Add this
+  adminPercentage: { type: Number, default: 60 }, // Admin gets 60%
+  vendorPercentage: { type: Number, default: 40 }, // Vendor gets 40%
+  totalEarningsFromViews: { type: Number, default: 0 }, // 🆕 Admin's total earnings from views
 
   wallet: { type: Number, default: 0 } , // Admin's wallet balance
 

@@ -1862,105 +1862,253 @@ router.get('/approved-videos', isVendor, async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-// Route: Calculate vendor and admin earnings based on likes
-router.get('/calculate-earnings', isVendor,async (req, res) => {
-  const vendorId = req.vendor.id; // Extracted vendorId from the token
+// // Route: Calculate vendor and admin earnings based on likes
+// router.get('/calculate-earnings', isVendor,async (req, res) => {
+//   const vendorId = req.vendor.id; // Extracted vendorId from the token
+
+//   try {
+//     // Fetch global settings from the database
+//     const setting = await Setting.findOne();
+//     if (!setting) {
+//       return res.status(404).json({ message: 'Earnings settings not found. Please set earnings first.' });
+//     }
+
+//     // Find all videos uploaded by this vendor
+//     const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
+
+//     // Calculate total likes across all videos
+//     const totalLikes = videos.reduce((acc, video) => acc + (video.total_like || 0), 0);
+
+//     // Calculate total earnings based on likes
+//     const totalEarnings = totalLikes * setting.pricePerLike;
+
+//     // Split earnings based on the settings
+//     const vendorShare = (setting.vendorPercentage / 100) * totalEarnings;
+//     const adminShare = (setting.adminPercentage / 100) * totalEarnings;
+
+//     // Update vendor wallet
+//     const vendor = await Vendor.findById(vendorId);
+//     if (!vendor) {
+//       return res.status(404).json({ message: 'Vendor not found' });
+//     }
+//     vendor.wallet += vendorShare;
+//     await vendor.save();
+
+//     // Update admin wallet (assuming single admin)
+//     const admin = await Admin.findOne();
+//     if (admin) {
+//       admin.wallet += adminShare;
+//       await admin.save();
+//     }
+
+//     res.status(200).json({
+//       message: 'Earnings calculated successfully',
+//       vendorWallet: vendor.wallet,
+//       adminWallet: admin ? admin.wallet : 0,
+//       totalLikes,
+//       totalEarnings,
+//       vendorShare,
+//       adminShare
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error calculating earnings', error: error.message });
+//   }
+// });
+// 🆕 Calculate and update vendor earnings based on views
+router.get('/calculate-vendor-earnings', isVendor, async (req, res) => {
+  const vendorId = req.vendor.id;
 
   try {
-    // Fetch global settings from the database
-    const setting = await Setting.findOne();
-    if (!setting) {
-      return res.status(404).json({ message: 'Earnings settings not found. Please set earnings first.' });
+    // Get admin settings for price per view
+    const admin = await Admin.findOne();
+    if (!admin || !admin.pricePerView) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Price per view not set by admin. Please contact administrator.' 
+      });
     }
 
-    // Find all videos uploaded by this vendor
-    const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
-
-    // Calculate total likes across all videos
-    const totalLikes = videos.reduce((acc, video) => acc + (video.total_like || 0), 0);
-
-    // Calculate total earnings based on likes
-    const totalEarnings = totalLikes * setting.pricePerLike;
-
-    // Split earnings based on the settings
-    const vendorShare = (setting.vendorPercentage / 100) * totalEarnings;
-    const adminShare = (setting.adminPercentage / 100) * totalEarnings;
-
-    // Update vendor wallet
+    // Find vendor
     const vendor = await Vendor.findById(vendorId);
+
     if (!vendor) {
-      return res.status(404).json({ message: 'Vendor not found' });
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
+
+    // Get total views for this vendor (you might need to adjust this based on your Video schema)
+    // const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
+    // const totalViews = videos.reduce((acc, video) => acc + (video.total_view || 0), 0);
+    // const vendor = await Vendor.findById(vendorId).select('totalViews');
+    const totalViews = vendor?.totalViews || 0;
+    
+    // Calculate earnings
+    const pricePerView = admin.pricePerView;
+    const grossEarnings = totalViews * pricePerView;
+    const adminShare = (admin.adminPercentage / 100) * grossEarnings;
+    const vendorShare = (admin.vendorPercentage / 100) * grossEarnings;
+   console.log(vendorShare)
+    // Update vendor earnings
+    vendor.totalEarningsFromViews += vendorShare;
     vendor.wallet += vendorShare;
+    vendor.lockedBalance = vendor.wallet;
+
+
+    console.log(vendor.wallet+" this is wallet")
+    
+    // Add to earnings history
+    vendor.viewsEarningsHistory.push({
+      viewsCount: totalViews,
+      pricePerView: pricePerView,
+      grossEarnings: grossEarnings,
+      vendorEarnings: vendorShare,
+      adminEarnings: adminShare
+    });
+
     await vendor.save();
 
-    // Update admin wallet (assuming single admin)
-    const admin = await Admin.findOne();
-    if (admin) {
-      admin.wallet += adminShare;
-      await admin.save();
-    }
-
-    res.status(200).json({
-      message: 'Earnings calculated successfully',
-      vendorWallet: vendor.wallet,
-      adminWallet: admin ? admin.wallet : 0,
-      totalLikes,
-      totalEarnings,
-      vendorShare,
-      adminShare
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error calculating earnings', error: error.message });
-  }
-});
-// Route to get vendor earnings this is the wrong api 
-router.get('/vendor/earnings',isVendor, async (req, res) => {
-  try {
-    const vendorId = req.vendor.id
-
-    // Fetch all APPROVED videos uploaded by this vendor
-    const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
-
-    let totalEarnings = 0;
-    let detailedEarnings = [];
-
-    videos.forEach(video => {
-      let videoEarnings = 0;
-
-      if (video.monetizationType === 'rental' && video.price) {
-        // Earnings from rentals
-        videoEarnings = video.total_view * video.price;
-      } 
-      else if (video.monetizationType === 'view') {
-        // Earnings from views (let's assume $0.01 per view if not specified)
-        videoEarnings = video.viewCount * 0.01;
-      } 
-      else if (video.monetizationType === 'ad') {
-        // Earnings from ad views (let's assume $0.005 per ad view if not specified)
-        videoEarnings = video.adViews * 0.005;
-      }
-
-      totalEarnings += videoEarnings;
-      console.log("total earnings", totalEarnings);
-
-      detailedEarnings.push({
-        videoId: video._id,
-        name: video.name,
-        monetizationType: video.monetizationType,
-        earnings: videoEarnings.toFixed(2)
-      });
-    });
-
-    // Update the vendor's wallet (optional, if you want real-time update)
-    await Vendor.findByIdAndUpdate(vendorId, { wallet: totalEarnings });
+    // Update admin earnings
+    admin.wallet += adminShare;
+    admin.totalEarningsFromViews += adminShare;
+    await admin.save();
 
     res.status(200).json({
       success: true,
-      vendorId,
-      totalEarnings: totalEarnings.toFixed(2),
-      videos: detailedEarnings
+      message: 'Earnings calculated and updated successfully',
+      data: {
+        totalViews,
+        pricePerView,
+        vendorEarnings: vendorShare.toFixed(2),
+        vendorWallet: vendor.wallet.toFixed(2),
+        lockedBalance: vendor.lockedBalance.toFixed(2), // 🆕 Include locked balance
+
+        vendorTotalEarningsFromViews: vendor.totalEarningsFromViews.toFixed(2)
+      }
     });
+
+  } catch (error) {
+    console.error('Error calculating vendor earnings:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// Route to get vendor earnings this is the wrong api 
+// router.get('/vendor/earnings',isVendor, async (req, res) => {
+//   try {
+//     const vendorId = req.vendor.id
+
+//     // Fetch all APPROVED videos uploaded by this vendor
+//     const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
+
+//     let totalEarnings = 0;
+//     let detailedEarnings = [];
+
+//     videos.forEach(video => {
+//       let videoEarnings = 0;
+
+//       if (video.monetizationType === 'rental' && video.price) {
+//         // Earnings from rentals
+//         videoEarnings = video.total_view * video.price;
+//       } 
+//       else if (video.monetizationType === 'view') {
+//         // Earnings from views (let's assume $0.01 per view if not specified)
+//         videoEarnings = video.viewCount * 0.01;
+//       } 
+//       else if (video.monetizationType === 'ad') {
+//         // Earnings from ad views (let's assume $0.005 per ad view if not specified)
+//         videoEarnings = video.adViews * 0.005;
+//       }
+
+//       totalEarnings += videoEarnings;
+//       console.log("total earnings", totalEarnings);
+
+//       detailedEarnings.push({
+//         videoId: video._id,
+//         name: video.name,
+//         monetizationType: video.monetizationType,
+//         earnings: videoEarnings.toFixed(2)
+//       });
+//     });
+
+//     // Update the vendor's wallet (optional, if you want real-time update)
+//     await Vendor.findByIdAndUpdate(vendorId, { wallet: totalEarnings });
+
+//     res.status(200).json({
+//       success: true,
+//       vendorId,
+//       totalEarnings: totalEarnings.toFixed(2),
+//       videos: detailedEarnings
+//     });
+//   } catch (error) {
+//     console.error('Error fetching vendor earnings:', error);
+//     res.status(500).json({ success: false, message: 'Server error' });
+//   }
+// });
+
+// 🔧 CORRECTED: Get vendor earnings details
+router.get('/vendor/earnings', isVendor, async (req, res) => {
+  try {
+    const vendorId = req.vendor.id;
+
+    // Get vendor details
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    // Get admin settings for price per view
+    const admin = await Admin.findOne();
+    const currentPricePerView = admin ? admin.pricePerView : 0;
+
+    // Get all approved videos by this vendor
+    const videos = await Video.find({ vendor_id: vendorId, isApproved: true });
+    
+    // Calculate current total views
+    const result = await Vendor.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalViews: { $sum: "$totalViews" }
+        }
+      }
+    ]);
+
+    const totalViews = result[0]?.totalViews || 0;
+    console.log("Total Views by all vendors:", totalViews);
+    
+
+    // Detailed video earnings (only vendor's share)
+    const videoEarnings = videos.map(video => {
+      const videoViews = video.total_view || 0;
+      const grossVideoEarnings = videoViews * currentPricePerView;
+      const vendorVideoEarnings = grossVideoEarnings * 0.4; // 40% for vendor
+
+      return {
+        videoId: video._id,
+        name: video.name,
+        views: videoViews,
+        vendorEarnings: vendorVideoEarnings.toFixed(2)
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        vendorId,
+        totalViews,
+        lockedBalance: vendor.wallet.toFixed(2), // 🆕 All wallet balance is locked balance
+        currentPricePerView,
+        vendorWallet: vendor.wallet.toFixed(2),
+        totalEarningsFromViews: vendor.totalEarningsFromViews.toFixed(2),
+        earningsHistory: vendor.viewsEarningsHistory.map(history => ({
+          date: history.date,
+          viewsCount: history.viewsCount,
+          pricePerView: history.pricePerView,
+          vendorEarnings: history.vendorEarnings.toFixed(2)
+        })),
+        videoBreakdown: videoEarnings
+      }
+    });
+
   } catch (error) {
     console.error('Error fetching vendor earnings:', error);
     res.status(500).json({ success: false, message: 'Server error' });

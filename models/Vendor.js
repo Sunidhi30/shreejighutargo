@@ -18,6 +18,16 @@ const vendorSchema = new mongoose.Schema({
   uploadedContent: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Content' }],
   wallet: { type: Number, default: 0 }, // Vendor's earning balance
   lockedBalance: { type: Number, default: 0 }, // Balance within 90-day lock period
+  totalEarningsFromViews: { type: Number, default: 0 }, // 🆕 Separate variable to store total earnings from views
+  
+  viewsEarningsHistory: [{ // 🆕 Track individual earnings transactions
+    date: { type: Date, default: Date.now },
+    viewsCount: Number,
+    pricePerView: Number,
+    grossEarnings: Number, // Total before admin cut
+    vendorEarnings: Number, // Vendor's 40% share
+    adminEarnings: Number // Admin's 60% share
+  }],
   bankDetails: {
     accountName: String,
     accountNumber: String,
