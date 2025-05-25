@@ -3,6 +3,9 @@ const nodemailer = require("nodemailer");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const jwt = require('jsonwebtoken');
 const Producer = require("../models/Producer");
+const { ContestController} = require('../controllers/contestController');
+const Contest = require("../models/Contest")
+const ContestRules = require("../models/ContestRules")
 const dotenv = require('dotenv');
 const RentalLimit = require("../models/RentalLimit");
 const HomeSection = require('../models/HomeSection');
@@ -99,6 +102,50 @@ const verifyToken = (req, res, next) => {
     return res.status(403).json({ message: 'Invalid or expired token' });
   }
 };
+const validateContestParticipation = async (vendor, video, contest) => {
+  const contestRules = await ContestRules.findOne({ contest_id: contest._id });
+  const errors = [];
+
+  // Check account age
+  const accountAge = Math.floor((Date.now() - vendor.createdAt) / (1000 * 60 * 60 * 24));
+  if (accountAge < contestRules.eligibilityCriteria.minAccountAge) {
+    errors.push('Vendor account does not meet minimum age requirement');
+  }
+
+  // Check video count
+  const vendorVideoCount = await Video.countDocuments({ vendor_id: vendor._id });
+  if (vendorVideoCount < contestRules.eligibilityCriteria.minVideoCount) {
+    errors.push('Vendor does not have minimum required videos');
+  }
+
+  // Check video duration
+  if (video.video_duration < contestRules.eligibilityCriteria.minVideoDuration ||
+      video.video_duration > contestRules.eligibilityCriteria.maxVideoDuration) {
+    errors.push('Video duration does not meet requirements');
+  }
+
+  // Check video quality
+  const hasRequiredQuality = contestRules.eligibilityCriteria.requiredVideoQuality.some(
+    quality => video[`video_${quality.replace('p', '')}`]
+  );
+  if (!hasRequiredQuality) {
+    errors.push('Video quality does not meet requirements');
+  }
+
+  // Check submission count
+  const existingSubmissions = contest.participants.filter(
+    p => p.vendor_id.toString() === vendor._id.toString()
+  ).length;
+  if (existingSubmissions >= contestRules.submissionGuidelines.maxSubmissionsPerVendor) {
+    errors.push('Maximum submission limit reached');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
 // GET /admin/profile
 router.get('/admin/profile', async (req, res) => {
   try {
@@ -2781,6 +2828,276 @@ router.get('/vendors/:vendorId/lock-status', verifyAdmin, async (req, res) => {
   }
 });
 
+// 1. CREATE CONTEST (Admin only)
+router.post('/create-contests',verifyAdmin, async (req, res) => {
+  try {
+    const { 
+      title, 
+      description, 
+      rules, 
+      judgingCriteria,
+      type_id, 
+      startDate, 
+      endDate, 
+      registrationStartDate,
+      registrationEndDate,
+      prizes 
+    } = req.body;
 
+    // Validate dates
+    const regStart = new Date(registrationStartDate);
+    const regEnd = new Date(registrationEndDate);
+    const contestStart = new Date(startDate);
+    const contestEnd = new Date(endDate);
+
+    if (regStart >= regEnd || regEnd >= contestStart || contestStart >= contestEnd) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid date sequence. Registration should be before contest period.' 
+      });
+    }
+
+    const contest = new Contest({
+      title,
+      description,
+      rules,
+      judgingCriteria,
+      type_id,
+      startDate: contestStart,
+      endDate: contestEnd,
+      registrationStartDate: regStart,
+      registrationEndDate: regEnd,
+      prizes,
+      createdBy: req.admin.id // Assuming admin auth middleware
+    });
+
+    await contest.save();
+    res.status(201).json({ success: true, data: contest });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+// 2. GET ALL CONTESTS
+router.get('/contests', async (req, res) => {
+  try {
+    const { status, type_id } = req.query;
+    let filter = {};
+    
+    if (status) filter.status = status;
+    if (type_id) filter.type_id = type_id;
+
+    const contests = await Contest.find(filter)
+      .populate('type_id')
+      .populate('createdBy', 'email')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: contests });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+// 3. GET CONTEST BY ID
+router.get('/contests/:id', async (req, res) => {
+  try {
+    const contest = await Contest.findById(req.params.id)
+      .populate('type_id')
+      .populate('createdBy', 'email')
+      .populate('participants.vendor_id', 'username fullName')
+      .populate('participants.video_id', 'title description');
+
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    res.json({ success: true, data: contest });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+// 4. UPDATE CONTEST (Admin only)
+router.put('/contests/:id', async (req, res) => {
+  try {
+    const contest = await Contest.findById(req.params.id);
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    // Don't allow certain changes if contest is active
+    if (contest.status === 'active' && (req.body.startDate || req.body.endDate)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot change dates of an active contest' 
+      });
+    }
+
+    Object.assign(contest, req.body);
+    await contest.save();
+
+    res.json({ success: true, data: contest });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+// admin approves the regsitrations of the vendor for contest
+// 6. ADMIN APPROVE/REJECT REGISTRATION
+router.put('/contests/:id/registrations/:registrationId',verifyAdmin, async (req, res) => {
+  try {
+    const { status } = req.body; // 'approved' or 'rejected'
+    const contest = await Contest.findById(req.params.id);
+    
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    const registration = contest.registrations.id(req.params.registrationId);
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Registration not found' });
+    }
+
+    registration.status = status;
+    await contest.save();
+
+    res.json({ success: true, message: `Registration ${status} successfully`, data: registration });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+//updated the views
+// 8. UPDATE CONTEST VIEWS (Admin only - can only increase)
+router.put('/contests/:id/participants/:participantId/views', verifyAdmin,async (req, res) => {
+  try {
+    const { viewsToAdd, note } = req.body;
+    
+    if (!viewsToAdd || viewsToAdd <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Views to add must be a positive number' 
+      });
+    }
+
+    const contest = await Contest.findById(req.params.id);
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    const participant = contest.participants.id(req.params.participantId);
+    if (!participant) {
+      return res.status(404).json({ success: false, message: 'Participant not found' });
+    }
+
+    // Update views
+    participant.adminAdjustedViews += parseInt(viewsToAdd);
+    participant.totalContestViews = participant.contestViews + participant.adminAdjustedViews;
+
+    // Add to history
+    contest.viewsUpdateHistory.push({
+      vendor_id: participant.vendor_id,
+      video_id: participant.video_id,
+      viewsAdded: parseInt(viewsToAdd),
+      updatedBy: req.admin.id,
+      note: note || 'Admin adjustment'
+    });
+
+    await contest.save();
+
+    res.json({ 
+      success: true, 
+      message: `Added ${viewsToAdd} views successfully`,
+      data: participant 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+// 9. UPDATE CONTEST RANKINGS
+router.post('/contests/:id/update-rankings', async (req, res) => {
+  try {
+    const contest = await Contest.findById(req.params.id);
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    // Sort participants by total contest views (descending)
+    contest.participants.sort((a, b) => b.totalContestViews - a.totalContestViews);
+
+    // Assign rankings
+    contest.participants.forEach((participant, index) => {
+      participant.rank = index + 1;
+    });
+
+    await contest.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Rankings updated successfully',
+      data: contest.participants 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 10. GET CONTEST LEADERBOARD
+router.get('/contests/:id/leaderboard', async (req, res) => {
+  try {
+    const contest = await Contest.findById(req.params.id)
+      .populate('participants.vendor_id', 'username fullName image')
+      .populate('participants.video_id', 'title description thumbnail');
+
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    // Sort by rank
+    const leaderboard = contest.participants
+      .sort((a, b) => a.rank - b.rank)
+      .map(participant => ({
+        rank: participant.rank,
+        vendor: participant.vendor_id,
+        video: participant.video_id,
+        totalContestViews: participant.totalContestViews,
+        contestViews: participant.contestViews,
+        adminAdjustedViews: participant.adminAdjustedViews
+      }));
+
+    res.json({ success: true, data: leaderboard });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+// 11. END CONTEST
+router.post('/contests/:id/end', async (req, res) => {
+  try {
+    const contest = await Contest.findById(req.params.id);
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    contest.status = 'completed';
+    await contest.save();
+
+    res.json({ success: true, message: 'Contest ended successfully', data: contest });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 13. GET CONTEST VIEWS UPDATE HISTORY
+router.get('/contests/:id/views-history', async (req, res) => {
+  try {
+    const contest = await Contest.findById(req.params.id)
+      .populate('viewsUpdateHistory.vendor_id', 'username')
+      .populate('viewsUpdateHistory.video_id', 'title')
+      .populate('viewsUpdateHistory.updatedBy', 'email');
+
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    res.json({ success: true, data: contest.viewsUpdateHistory });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 module.exports = router;

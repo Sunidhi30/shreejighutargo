@@ -8,7 +8,7 @@ const VendorLockPeriod = require('../models/LockPeriod'); // adjust the path as 
 const WithdrawalRequest = require('../models/WithdrawalRequest');
 const Shorts = require('../models/Short'); // Adjust path as needed
 const TVShow = require("../models/TVShow")
-const Contest = require("../models/Content")
+const Contest = require("../models/Contest")
 const router = express.Router();
 const heicConvert = require('heic-convert');
 
@@ -4517,5 +4517,91 @@ router.get("/get-target-videos", isVendor, async (req, res) => {
 router.post('/withdrawal/requests', isVendor, createWithdrawalRequest);
 router.get('/withdrawal/requests', isVendor, getVendorWithdrawalRequests);
 router.get('/api/vendor/wallet', isVendor, getVendorWalletInfo);
+
+
+// contests
+// 5. VENDOR REGISTER FOR CONTEST
+router.post('/contests/:id/register',isVendor, async (req, res) => {
+  
+  try {
+    const { video_id } = req.body;
+   
+    const contest = await Contest.findById(req.params.id);
+   
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    // Check if registration is open
+    const now = new Date();
+    if (now < contest.registrationStartDate || now > contest.registrationEndDate) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Registration is not open for this contest' 
+      });
+    }
+
+    // Check if video exists
+    const video = await Video.findById(video_id);
+    if (!video) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Video not found. Please add the video first before registering.' 
+      });
+    }
+
+    // Check if vendor owns the video
+    const vendorId= await Vendor.findById(req.vendor.id);
+    console.log("this is the vendor "+ vendorId)
+    if (video.vendor_id.toString() !== req.vendor.id) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You can only register with your own videos' 
+      });
+    }
+
+    // Check if already registered
+    const existingRegistration = contest.registrations.find(
+      reg => reg.vendor_id.toString() === req.vendor.id
+    );
+
+    if (existingRegistration) {
+      return res.status(400).json({ success: false, message: 'Already registered for this contest' });
+    }
+
+    // Add registration
+    contest.registrations.push({
+      vendor_id: req.vendor.id,
+      video_id: video_id,
+      registrationDate: new Date()
+    });
+
+    await contest.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Registration submitted successfully. Wait for admin approval.',
+      data: contest.registrations[contest.registrations.length - 1]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 12. GET VENDOR'S CONTESTS
+router.get('/vendors/:vendorId/contests', async (req, res) => {
+  try {
+    const contests = await Contest.find({
+      $or: [
+        { 'registrations.vendor_id': req.params.vendorId },
+        { 'participants.vendor_id': req.params.vendorId }
+      ]
+    }).populate('type_id');
+
+    res.json({ success: true, data: contests });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 module.exports = router;
