@@ -16,7 +16,17 @@ require('./cron/autoStartContests'); // Adjust path as needed
 
 require('dotenv').config()
 db();
-app.use(cors());
+// app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000'
+    // 'https://your-production-domain.com',
+    // 'https://your-app.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 let ejs = require('ejs');
 
