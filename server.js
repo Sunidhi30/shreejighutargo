@@ -18,11 +18,12 @@ require('dotenv').config()
 db();
 // app.use(cors());
 app.use(cors({
-  origin: [
-    'http://localhost:3000'
-    // 'https://your-production-domain.com',
-    // 'https://your-app.vercel.app'
-  ],
+  origin: true,
+  // origin: [
+  //   // 'http://localhost:3000'
+  //   // // 'https://your-production-domain.com',
+  //   // // 'https://your-app.vercel.app'
+  // ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
