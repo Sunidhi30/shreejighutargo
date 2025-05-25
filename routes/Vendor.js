@@ -12,6 +12,10 @@ const Contest = require("../models/Content")
 const router = express.Router();
 const heicConvert = require('heic-convert');
 
+const { createWithdrawalRequest ,getVendorWithdrawalRequests, getVendorWalletInfo} = require('../controllers/vendorsWithdraws');
+
+// const  getVendorWithdrawalRequests  = require('../controllers/vendorsWithdraws');
+// const getVendorWalletInfo =require('../controllers/vendorsWithdraws');
 const multer = require('multer');
 const RentalLimit = require("../models/RentalLimit");
 const cloudinary = require('cloudinary').v2;
@@ -4361,4 +4365,9 @@ router.get("/get-target-videos", isVendor, async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
+// transactions 
+router.post('/withdrawal/requests', isVendor, createWithdrawalRequest);
+router.get('/withdrawal/requests', isVendor, getVendorWithdrawalRequests);
+router.get('/api/vendor/wallet', isVendor, getVendorWalletInfo);
+
 module.exports = router;

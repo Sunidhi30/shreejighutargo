@@ -9,6 +9,7 @@ const HomeSection = require('../models/HomeSection');
 const Series =require("../models/Series")
 const User = require('../models/User');
 const WithdrawalRequest = require('../models/WithdrawalRequest');
+const VendorsWithdrawalRequest = require("../models/VendorWithdrawalRequest")
 const ExcelJS = require('exceljs');
 const Package = require("../models/Package");
 const  Setting = require("../models/LikesSetting");
@@ -2323,5 +2324,463 @@ router.put('/admin/tvshows/:id/approval', verifyAdmin, async (req, res) => {
     });
   }
 });
+
+
+
+
+
+
+
+// transactions 
+
+
+// const calculateRemainingLockDays = (vendor) => {
+//   if (!vendor.walletLockStartDate || !vendor.walletLockDays) {
+//     return 0;
+//   }
+  
+//   const lockStartDate = new Date(vendor.walletLockStartDate);
+//   const currentDate = new Date();
+//   const daysPassed = Math.floor((currentDate - lockStartDate) / (1000 * 60 * 60 * 24));
+//   const remainingDays = Math.max(0, vendor.walletLockDays - daysPassed);
+  
+//   return remainingDays;
+// };
+
+// router.get('/withdrawals-requests',verifyAdmin, async (req, res) => {
+//   try {
+//     const { status, page = 1, limit = 10 } = req.query;
+//     const filter = {};
+
+//     if (status) {
+//       filter.status = status;
+//     }
+
+//     const requests = await VendorsWithdrawalRequest.find(filter)
+//       .populate('vendorId', 'username fullName email mobile wallet')
+//       .sort({ createdAt: -1 })
+//       .limit(limit * 1)
+//       .skip((page - 1) * limit);
+
+//     const total = await VendorsWithdrawalRequest.countDocuments(filter);
+
+//     res.json({
+//       success: true,
+//       data: {
+//         requests,
+//         pagination: {
+//           current: page,
+//           pages: Math.ceil(total / limit),
+//           total
+//         }
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error fetching withdrawal requests:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
+// router.put('/withdrawals/:requestId/process', async (req, res) => {
+//   try {
+//     const { requestId } = req.params;
+//     const { action, adminNotes, rejectionReason } = req.body;
+
+//     if (!['approve', 'reject'].includes(action)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid action. Must be approve or reject'
+//       });
+//     }
+
+//     const request = await VendorsWithdrawalRequest.findById(requestId).populate('vendorId');
+
+//     if (!request) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Withdrawal request not found'
+//       });
+//     }
+
+//     if (request.status !== 'pending') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Request has already been processed'
+//       });
+//     }
+
+//     const vendor = request.vendorId;
+//     const remainingDays = calculateRemainingLockDays(vendor);
+
+//     if (action === 'approve') {
+//       if (remainingDays > 0) {
+//         return res.status(400).json({
+//           success: false,
+//           message: `Cannot approve. Wallet is locked for ${remainingDays} more days`
+//         });
+//       }
+
+//       if (vendor.wallet < request.amount) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Vendor has insufficient balance'
+//         });
+//       }
+
+//       request.status = 'approved';
+//       request.approvalDate = new Date();
+//       request.adminNotes = adminNotes;
+//       request.canWithdraw = true;
+
+//       vendor.wallet -= request.amount;
+//       await vendor.save();
+//       await request.save();
+
+//       res.json({
+//         success: true,
+//         message: 'Withdrawal request approved successfully',
+//         data: request
+//       });
+//     } else {
+//       request.status = 'rejected';
+//       request.rejectionReason = rejectionReason;
+//       request.adminNotes = adminNotes;
+
+//       await request.save();
+
+//       res.json({
+//         success: true,
+//         message: 'Withdrawal request rejected successfully',
+//         data: request
+//       });
+//     }
+//   } catch (error) {
+//     console.error('Error processing withdrawal request:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
+// router.patch('/withdrawals/:requestId/complete', async (req, res) => {
+//   try {
+//     const { requestId } = req.params;
+//     const { adminNotes } = req.body;
+
+//     const request = await VendorsWithdrawalRequest.findById(requestId);
+
+//     if (!request) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Withdrawal request not found'
+//       });
+//     }
+
+//     if (request.status !== 'approved') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Request must be approved before marking as completed'
+//       });
+//     }
+
+//     request.status = 'completed';
+//     request.completionDate = new Date();
+//     if (adminNotes) request.adminNotes = adminNotes;
+
+//     await request.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Withdrawal marked as completed successfully',
+//       data: request
+//     });
+//   } catch (error) {
+//     console.error('Error marking withdrawal as completed:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
+// router.post('/vendors/:vendorId/lock', async (req, res) => {
+//   try {
+//     const { vendorId } = req.params;
+//     const { lockDays } = req.body;
+
+//     if (!lockDays || lockDays < 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Lock days must be a positive number'
+//       });
+//     }
+
+//     const vendor = await Vendor.findById(vendorId);
+//     if (!vendor) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Vendor not found'
+//       });
+//     }
+
+//     vendor.walletLockDays = lockDays;
+//     vendor.walletLockStartDate = new Date();
+//     await vendor.save();
+
+//     res.json({
+//       success: true,
+//       message: `Vendor wallet locked for ${lockDays} days`,
+//       data: {
+//         vendorId,
+//         lockDays,
+//         lockStartDate: vendor.walletLockStartDate
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error setting wallet lock:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
+// Calculate remaining lock days for vendor
+const calculateRemainingLockDays = (vendor) => {
+  if (!vendor.walletLockEndDate) {
+    return 0;
+  }
+  
+  const currentDate = new Date();
+  const endDate = new Date(vendor.walletLockEndDate);
+  
+  // If current date is past end date, no lock remaining
+  if (currentDate >= endDate) {
+    return 0;
+  }
+  
+  // Calculate remaining days
+  const remainingMs = endDate.getTime() - currentDate.getTime();
+  const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+  
+  return Math.max(0, remainingDays);
+};
+router.get('/withdrawals',  verifyAdmin, async (req, res) => {
+  try {
+    const { status, page = 1, limit = 10 } = req.query;
+
+    const filter = {};
+    if (status) {
+      filter.status = status;
+    }
+
+    const requests = await VendorsWithdrawalRequest.find(filter)
+      .populate('vendorId', 'username fullName email mobile wallet')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await VendorsWithdrawalRequest.countDocuments(filter);
+
+    res.json({
+      success: true,
+      data: {
+        requests,
+        pagination: {
+          current: page,
+          pages: Math.ceil(total / limit),
+          total
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching withdrawal requests:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.post('/withdrawals/:requestId/process', verifyAdmin, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { action, adminNotes, rejectionReason } = req.body;
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Invalid action. Must be approve or reject' });
+    }
+
+    const request = await VendorsWithdrawalRequest.findById(requestId).populate('vendorId');
+    if (!request) return res.status(404).json({ success: false, message: 'Withdrawal request not found' });
+    if (request.status !== 'pending') return res.status(400).json({ success: false, message: 'Request already processed' });
+
+    const vendor = request.vendorId;
+    const remainingDays = calculateRemainingLockDays(vendor);
+
+    if (action === 'approve') {
+      if (remainingDays > 0) {
+        return res.status(400).json({ success: false, message: `Wallet locked for ${remainingDays} more days` });
+      }
+      if (vendor.wallet < request.amount) {
+        return res.status(400).json({ success: false, message: 'Insufficient balance' });
+      }
+
+      request.status = 'approved';
+      request.approvalDate = new Date();
+      request.adminNotes = adminNotes;
+      request.canWithdraw = true;
+
+      vendor.wallet -= request.amount;
+      await vendor.save();
+      await request.save();
+
+      return res.json({ success: true, message: 'Approved successfully', data: request });
+    }
+
+    request.status = 'rejected';
+    request.rejectionReason = rejectionReason;
+    request.adminNotes = adminNotes;
+    await request.save();
+
+    res.json({ success: true, message: 'Rejected successfully', data: request });
+  } catch (error) {
+    console.error('Error processing withdrawal request:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+router.post('/withdrawals/:requestId/complete',verifyAdmin, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { adminNotes } = req.body;
+
+    const request = await VendorsWithdrawalRequest.findById(requestId);
+    if (!request) return res.status(404).json({ success: false, message: 'Withdrawal request not found' });
+    if (request.status !== 'approved') return res.status(400).json({ success: false, message: 'Must be approved before completing' });
+
+    request.status = 'completed';
+    request.completionDate = new Date();
+    if (adminNotes) request.adminNotes = adminNotes;
+
+    await request.save();
+
+    res.json({ success: true, message: 'Marked as completed', data: request });
+  } catch (error) {
+    console.error('Error completing withdrawal:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+router.post('/vendors/:vendorId/lock-wallet', verifyAdmin, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { startDate, endDate, lockDays } = req.body;
+
+    if ((!startDate || !endDate) && !lockDays) {
+      return res.status(400).json({ success: false, message: 'Provide start/end dates or lockDays' });
+    }
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    let lockStartDate, lockEndDate;
+
+    if (startDate && endDate) {
+      lockStartDate = new Date(startDate);
+      lockEndDate = new Date(endDate);
+
+      if (lockStartDate >= lockEndDate) {
+        return res.status(400).json({ success: false, message: 'End date must be after start date' });
+      }
+
+      const days = Math.ceil((lockEndDate - lockStartDate) / (1000 * 60 * 60 * 24));
+      vendor.walletLockStartDate = lockStartDate;
+      vendor.walletLockEndDate = lockEndDate;
+      vendor.walletLockDays = days;
+    } else {
+      if (lockDays <= 0) {
+        return res.status(400).json({ success: false, message: 'Lock days must be positive' });
+      }
+
+      lockStartDate = new Date();
+      lockEndDate = new Date();
+      lockEndDate.setDate(lockEndDate.getDate() + lockDays);
+
+      vendor.walletLockStartDate = lockStartDate;
+      vendor.walletLockEndDate = lockEndDate;
+      vendor.walletLockDays = lockDays;
+    }
+
+    await vendor.save();
+
+    res.json({
+      success: true,
+      message: 'Wallet lock set',
+      data: {
+        vendorId,
+        lockStartDate: vendor.walletLockStartDate,
+        lockEndDate: vendor.walletLockEndDate,
+        lockDays: vendor.walletLockDays,
+        remainingDays: calculateRemainingLockDays(vendor)
+      }
+    });
+  } catch (error) {
+    console.error('Error setting wallet lock:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+router.delete('/vendors/:vendorId/unlock-wallet', verifyAdmin, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    vendor.walletLockStartDate = null;
+    vendor.walletLockEndDate = null;
+    vendor.walletLockDays = 0;
+
+    await vendor.save();
+
+    res.json({
+      success: true,
+      message: 'Wallet lock removed',
+      data: {
+        vendorId,
+        walletUnlocked: true
+      }
+    });
+  } catch (error) {
+    console.error('Error unlocking wallet:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+router.get('/vendors/:vendorId/lock-status', verifyAdmin, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    const remainingDays = calculateRemainingLockDays(vendor);
+    const canWithdraw = canVendorWithdraw(vendor);
+
+    res.json({
+      success: true,
+      data: {
+        vendorId,
+        vendorName: vendor.fullName,
+        walletBalance: vendor.wallet,
+        lockStartDate: vendor.walletLockStartDate,
+        lockEndDate: vendor.walletLockEndDate,
+        totalLockDays: vendor.walletLockDays,
+        remainingDays,
+        canWithdraw,
+        isLocked: remainingDays > 0
+      }
+    });
+  } catch (error) {
+    console.error('Error getting lock status:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+
 
 module.exports = router;

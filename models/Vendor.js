@@ -25,7 +25,10 @@ const vendorSchema = new mongoose.Schema({
     ifscCode: String,
     swiftCode: String
   },
-  
+  walletLockDays: { type: Number, default: 0 }, // Days the wallet is locked
+  walletLockStartDate: { type: Date }, // When the lock started
+  walletLockEndDate: { type: Date }, // When the lock will end
+  upiId: { type: String }, // Optional UPI ID for payments
   resetToken: String,
 resetTokenExpiry: Date,
 monthlyTargetVideo:Number,
