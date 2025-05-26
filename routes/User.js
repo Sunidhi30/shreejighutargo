@@ -73,6 +73,8 @@ const sendOTPEmail = async (email, otp) => {
   };
   await transporter.sendMail(mailOptions);
 };
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
 // Helper function to upload to Cloudinary
 const uploadingCloudinary = async (base64Data, folder, mimetype) => {
   try {
@@ -88,6 +90,40 @@ const uploadingCloudinary = async (base64Data, folder, mimetype) => {
 };
 // user mai bhi pka dikkat ayegi 
 //sign up 
+// router.post('/signup', async (req, res) => {
+//   try {
+//     const { email, device_name, device_type, device_token, device_id } = req.body;
+
+//     if (!email || !device_name || !device_type || !device_token || !device_id) {
+//       return res.status(400).json({ message: 'Missing required fields' });
+//     }
+
+//     const existingUser = await User.findOne({ email });
+//     if (existingUser) {
+//       return res.status(400).json({ message: 'User already exists' });
+//     }
+
+//     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+//     const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+//     // Store session data
+//     req.session.signupData = {
+//       email,
+//       otp,
+//       otpExpiry,
+//       device_name,
+//       device_type,
+//       device_token,
+//       device_id
+//     };
+
+//     await sendOTPEmail(email, otp);
+
+//     res.status(200).json({success: 200, message: 'OTP sent to email. Please verify to complete signup.' });
+//   } catch (err) {
+//     res.status(500).json({ message: 'Server error', error: err.message });
+//   }
+// });
 router.post('/signup', async (req, res) => {
   try {
     const { email, device_name, device_type, device_token, device_id } = req.body;
@@ -101,77 +137,130 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Store session data
-    req.session.signupData = {
+    // Temporarily create a user with otp but not finalized
+    const tempUser = new User({
       email,
       otp,
       otpExpiry,
       device_name,
       device_type,
       device_token,
-      device_id
-    };
+      device_id,
+    });
+
+    await tempUser.save();
 
     await sendOTPEmail(email, otp);
 
-    res.status(200).json({success: 200, message: 'OTP sent to email. Please verify to complete signup.' });
+    res.status(200).json({
+      success: 200,
+      message: 'OTP sent to email. Please verify to complete signup.'
+    });
+
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 // sign up otp
+// router.post('/verify-signup-otp', async (req, res) => {
+//   try {
+//     const { otp } = req.body;
+//     const signupData = req.session.signupData;
+
+//     if (!signupData) {
+//       return res.status(400).json({ message: 'Session expired or no OTP request found' });
+//     }
+
+//     if (signupData.otp !== otp || Date.now() > signupData.otpExpiry) {
+//       return res.status(400).json({ message: 'Invalid or expired OTP' });
+//     }
+
+//     // Save user to DB
+//     const newUser = new User({ email: signupData.email });
+//     await newUser.save();
+//     console.log(newUser)
+//     // Save device info
+//     const device = new DeviceSync({
+//       user_id: newUser._id,
+//       device_name: signupData.device_name,
+//       device_type: signupData.device_type,
+//       device_token: signupData.device_token,
+//       device_id: signupData.device_id,
+//     });
+  
+//     await device.save();
+
+//     // Clear session
+//     req.session.signupData = null;
+
+//     // Generate JWT token
+//     const token = jwt.sign({ id: newUser._id, role: newUser.role }, process.env.JWT_SECRET, {
+//       expiresIn: '7d',
+//     });
+
+//     res.status(200).json({
+//       message: 'Signup successful',
+//       token,
+//       success: 200,
+//       user: {
+//         id: newUser._id,
+//         email: newUser.email,
+//       },
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: 'Server error', error: err.message });
+//   }
+// }); 
 router.post('/verify-signup-otp', async (req, res) => {
   try {
-    const { otp } = req.body;
-    const signupData = req.session.signupData;
+    const { email, otp } = req.body;
 
-    if (!signupData) {
-      return res.status(400).json({ message: 'Session expired or no OTP request found' });
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
     }
 
-    if (signupData.otp !== otp || Date.now() > signupData.otpExpiry) {
+    const user = await User.findOne({ email });
+
+    if (!user || !user.otp || !user.otpExpiry) {
+      return res.status(400).json({ message: 'No OTP request found or user does not exist' });
+    }
+
+    if (user.otp !== otp || user.otpExpiry < Date.now()) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    // Save user to DB
-    const newUser = new User({ email: signupData.email });
-    await newUser.save();
-    console.log(newUser)
-    // Save device info
-    const device = new DeviceSync({
-      user_id: newUser._id,
-      device_name: signupData.device_name,
-      device_type: signupData.device_type,
-      device_token: signupData.device_token,
-      device_id: signupData.device_id,
-    });
-  
-    await device.save();
+    // Clear OTP fields after verification
+    user.otp = undefined;
+    user.otpExpiry = undefined;
 
-    // Clear session
-    req.session.signupData = null;
+    await user.save();
 
     // Generate JWT token
-    const token = jwt.sign({ id: newUser._id, role: newUser.role }, process.env.JWT_SECRET, {
-      expiresIn: '7d',
-    });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.status(200).json({
       message: 'Signup successful',
       token,
       success: 200,
       user: {
-        id: newUser._id,
-        email: newUser.email,
+        id: user._id,
+        email: user.email,
       },
     });
+
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
-}); 
+});
+
+
 async function getCoordinatesFromLocation(location) {
   const apiKey = '420a26521c014c6299ef2a241f068161';
   const res = await axios.get(`https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(location)}&key=${apiKey}`);
