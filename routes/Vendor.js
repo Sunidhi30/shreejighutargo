@@ -4517,8 +4517,6 @@ router.get("/get-target-videos", isVendor, async (req, res) => {
 router.post('/withdrawal/requests', isVendor, createWithdrawalRequest);
 router.get('/withdrawal/requests', isVendor, getVendorWithdrawalRequests);
 router.get('/api/vendor/wallet', isVendor, getVendorWalletInfo);
-
-
 // contests
 // 5. VENDOR REGISTER FOR CONTEST
 router.post('/contests/:id/register',isVendor, async (req, res) => {

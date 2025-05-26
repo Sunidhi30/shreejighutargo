@@ -1655,15 +1655,22 @@ router.get('/search', async (req, res) => {
 
   try {
     const videos = await Video.find({
-      name: { $regex: name, $options: 'i' } // Case-insensitive partial match
+      name: { $regex: name, $options: 'i' }
     })
-      .populate('type_id', 'name')
-      .populate('category_id', 'name')
-      .populate('cast_id', 'name')
-      .populate('language_id', 'name')
-      .populate('producer_id', 'name')
-      .populate('channel_id', 'name')
-      .populate('vendor_id', 'name');
+    .populate('category_id', 'name')
+    .populate('cast_ids', 'name')
+    .populate('language_id', 'name')
+    .populate('producer_id', 'name')
+    .populate('vendor_id', 'name');
+    
+    videos.forEach(video => {
+      console.log("Category: ", video.category_id?.name);
+      console.log("Cast IDs: ", video.cast_ids?.map(c => c.name));
+      console.log("Language: ", video.language_id?.name);
+      console.log("Producer: ", video.producer_id?.name);
+      console.log("Vendor: ", video.vendor_id?.name);
+    });
+    
 
     res.status(200).json({
       success: true,
