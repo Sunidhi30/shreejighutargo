@@ -16,14 +16,18 @@ require('./cron/autoStartContests'); // Adjust path as needed
 
 require('dotenv').config()
 db();
+app.set('trust proxy', 1);
+
 // app.use(cors());
 app.use(cors({
+  
   origin: true,
   // origin: [
   //   // 'http://localhost:3000'
   //   // // 'https://your-production-domain.com',
   //   // // 'https://your-app.vercel.app'
   // ],
+  
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
