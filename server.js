@@ -91,6 +91,7 @@
 //   }
 // });
 const express = require('express');
+const MongoStore = require('connect-mongo'); // Add this package
 const app = express();
 const db = require('./utils/db')
 const cors = require("cors");
@@ -108,6 +109,7 @@ require('./cron/autoStartContests'); // Adjust path as needed
 
 require('dotenv').config()
 db();
+
 // app.use(cors());
 app.use(cors({
   // origin: true,
@@ -122,6 +124,22 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGO_URI,
+      ttl: 14 * 24 * 60 * 60 // 14 days
+    }),
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 14 // 14 days
+    }
+  })
+);
 app.use(express.json());
 let ejs = require('ejs');
 
@@ -129,13 +147,8 @@ app.use(express.urlencoded({ extended: true }));
 app.listen(PORT,()=>{
     console.log(`Server started at ${PORT}`)
  })
- app.use(
-    session({
-      secret: process.env.SESSION_SECRET,
-      resave: false,
-      saveUninitialized: false,
-    })
-  );
+// Configure session storage with MongoDB
+
   app.get("/testingVideos", (req, res) => {
     res.sendFile(__dirname + "/testingVideos.html");
   })
