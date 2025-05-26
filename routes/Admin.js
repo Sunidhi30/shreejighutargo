@@ -198,6 +198,82 @@ router.get('/admin/profile', verifyAdmin,async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+router.post('/signup', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    let existingAdmin = await Admin.findOne({ email });
+
+    if (existingAdmin) {
+      if (existingAdmin.otp && existingAdmin.otpExpiry > Date.now()) {
+        return res.status(400).json({ message: 'OTP already sent. Please check your email.' });
+      } else {
+        // Resend OTP if expired
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiry = Date.now() + 10 * 60 * 1000;
+
+        existingAdmin.otp = otp;
+        existingAdmin.otpExpiry = otpExpiry;
+        await existingAdmin.save();
+
+        await sendOTPEmail(email, otp);
+        return res.status(200).json({ message: 'OTP resent to your email.' });
+      }
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = Date.now() + 10 * 60 * 1000;
+
+    const newAdmin = new Admin({
+      email,
+      otp,
+      otpExpiry,
+    });
+
+    await newAdmin.save();
+    await sendOTPEmail(email, otp);
+
+    res.status(200).json({ message: 'OTP sent to email. Please verify to complete signup.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+// han niche commented h 
+router.post('/verify-signup-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const admin = await Admin.findOne({ email });
+
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    if (!admin.otp || admin.otp !== otp || admin.otpExpiry < Date.now()) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // Mark as verified by removing OTP fields
+    admin.otp = null;
+    admin.otpExpiry = null;
+    await admin.save();
+
+    const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    res.status(201).json({
+      message: 'Signup successful',
+      token,
+      admin: {
+        id: admin._id,
+        email: admin.email,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
 
 // ✅ Sign Up Admin (only email)
 // both were working fine
@@ -265,70 +341,70 @@ router.get('/admin/profile', verifyAdmin,async (req, res) => {
 //       res.status(500).json({ message: 'Server error', error: err.message });
 //     }
 //   });  
-router.post('/signup', async (req, res) => {
-  try {
-    const { email } = req.body;
+// router.post('/signup', async (req, res) => {
+//   try {
+//     const { email } = req.body;
 
-    const existingAdmin = await Admin.findOne({ email });
-    if (existingAdmin) {
-      return res.status(400).json({ message: 'Admin already exists' });
-    }
+//     const existingAdmin = await Admin.findOne({ email });
+//     if (existingAdmin) {
+//       return res.status(400).json({ message: 'Admin already exists' });
+//     }
 
-    // Generate OTP and expiry
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 mins
+//     // Generate OTP and expiry
+//     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+//     const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 mins
 
-    // Store in session
-    req.session.signupData = {
-      email,
-      otp,
-      otpExpiry,
-    };
+//     // Store in session
+//     req.session.signupData = {
+//       email,
+//       otp,
+//       otpExpiry,
+//     };
 
-    await sendOTPEmail(email, otp);
+//     await sendOTPEmail(email, otp);
 
-    res.status(200).json({ message: 'OTP sent to email. Please verify to complete signup.' });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-router.post('/verify-signup-otp', async (req, res) => {
-  try {
-    const { otp } = req.body;
-    const signupData = req.session.signupData;
-    console.log(signupData)
-    if (!signupData) {
-      return res.status(400).json({ message: 'Session expired or no OTP request found' });
-    }
+//     res.status(200).json({ message: 'OTP sent to email. Please verify to complete signup.' });
+//   } catch (err) {
+//     res.status(500).json({ message: 'Server error', error: err.message });
+//   }
+// });
+// router.post('/verify-signup-otp', async (req, res) => {
+//   try {
+//     const { otp } = req.body;
+//     const signupData = req.session.signupData;
+//     console.log(signupData)
+//     if (!signupData) {
+//       return res.status(400).json({ message: 'Session expired or no OTP request found' });
+//     }
 
-    if (signupData.otp !== otp || Date.now() > signupData.otpExpiry) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
-    }
+//     if (signupData.otp !== otp || Date.now() > signupData.otpExpiry) {
+//       return res.status(400).json({ message: 'Invalid or expired OTP' });
+//     }
 
-    // Create the admin
-    const newAdmin = new Admin({ email: signupData.email });
-    await newAdmin.save();
+//     // Create the admin
+//     const newAdmin = new Admin({ email: signupData.email });
+//     await newAdmin.save();
 
-    // Clear the session
-    req.session.signupData = null;
+//     // Clear the session
+//     req.session.signupData = null;
 
-    // Generate token
-    const token = jwt.sign({ id: newAdmin._id, role: newAdmin.role }, process.env.JWT_SECRET, {
-      expiresIn: '7d',
-    });
+//     // Generate token
+//     const token = jwt.sign({ id: newAdmin._id, role: newAdmin.role }, process.env.JWT_SECRET, {
+//       expiresIn: '7d',
+//     });
 
-    res.status(201).json({
-      message: 'Signup successful',
-      token,
-      admin: {
-        id: newAdmin._id,
-        email: newAdmin.email,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
+//     res.status(201).json({
+//       message: 'Signup successful',
+//       token,
+//       admin: {
+//         id: newAdmin._id,
+//         email: newAdmin.email,
+//       },
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: 'Server error', error: err.message });
+//   }
+// });
 // ✅ Step 1: Login - Send OTP
 router.post('/login', async (req, res) => {
     try {

@@ -86,6 +86,7 @@ const uploadingCloudinary = async (base64Data, folder, mimetype) => {
     throw error;
   }
 };
+// user mai bhi pka dikkat ayegi 
 //sign up 
 router.post('/signup', async (req, res) => {
   try {
