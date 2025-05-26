@@ -20,6 +20,8 @@ const upcomingContentSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
+  trailerUrl: String, // ⬅️ New field for trailer (can be a URL or uploaded video path)
+
   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor' }
 }, {
   timestamps: true

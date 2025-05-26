@@ -6,6 +6,7 @@ const Producer = require("../models/Producer");
 const { ContestController} = require('../controllers/contestController');
 const Contest = require("../models/Contest")
 const ContestRules = require("../models/ContestRules")
+// const mongoose = require("mongoose");
 const dotenv = require('dotenv');
 const RentalLimit = require("../models/RentalLimit");
 const HomeSection = require('../models/HomeSection');
@@ -432,7 +433,50 @@ router.post('/add_type', verifyAdmin, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
+router.put('/update_type/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { name, type } = req.body;
+    const { id } = req.params;
 
+    const updatedFields = {};
+    if (name) updatedFields.name = name.toLowerCase();
+    if (typeof type === 'number') updatedFields.type = type;
+
+    const updatedType = await Type.findByIdAndUpdate(id, updatedFields, { new: true });
+
+    if (!updatedType) {
+      return res.status(404).json({ message: 'Type not found' });
+    }
+
+    return res.status(200).json({
+      message: 'Type updated successfully',
+      data: updatedType
+    });
+  } catch (error) {
+    console.error('Error updating type:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.delete('/delete_type/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedType = await Type.findByIdAndDelete(id);
+
+    if (!deletedType) {
+      return res.status(404).json({ message: 'Type not found' });
+    }
+
+    return res.status(200).json({
+      message: 'Type deleted successfully',
+      data: deletedType
+    });
+  } catch (error) {
+    console.error('Error deleting type:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
 // get types 
 router.get('/get_types', async (req, res) => {
   try {
@@ -489,6 +533,53 @@ router.get('/get_categories', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+router.put('/update_category/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const { id } = req.params;
+
+    if (!name) {
+      return res.status(400).json({ message: 'Category name is required' });
+    }
+
+    const updatedCategory = await Category.findByIdAndUpdate(
+      id,
+      { name: name.toLowerCase() },
+      { new: true }
+    );
+
+    if (!updatedCategory) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    return res.status(200).json({
+      message: 'Category updated successfully',
+      data: updatedCategory
+    });
+  } catch (error) {
+    console.error('Error updating category:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+router.delete('/delete_category/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedCategory = await Category.findByIdAndDelete(id);
+
+    if (!deletedCategory) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    return res.status(200).json({
+      message: 'Category deleted successfully',
+      data: deletedCategory
+    });
+  } catch (error) {
+    console.error('Error deleting category:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 // POST /api/languages/add_language
 router.post('/add_language',verifyAdmin, upload.single('image'), async (req, res) => {
   try {
@@ -514,6 +605,104 @@ router.post('/add_language',verifyAdmin, upload.single('image'), async (req, res
   } catch (error) {
     console.error('Error adding language:', error);
     res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+router.delete('/delete_language/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedLanguage = await Language.findByIdAndDelete(id);
+    if (!deletedLanguage) {
+      return res.status(404).json({ message: 'Language not found' });
+    }
+
+    return res.status(200).json({
+      message: 'Language deleted successfully',
+      data: deletedLanguage
+    });
+  } catch (error) {
+    console.error('Error deleting language:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+router.put('/update_language/:id', verifyAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { name } = req.body;
+    const { id } = req.params;
+
+    const language = await Language.findById(id);
+    if (!language) {
+      return res.status(404).json({ message: 'Language not found' });
+    }
+
+    // Update name if provided
+    if (name) {
+      language.name = name;
+    }
+
+    // Update image if a new file is uploaded
+    if (req.file) {
+      const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const uploadedImage = await uploadToCloudinary(base64, "plansImage", req.file.mimetype);
+      language.image = uploadedImage;
+    }
+
+    await language.save();
+
+    return res.status(200).json({
+      message: 'Language updated successfully',
+      data: language
+    });
+  } catch (error) {
+    console.error('Error updating language:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// GET /videos/language/:languageId
+router.get('/videos/language/:languageId', async (req, res) => {
+  try {
+    const { languageId } = req.params;
+    console.log("language id "+languageId);
+
+    const videos = await Video.find({
+      language_id: languageId,
+      // isApproved: true // Optional, if you want only approved
+    }).populate('language_id');
+
+    if (!videos.length) {
+      return res.status(404).json({ message: 'No videos found for this language' });
+    }
+
+    return res.status(200).json({
+      message: 'Videos fetched successfully',
+      data: videos
+    });
+  } catch (error) {
+    console.error('Error fetching videos by language:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+router.get('/videos/Category/:CategoryId', async (req, res) => {
+  try {
+    const { CategoryId } = req.params;
+    console.log("language id "+CategoryId);
+
+    const videos = await Video.find({
+      category_id: CategoryId,
+      // isApproved: true // Optional, if you want only approved
+    }).populate('category_id');
+
+    if (!videos.length) {
+      return res.status(404).json({ message: 'No videos found for this Category' });
+    }
+
+    return res.status(200).json({
+      message: 'Videos fetched successfully',
+      data: videos
+    });
+  } catch (error) {
+    console.error('Error fetching videos by language:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
 // get languagues
@@ -544,6 +733,7 @@ router.get('/get_languages', async (req, res) => {
 //   }
 // });
 // Update a category
+// not tested 
 router.put(
     "/:id",
     upload.single("icon"),
@@ -668,50 +858,50 @@ router.get('/get-vendors', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-  // add cast 
-router.post('/add-cast', verifyAdmin, upload.single('image'), async (req, res) => {
-    try {
-      const { name, type } = req.body;
-      const file = req.file;
+//   // add cast 
+// router.post('/add-cast', verifyAdmin, upload.single('image'), async (req, res) => {
+//     try {
+//       const { name, type } = req.body;
+//       const file = req.file;
   
-      if (!name || !type) {
-        return res.status(400).json({ message: "Name and type are required" });
-      }
+//       if (!name || !type) {
+//         return res.status(400).json({ message: "Name and type are required" });
+//       }
   
-      if (!file) {
-        return res.status(400).json({ message: "Image file is required" });
-      }
+//       if (!file) {
+//         return res.status(400).json({ message: "Image file is required" });
+//       }
   
-      const imageUrl = await uploadToCloudinary(file.buffer, "image", file.mimetype);
+//       const imageUrl = await uploadToCloudinary(file.buffer, "image", file.mimetype);
   
-      if (!imageUrl) {
-        return res.status(500).json({ message: "Cloudinary upload failed", error: "No URL returned" });
-      }
+//       if (!imageUrl) {
+//         return res.status(500).json({ message: "Cloudinary upload failed", error: "No URL returned" });
+//       }
   
-      const newCast = new Cast({
-        name,
-        type,
-        image: imageUrl
-      });
+//       const newCast = new Cast({
+//         name,
+//         type,
+//         image: imageUrl
+//       });
   
-      const savedCast = await newCast.save();
-      res.status(201).json({ message: "Cast member added successfully", cast: savedCast });
+//       const savedCast = await newCast.save();
+//       res.status(201).json({ message: "Cast member added successfully", cast: savedCast });
   
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error", error: err.message });
-    }
-  });
+//     } catch (err) {
+//       console.error(err);
+//       res.status(500).json({ message: "Server error", error: err.message });
+//     }
+//   });
   
-  // get cast 
-router.get('/get-casts', async (req, res) => {
-    try {
-      const casts = await Cast.find();
-      res.status(200).json({ casts });
-    } catch (err) {
-      res.status(500).json({ message: 'Server error', error: err.message });
-    }
-  });
+//   // get cast 
+// router.get('/get-casts', async (req, res) => {
+//     try {
+//       const casts = await Cast.find();
+//       res.status(200).json({ casts });
+//     } catch (err) {
+//       res.status(500).json({ message: 'Server error', error: err.message });
+//     }
+//   });
 
 // get admin users
 router.get('/admin/users', verifyAdmin,async (req, res) => {
@@ -770,6 +960,40 @@ router.put('/admin/top10-movies/add', verifyAdmin, async (req, res) => {
     res.status(500).json({ message: 'Server error while updating Top 10 movie' });
   }
 });
+// GET /videos/top10
+router.get('/videos/top10', async (req, res) => {
+  try {
+    const top10Videos = await Video.find({ isTop10: true, isApproved: true })
+      .sort({ approvalDate: -1 }) // Optional: sort by approvalDate or createdAt
+      .limit(10)
+      .populate('type_id')
+      .populate('vendor_id')
+      .populate('channel_id')
+      .populate('producer_id')
+      .populate('category_id')
+      .populate('language_id')
+      .populate('cast_ids')
+      .populate('finalPackage_id')
+      .populate('comments')
+      .populate('package_id')
+      .populate('series_id')
+      .populate('season_id')
+      .populate('approvedBy');
+
+    if (!top10Videos || top10Videos.length === 0) {
+      return res.status(404).json({ success: false, message: 'No Top 10 movies found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: top10Videos.length,
+      top10Videos,
+    });
+  } catch (error) {
+    console.error('Error fetching Top 10 movies:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 // GET /content/webseries
 router.get('/content/webseries', async (req, res) => {
@@ -793,83 +1017,7 @@ router.get('/content/webseries', async (req, res) => {
     res.status(500).json({ message: 'Server error fetching web series.' });
   }
 });
-// get the list by type name 
-router.get('/types', async (req, res) => {
-  try {
-    const types = await Type.find({ isVisible: true }).select('type name');
-    res.status(200).json({ types });
-  } catch (error) {
-    console.error('Error fetching types:', error);
-    res.status(500).json({ message: 'Server error fetching types.' });
-  }
-});
-// get types of list 
-router.get('/types/:type', async (req, res) => {
-  const { type } = req.params;
 
-  try {
-    const types = await Type.find({ type: type, isVisible: true }).select('type name');
-    res.status(200).json({ types });
-  } catch (error) {
-    console.error('Error fetching types by type:', error);
-    res.status(500).json({ message: 'Server error fetching types.' });
-  }
-});
-// upcoming banners 
-router.post('/upcoming-banners',verifyAdmin, upload.single('banner'), async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      category,
-      type,
-      duration,
-      language,
-      releaseDate,
-      cast,
-      uploadedBy
-    } = req.body;
-    console.log("requested upcoming"+" "+req.body)
-    const categoryNames = category ? category.split(',').map(name => name.trim()) : [];
-    const categoryDocs = await Category.find({ name: { $in: categoryNames } });
-
-    if (categoryDocs.length !== categoryNames.length) {
-      const foundNames = categoryDocs.map(c => c.name);
-      const notFound = categoryNames.filter(name => !foundNames.includes(name));
-      return res.status(400).json({ message: `Category not found: ${notFound.join(', ')}` });
-    }
-    const categoryIds = categoryDocs.map(cat => cat._id);
-    const typeDoc = await Type.findOne({ name: type.trim() });
-    if (!typeDoc) {
-      return res.status(400).json({ message: `Type not found: ${type}` });
-    }
-  
-    const languageDoc = await Language.findOne({ name: language.trim() });
-    if (!languageDoc) {
-      return res.status(400).json({ message: `Language not found: ${language}` });
-    }
-    const newUpcoming = new UpcomingContent({
-      title,
-      description,
-      category: categoryIds,
-      type,
-      duration,
-      language: languageDoc._id,
-      releaseDate,
-      cast: cast ? cast.split(',') : [],
-      bannerUrl: req.file ? `/uploads/banners/${req.file.filename}` : null,
-      uploadedBy
-    });
-    const saved = await newUpcoming.save();
-    res.status(201).json({
-      message: 'Upcoming content uploaded successfully',
-      data: saved
-    });
-  } catch (err) {
-    console.error('Error uploading upcoming content:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 // add channel( like startplus)
 router.post('/add-channel', verifyAdmin,upload.fields([
   { name: 'portrait_img', maxCount: 1 },
@@ -1052,61 +1200,7 @@ router.post('/banners',verifyAdmin, async (req, res) => {
 //     }
 //   }
 // );
-router.post(
-  '/create-tvShow',
-  upload.fields([
-    { name: 'thumbnail', maxCount: 1 },
-    { name: 'landscape', maxCount: 1 },
-    { name: 'trailer', maxCount: 1 },
-  ]),
-  async (req, res) => {
-    try {
-      const {
-        type_id, video_type, channel_id, producer_id, category_id,
-        language_id, cast_id, name, trailer_type, description,
-        release_date, is_title, is_like, is_comment,
-        total_like, total_view, is_rent, price, rent_day, status
-      } = req.body;
 
-      let thumbnailUrl = '', landscapeUrl = '', trailerUrl = '';
-
-      // Upload files to Cloudinary if provided
-      if (req.files['thumbnail']) {
-        const file = req.files['thumbnail'][0];
-        const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-        thumbnailUrl = await uploadToCloudinary(base64, 'tvshows/thumbnails', file.mimetype);
-      }
-
-      if (req.files['landscape']) {
-        const file = req.files['landscape'][0];
-        const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-        landscapeUrl = await uploadToCloudinary(base64, 'tvshows/landscapes', file.mimetype);
-      }
-
-      if (req.files['trailer']) {
-        const file = req.files['trailer'][0];
-        const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-        trailerUrl = await uploadToCloudinary(base64, 'tvshows/trailers', file.mimetype);
-      }
-
-      const tvShow = new TVShow({
-        type_id, video_type, channel_id, producer_id, category_id,
-        language_id, cast_id, name, trailer_type,
-        trailer_url: trailerUrl,
-        description, release_date, is_title, is_like, is_comment,
-        total_like, total_view, is_rent, price, rent_day, status,
-        thumbnail: thumbnailUrl,
-        landscape: landscapeUrl
-      });
-
-      await tvShow.save();
-      res.status(201).json({ success: true, data: tvShow });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, message: 'TV Show creation failed' });
-    }
-  }
-);
 // GET /api/users/count
 router.get('/users-count', async (req, res) => {
   try {
@@ -2399,14 +2493,76 @@ router.put('/admin/tvshows/:id/approval', verifyAdmin, async (req, res) => {
   }
 });
 
+router.get('/videos/type/:typeId', async (req, res) => {
+  const { typeId } = req.params;
 
+  try {
+    const videos = await Video.find({ type_id: typeId })
+      .populate('type_id')
+      .populate('vendor_id')
+      .populate('channel_id')
+      .populate('producer_id')
+      .populate('category_id')
+      .populate('language_id')
+      .populate('cast_ids')
+      .populate('finalPackage_id')
+      .populate('comments')
+      .populate('package_id')
+      .populate('series_id')
+      .populate('season_id')
+      .populate('approvedBy');
 
+    if (!videos || videos.length === 0) {
+      return res.status(404).json({ success: false, message: 'No videos found for this type' });
+    }
 
+    res.status(200).json({
+      success: true,
+      count: videos.length,
+      videos,
+    });
+  } catch (error) {
+    console.error('Error fetching videos by type:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+});
 
+// GET /videos/category/:categoryId
+router.get('/videos/category/:categoryId', async (req, res) => {
+  const { categoryId } = req.params;
 
+  try {
+    const videos = await Video.find({ category_id: categoryId })
+      .populate('type_id')
+      .populate('vendor_id')
+      .populate('channel_id')
+      .populate('producer_id')
+      .populate('category_id')
+      .populate('language_id')
+      .populate('cast_ids')
+      .populate('finalPackage_id')
+      .populate('comments')
+      .populate('package_id')
+      .populate('series_id')
+      .populate('season_id')
+      .populate('approvedBy');
+
+    if (!videos || videos.length === 0) {
+      return res.status(404).json({ success: false, message: 'No videos found for this category' });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: videos.length,
+      videos,
+    });
+  } catch (error) {
+    console.error('Error fetching videos by category:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+});
 
 // transactions 
-
 
 // const calculateRemainingLockDays = (vendor) => {
 //   if (!vendor.walletLockStartDate || !vendor.walletLockDays) {

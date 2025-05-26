@@ -4,16 +4,18 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const Category = require("../models/Category")
 const VendorLockPeriod = require('../models/LockPeriod'); // adjust the path as needed
 const WithdrawalRequest = require('../models/WithdrawalRequest');
 const Shorts = require('../models/Short'); // Adjust path as needed
+const  Cast = require("../models/Cast")
 const TVShow = require("../models/TVShow")
 const Contest = require("../models/Contest")
 const router = express.Router();
 const heicConvert = require('heic-convert');
-
+const Language = require("../models/Language")
 const { createWithdrawalRequest ,getVendorWithdrawalRequests, getVendorWalletInfo} = require('../controllers/vendorsWithdraws');
-
+const UpcomingContent = require("../models/UpcomingContent")
 // const  getVendorWithdrawalRequests  = require('../controllers/vendorsWithdraws');
 // const getVendorWalletInfo =require('../controllers/vendorsWithdraws');
 const multer = require('multer');
@@ -4601,5 +4603,167 @@ router.get('/vendors/:vendorId/contests', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+  // add cast 
+  router.post('/add-cast', isVendor, upload.single('image'), async (req, res) => {
+    try {
+      const { name, type } = req.body;
+      const file = req.file;
+  
+      if (!name || !type) {
+        return res.status(400).json({ message: "Name and type are required" });
+      }
+  
+      if (!file) {
+        return res.status(400).json({ message: "Image file is required" });
+      }
+  
+      const imageUrl = await uploadToCloudinary(file.buffer, "image", file.mimetype);
+  
+      if (!imageUrl) {
+        return res.status(500).json({ message: "Cloudinary upload failed", error: "No URL returned" });
+      }
+  
+      const newCast = new Cast({
+        name,
+        type,
+        image: imageUrl
+      });
+  
+      const savedCast = await newCast.save();
+      res.status(201).json({ message: "Cast member added successfully", cast: savedCast });
+  
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error", error: err.message });
+    }
+  });
+  
+  // get cast 
+router.get('/get-casts', async (req, res) => {
+    try {
+      const casts = await Cast.find();
+      res.status(200).json({ casts });
+    } catch (err) {
+      res.status(500).json({ message: 'Server error', error: err.message });
+    }
+  });
+
+ 
+router.post('/upcoming-banners', isVendor, upload.fields([
+  { name: 'banner', maxCount: 1 },
+  { name: 'trailer', maxCount: 1 }
+]), async (req, res) => {
+  // Upload file helper function
+  const uploadFile = async (field, folder) => {
+    try {
+      if (req.files && req.files[field] && req.files[field][0]) {
+        const file = req.files[field][0];
+        let buffer = file.buffer;
+        let mimetype = file.mimetype;
+
+        // HEIC/HEIF conversion
+        if (mimetype === 'image/heic' || mimetype === 'image/heif') {
+          try {
+            const outputBuffer = await heicConvert({
+              buffer: buffer,
+              format: 'JPEG',
+              quality: 1
+            });
+            buffer = outputBuffer;
+            mimetype = 'image/jpeg';
+          } catch (heicError) {
+            console.error('HEIC conversion error:', heicError);
+            throw new Error('Failed to convert HEIC image');
+          }
+        }
+
+        const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
+        return await uploadToCloudinary(base64, folder, mimetype);
+      }
+      return '';
+    } catch (error) {
+      console.error(`Upload error for ${field}:`, error);
+      throw error;
+    }
+  };
+
+  try {
+    const {
+      title, description, category, type, duration,
+      language, releaseDate, cast
+    } = req.body;
+
+    const uploadedBy = req.vendor.id;
+    const categoryIds = category ? category.split(',').map(id => id.trim()) : [];
+    const castIds = cast ? cast.split(',').map(id => id.trim()) : [];
+
+    // Validate references with Promise.all
+    const [categoryDocs, typeDoc, languageDoc, castDocs, vendorExists] = await Promise.all([
+      Category.find({ _id: { $in: categoryIds } }),
+      Type.findById(type),
+      Language.findById(language),
+      Cast.find({ _id: { $in: castIds } }),
+      Vendor.findById(uploadedBy)
+    ]);
+
+    if (categoryDocs.length !== categoryIds.length) {
+      const foundIds = categoryDocs.map(c => c._id.toString());
+      const notFound = categoryIds.filter(id => !foundIds.includes(id));
+      return res.status(400).json({ message: `Category ID(s) not found: ${notFound.join(', ')}` });
+    }
+
+    if (!typeDoc || !languageDoc || !vendorExists || castDocs.length !== castIds.length) {
+      return res.status(400).json({ message: 'Invalid type, language, vendor or cast ID(s)' });
+    }
+
+    // Use your uploadFile helper to upload banner and trailer
+    const bannerUrl = await uploadFile('banner', 'upcoming_banners');
+    const trailerUrl = await uploadFile('trailer', 'upcoming_trailers');
+
+    const newUpcoming = new UpcomingContent({
+      title,
+      description,
+      category: categoryIds,
+      type: typeDoc._id,
+      duration,
+      language: languageDoc._id,
+      releaseDate: new Date(releaseDate),
+      cast: castIds,
+      bannerUrl,
+      trailerUrl,
+      uploadedBy
+    });
+
+    const saved = await newUpcoming.save();
+    res.status(201).json({
+      message: 'Upcoming content uploaded successfully',
+      data: saved
+    });
+
+  } catch (err) {
+    console.error('❌ Error uploading upcoming content:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+// GET /api/upcoming-banners
+router.get('/upcoming-banners', async (req, res) => {
+  try {
+    const banners = await UpcomingContent.find({ status: 'pending' })
+      .populate('category', 'name') // Populates category with only name field
+      .populate('type', 'name')     // Populates type with only name field
+      .populate('language', 'name') // Populates language with only name field
+      .populate('cast', 'name')     // Populates cast with only name field
+      .populate('uploadedBy', 'name email'); // Populates vendor details
+
+    res.status(200).json({
+      message: 'Upcoming banners fetched successfully',
+      data: banners
+    });
+  } catch (err) {
+    console.error('Error fetching upcoming banners:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 
 module.exports = router;
