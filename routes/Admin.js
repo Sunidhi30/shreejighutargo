@@ -146,11 +146,36 @@ const validateContestParticipation = async (vendor, video, contest) => {
   };
 };
 
-// GET /admin/profile
-router.get('/admin/profile', async (req, res) => {
+// // GET /admin/profile
+// router.get('/admin/profile', async (req, res) => {
+//   try {
+//     // Assuming there's only one admin
+//     const admin = await Admin.findOne();
+
+//     if (!admin) {
+//       return res.status(404).json({ message: 'Admin not found' });
+//     }
+
+//     res.status(200).json({
+//       email: admin.email,
+//       otp: admin.otp,
+//       otpExpiry: admin.otpExpiry,
+//       role: admin.role,
+//       targetAmount: admin.targetAmount,
+//       wallet: admin.wallet,
+//       createdAt: admin.createdAt,
+//       updatedAt: admin.updatedAt
+//     });
+//   } catch (error) {
+//     console.error('Error fetching admin profile:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+router.get('/admin/profile', verifyAdmin,async (req, res) => {
   try {
-    // Assuming there's only one admin
-    const admin = await Admin.findOne();
+    const adminId = req.admin.id;
+
+    const admin = await Admin.findById(adminId);
 
     if (!admin) {
       return res.status(404).json({ message: 'Admin not found' });
@@ -163,6 +188,7 @@ router.get('/admin/profile', async (req, res) => {
       role: admin.role,
       targetAmount: admin.targetAmount,
       wallet: admin.wallet,
+      profileImage: admin.profileImage,
       createdAt: admin.createdAt,
       updatedAt: admin.updatedAt
     });
@@ -171,6 +197,7 @@ router.get('/admin/profile', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 // ✅ Sign Up Admin (only email)
 // both were working fine
 // router.post('/signup', async (req, res) => {

@@ -1932,5 +1932,34 @@ router.get('/sections/:typeName', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+router.get('/videos/:id', async (req, res) => {
+  const videoId = req.params.id;
+
+  try {
+    const video = await Video.findById(videoId)
+      .populate('type_id')
+      .populate('vendor_id')
+      .populate('channel_id')
+      .populate('producer_id')
+      .populate('category_id')
+      .populate('language_id')
+      .populate('cast_ids')
+      .populate('finalPackage_id')
+      .populate('comments')
+      .populate('package_id')
+      .populate('series_id')
+      .populate('season_id')
+      .populate('approvedBy');
+
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video not found' });
+    }
+
+    res.status(200).json({ success: true, video });
+  } catch (error) {
+    console.error('Error fetching video details:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 module.exports = router;
