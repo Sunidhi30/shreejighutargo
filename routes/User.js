@@ -559,24 +559,41 @@ router.get('/approved-movies', async (req, res) => {
     }
 });
 // GET /search-movies?title=someText
+// router.get('/search-movies', async (req, res) => {
+//   const { title } = req.query;
+
+//   try {
+//     if (!title) {
+//       return res.status(400).json({ message: 'Title query is required.' });
+//     }
+
+//     const movies = await Video.find({
+//       name: { $regex: title, $options: 'i' },
+//       isApproved: true // Only approved videos
+//     });
+
+//     res.json(movies);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Search failed', error: error.message });
+//   }
+// });
 router.get('/search-movies', async (req, res) => {
   const { title } = req.query;
 
   try {
-    if (!title) {
-      return res.status(400).json({ message: 'Title query is required.' });
-    }
+    // Build the query
+    const query = {
+      isApproved: true,
+      ...(title && { name: { $regex: title, $options: 'i' } }) // Only add name filter if title exists
+    };
 
-    const movies = await Video.find({
-      name: { $regex: title, $options: 'i' },
-      isApproved: true // Only approved videos
-    });
-
+    const movies = await Video.find(query);
     res.json(movies);
   } catch (error) {
     res.status(500).json({ message: 'Search failed', error: error.message });
   }
 });
+
 // parent control check password
 router.post('/parent_control_check_password', async (req, res) => {
   const { user_id } = req.body;
@@ -1643,26 +1660,65 @@ router.post('/rate-video', isUser,async (req, res) => {
   }
 });
 // Search videos by name
+// router.get('/search', async (req, res) => {
+//   const { name } = req.query;
+
+//   if (!name) {
+//     return res.status(400).json({
+//       success: false,
+//       message: 'Please provide a search query (name)'
+//     });
+//   }
+
+//   try {
+//     const videos = await Video.find({
+//       name: { $regex: name, $options: 'i' }
+//     })
+//     .populate('category_id', 'name')
+//     .populate('cast_ids', 'name')
+//     .populate('language_id', 'name')
+//     .populate('producer_id', 'name')
+//     .populate('vendor_id', 'name');
+    
+//     videos.forEach(video => {
+//       console.log("Category: ", video.category_id?.name);
+//       console.log("Cast IDs: ", video.cast_ids?.map(c => c.name));
+//       console.log("Language: ", video.language_id?.name);
+//       console.log("Producer: ", video.producer_id?.name);
+//       console.log("Vendor: ", video.vendor_id?.name);
+//     });
+    
+
+//     res.status(200).json({
+//       success: true,
+//       results: videos
+//     });
+
+//   } catch (error) {
+//     console.error('Search error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Search failed',
+//       error: error.message
+//     });
+//   }
+// });
 router.get('/search', async (req, res) => {
   const { name } = req.query;
 
-  if (!name) {
-    return res.status(400).json({
-      success: false,
-      message: 'Please provide a search query (name)'
-    });
-  }
-
   try {
-    const videos = await Video.find({
-      name: { $regex: name, $options: 'i' }
-    })
-    .populate('category_id', 'name')
-    .populate('cast_ids', 'name')
-    .populate('language_id', 'name')
-    .populate('producer_id', 'name')
-    .populate('vendor_id', 'name');
-    
+    // If `name` exists, search by it; otherwise fetch all movies
+    const filter = name
+      ? { name: { $regex: name, $options: 'i' } }
+      : {};
+
+    const videos = await Video.find(filter)
+      .populate('category_id', 'name')
+      .populate('cast_ids', 'name')
+      .populate('language_id', 'name')
+      .populate('producer_id', 'name')
+      .populate('vendor_id', 'name');
+
     videos.forEach(video => {
       console.log("Category: ", video.category_id?.name);
       console.log("Cast IDs: ", video.cast_ids?.map(c => c.name));
@@ -1670,7 +1726,6 @@ router.get('/search', async (req, res) => {
       console.log("Producer: ", video.producer_id?.name);
       console.log("Vendor: ", video.vendor_id?.name);
     });
-    
 
     res.status(200).json({
       success: true,
@@ -1686,6 +1741,7 @@ router.get('/search', async (req, res) => {
     });
   }
 });
+
 // GET /api/trailers/coming-soon
 router.get('/coming-soon', async (req, res) => {
   try {
