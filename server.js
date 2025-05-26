@@ -109,21 +109,6 @@ require('./cron/autoStartContests'); // Adjust path as needed
 
 require('dotenv').config()
 db();
-
-// app.use(cors());
-app.use(cors({
-  // origin: true,
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'https://gutargoof.onrender.com'
-    // // 'https://your-production-domain.com',
-    // // 'https://your-app.vercel.app'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -140,6 +125,21 @@ app.use(
     }
   })
 );
+// app.use(cors());
+app.use(cors({
+  // origin: true,
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://gutargoof.onrender.com'
+    // // 'https://your-production-domain.com',
+    // // 'https://your-app.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 let ejs = require('ejs');
 
