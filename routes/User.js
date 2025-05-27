@@ -267,8 +267,10 @@ async function getCoordinatesFromLocation(location) {
 router.post('/login', async (req, res) => {
   try {
     const { email } = req.body;
+    console.log("email:", req.body.email) // Fixed the console.log format
 
     const user = await User.findOne({ email });
+    console.log(user)
     if (!user) {
       return res.status(404).json({ message: 'user not found' });
     }
@@ -282,17 +284,47 @@ router.post('/login', async (req, res) => {
 
     await sendOTPEmail(email, otp);
 
-    req.session.email = email;
-
     res.status(200).json({ 
       success: 200,
       message: 'OTP sent to email' 
     });
     
   } catch (err) {
-    res.status(500).json({  success: false, message: 'Error sending OTP', error: err.message });
+    res.status(500).json({ success: false, message: 'Error sending OTP', error: err.message });
   }
 });
+
+// router.post('/login', async (req, res) => {
+//   try {
+//     const { email } = req.body;
+//     console.log("email"+req.body)
+
+//     const user = await User.findOne({ email });
+//     console.log(user)
+//     if (!user) {
+//       return res.status(404).json({ message: 'user not found' });
+//     }
+
+//     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+//     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // valid for 10 mins
+
+//     user.otp = otp;
+//     user.otpExpiry = otpExpiry;
+//     await user.save();
+
+//     await sendOTPEmail(email, otp);
+
+//     req.session.email = email;
+
+//     res.status(200).json({ 
+//       success: 200,
+//       message: 'OTP sent to email' 
+//     });
+    
+//   } catch (err) {
+//     res.status(500).json({  success: false, message: 'Error sending OTP', error: err.message });
+//   }
+// });
 // Step 2: Verify OTP and Login
 // router.post('/verify-otp', async (req, res) => {
 //   try {
@@ -366,15 +398,109 @@ router.post('/login', async (req, res) => {
 //     res.status(500).json({ message: 'OTP verification failed', error: err.message });
 //   }
 // });
+// router.post('/login-verify-otp', async (req, res) => {
+//   try {
+//     const { email, otp } = req.body;
+
+//     const user = await User.findOne({ email });
+//     if (!user) return res.status(404).json({ message: 'User not found' });
+
+//     if (user.otp !== otp || user.otpExpiry < new Date()) {
+//       return res.status(400).json({ message: 'Invalid or expired OTP' });
+//     }
+
+//     // Clear OTP after verification
+//     user.otp = null;
+//     user.otpExpiry = null;
+
+//     // Get device and IP info
+//     const device = req.headers['user-agent'];
+//     let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+//     if (ip === '::1' || ip === '127.0.0.1' || ip.startsWith('::ffff:127')) {
+//       ip = '8.8.8.8'; // fallback for local testing
+//     }
+
+//     let location = 'Unknown';
+
+//     try {
+//       const ipLocationRes = await axios.get(`https://ipapi.co/${ip}/json/`);
+//       const { latitude, longitude } = ipLocationRes.data;
+
+//       const openCageApiKey = '420a26521c014c6299ef2a241f068161'; // replace with your actual key
+//       const geoRes = await axios.get(`https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${openCageApiKey}`);
+
+//       if (geoRes.data.results && geoRes.data.results.length > 0) {
+//         location = geoRes.data.results[0].formatted;
+//       } else {
+//         location = 'Location not available';
+//       }
+//     } catch (geoErr) {
+//       console.error('Geolocation failed:', geoErr.message);
+//       location = 'Location fetch failed';
+//     }
+
+//     // Save login info
+//     user.lastLogin = {
+//       ip,
+//       device,
+//       location,
+//       time: new Date(),
+//     };
+
+//     await user.save();
+
+//     const token = jwt.sign({ userID: user._id, email: user.email, role: user.role }, JWT_SECRET, {
+//       expiresIn: '7d',
+//     });
+
+//     res.status(200).json({
+//       message: 'Login successful',
+//       token,
+//       success: 200,
+//       user: {
+//         id: user._id,
+//         role: user.role,
+//         email: user.email,
+//         lastLogin: user.lastLogin,
+//       },
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: 'OTP verification failed', error: err.message });
+//   }
+// });
 router.post('/login-verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
 
+    // Input validation
+    if (!email || !otp) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email and OTP are required' 
+      });
+    }
+
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    // Check if OTP exists and is not expired
+    if (!user.otp || !user.otpExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No OTP request found. Please request a new OTP' 
+      });
+    }
 
     if (user.otp !== otp || user.otpExpiry < new Date()) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid or expired OTP' 
+      });
     }
 
     // Clear OTP after verification
@@ -394,7 +520,7 @@ router.post('/login-verify-otp', async (req, res) => {
       const ipLocationRes = await axios.get(`https://ipapi.co/${ip}/json/`);
       const { latitude, longitude } = ipLocationRes.data;
 
-      const openCageApiKey = '420a26521c014c6299ef2a241f068161'; // replace with your actual key
+      const openCageApiKey = process.env.OPENCAGE_API_KEY || '420a26521c014c6299ef2a241f068161';
       const geoRes = await axios.get(`https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${openCageApiKey}`);
 
       if (geoRes.data.results && geoRes.data.results.length > 0) {
@@ -415,16 +541,31 @@ router.post('/login-verify-otp', async (req, res) => {
       time: new Date(),
     };
 
-    await user.save();
-
-    const token = jwt.sign({ userID: user._id, email: user.email, role: user.role }, JWT_SECRET, {
-      expiresIn: '7d',
+    // Add to device sessions history
+    user.deviceSessions.push({
+      ip,
+      device,
+      location,
+      time: new Date(),
     });
 
+    await user.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userID: user._id, 
+        email: user.email, 
+        role: user.role 
+      }, 
+      process.env.JWT_SECRET || JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.status(200).json({
+      success: true,
       message: 'Login successful',
       token,
-      success: 200,
       user: {
         id: user._id,
         role: user.role,
@@ -433,9 +574,15 @@ router.post('/login-verify-otp', async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ message: 'OTP verification failed', error: err.message });
+    console.error('OTP verification error:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'OTP verification failed', 
+      error: err.message 
+    });
   }
 });
+
 // get the login information places 
 router.get('/api/user/:id/login-info', async (req, res) => {
   try {
