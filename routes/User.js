@@ -74,7 +74,6 @@ const sendOTPEmail = async (email, otp) => {
   await transporter.sendMail(mailOptions);
 };
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
-
 // Helper function to upload to Cloudinary
 const uploadingCloudinary = async (base64Data, folder, mimetype) => {
   try {
@@ -88,7 +87,6 @@ const uploadingCloudinary = async (base64Data, folder, mimetype) => {
     throw error;
   }
 };
-// user mai bhi pka dikkat ayegi 
 //sign up 
 // router.post('/signup', async (req, res) => {
 //   try {
@@ -259,8 +257,6 @@ router.post('/verify-signup-otp', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-
-
 async function getCoordinatesFromLocation(location) {
   const apiKey = '420a26521c014c6299ef2a241f068161';
   const res = await axios.get(`https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(location)}&key=${apiKey}`);

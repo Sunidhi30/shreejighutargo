@@ -4648,7 +4648,7 @@ router.get('/get-casts', async (req, res) => {
     }
   });
 
- 
+
 router.post('/upcoming-banners', isVendor, upload.fields([
   { name: 'banner', maxCount: 1 },
   { name: 'trailer', maxCount: 1 }
