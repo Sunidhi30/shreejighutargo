@@ -41,6 +41,15 @@ const jwt = require('jsonwebtoken');
 const  Video = require("../models/Video");
 const Channel = require("../models/Channel");
 const mongoose = require("mongoose");
+
+
+const typeModelMap = {
+  "movie": Video,
+  "tv-show": TVShow,
+  "web-series": Series,
+  // Add more mappings if needed
+};
+
 // Configucre Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -4764,5 +4773,25 @@ router.get('/upcoming-banners', async (req, res) => {
   }
 });
 
+router.get("/query-videos", async (req, res) => {
+  try {
+    const type = req.query.type?.toLowerCase(); // Convert to lowercase
+    console.log(type)
 
+    if (!type || !typeModelMap[type]) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or missing type. Use one of: movie, tv-show, web-series",
+      });
+    }
+
+    const Model = typeModelMap[type];
+    const videos = await Model.find();
+
+    res.status(200).json({ success: true, data: videos });
+  } catch (err) {
+    console.error("Error fetching videos by type:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 module.exports = router;

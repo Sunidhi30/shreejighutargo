@@ -1101,7 +1101,23 @@ router.get("/get-vendors", async (req, res) => {
 //       res.status(500).json({ message: 'Server error', error: err.message });
 //     }
 //   });
-
+// GET /vendors/count
+router.get('/vendors/count', async (req, res) => {
+  try {
+    const vendorCount = await Vendor.countDocuments({});
+    res.status(200).json({
+      success: true,
+      totalVendors: vendorCount,
+    });
+  } catch (error) {
+    console.error('Error counting vendors:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to count vendors',
+      error: error.message,
+    });
+  }
+});
 // get admin users
 router.get("/admin/users", verifyAdmin, async (req, res) => {
   try {
