@@ -3086,7 +3086,6 @@ router.get('/vendors/:vendorId/lock-status', verifyAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
-
 // 1. CREATE CONTEST (Admin only)
 router.post('/create-contests',verifyAdmin, async (req, res) => {
   try {

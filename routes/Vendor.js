@@ -4037,7 +4037,6 @@ router.post('/upload-shorts', cpUpload, async (req, res) => {
   }
 });
 // router.get('/get-shortbyid',async(req,res)=>{
-
 // })
 router.get('/get_shorts', async (req, res) => {
   try {
