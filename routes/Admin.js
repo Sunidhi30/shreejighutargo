@@ -515,21 +515,52 @@ router.put("/set-price-per-view", verifyAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
-// add type
+// // add type
+// router.post("/add_type", verifyAdmin, async (req, res) => {
+//   try {
+//     console.log(req.body);
+//     let { name, type, status = 1 } = req.body;
+//     console.log(req.body);
+//     if (!name || typeof type !== "number") {
+//       return res
+//         .status(400)
+//         .json({ message: "Missing required fields: name or type" });
+//     }
+//     // Normalize name to lowercase
+//     name = name.toLowerCase();
+
+//     // Check if type with same name already exists (case-insensitive)
+//     const existingType = await Type.findOne({
+//       name: { $regex: `^${name}$`, $options: "i" },
+//     });
+//     if (existingType) {
+//       return res
+//         .status(400)
+//         .json({ message: "Type already exists with this name" });
+//     }
+
+//     const newType = new Type({ name, type, status });
+//     await newType.save();
+
+//     return res.status(201).json({
+//       message: "Type added successfully",
+//       data: newType,
+//     });
+//   } catch (error) {
+//     console.error("Error adding type:", error);
+//     return res.status(500).json({ message: "Internal server error" });
+//   }
+// });
 router.post("/add_type", verifyAdmin, async (req, res) => {
   try {
-    console.log(req.body);
     let { name, type, status = 1 } = req.body;
-    console.log(req.body);
-    if (!name || typeof type !== "number") {
-      return res
-        .status(400)
-        .json({ message: "Missing required fields: name or type" });
+    if (!name) {
+      return res.status(400).json({ message: "Missing required field: name" });
     }
-    // Normalize name to lowercase
+
     name = name.toLowerCase();
 
-    // Check if type with same name already exists (case-insensitive)
+    // Check if name already exists
     const existingType = await Type.findOne({
       name: { $regex: `^${name}$`, $options: "i" },
     });
@@ -537,6 +568,16 @@ router.post("/add_type", verifyAdmin, async (req, res) => {
       return res
         .status(400)
         .json({ message: "Type already exists with this name" });
+    }
+
+    // If type is not provided or invalid, auto-generate it
+    if (typeof type !== "number") {
+      const allTypes = await Type.find({}, { type: 1 });
+      const usedTypes = allTypes.map(t => t.type);
+      type = 1;
+      while (usedTypes.includes(type)) {
+        type++;
+      }
     }
 
     const newType = new Type({ name, type, status });
@@ -551,6 +592,7 @@ router.post("/add_type", verifyAdmin, async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 });
+
 router.put("/update_type/:id", verifyAdmin, async (req, res) => {
   try {
     const { name, type } = req.body;

@@ -6,7 +6,7 @@ const TypeSchema = new mongoose.Schema({
   },
   type: {
     type: Number,
-    required: true,
+    required: false,
   },
   status: {
     type: Number,

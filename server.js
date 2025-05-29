@@ -110,6 +110,7 @@ const vendors = require("./routes/Vendor")
 const contest = require("./routes/Contest")
 const PORT = process.env.PORT || 6000;
 const Transaction = require('./models/Transactions');
+const Dynmaic = require("./routes/Dynamic")
 const section = require("./routes/Section")
 require('./cron/autoStartContests'); // Adjust path as needed
 
@@ -165,6 +166,7 @@ app.listen(PORT,()=>{
 app.use("/api/users",users)
 app.use("/api/admin",admin);
 app.use("/api/vendors",vendors);
+app.use("/api/common",Dynmaic );
 // app.use("/api/contest",contest);
 app.use("/api/sections",section);
 // app.use("/api/auth",vendors);
