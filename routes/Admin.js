@@ -3,6 +3,7 @@ const nodemailer = require("nodemailer");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const jwt = require("jsonwebtoken");
 const Producer = require("../models/Producer");
+const DynamicVideo= require("../models/DynamicVideo")
 const { ContestController } = require("../controllers/contestController");
 const Contest = require("../models/Contest");
 const ContestRules = require("../models/ContestRules");
@@ -3490,6 +3491,112 @@ router.get("/contests/:id/views-history", async (req, res) => {
     res.json({ success: true, data: contest.viewsUpdateHistory });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+// Create a new Home Section (Admin Only)
+
+// POST /home-section/create
+router.post('/create', async (req, res) => {
+  try {
+    const { title, videos, type ,order} = req.body;
+
+    if (!title || !Array.isArray(videos) || !type) {
+      return res.status(400).json({ message: 'Title, videos, and type are required.' });
+    }
+    let VideoModel;
+    switch (type) {
+      case 'movie':
+        VideoModel = Video;
+        break;
+      case 'web_series':
+        VideoModel = Series;
+        break;
+      case 'tv_show':
+        VideoModel =  TvShow;
+        break;
+      case 'others':
+        VideoModel = DynamicVideo;
+        break;
+      default:
+        return res.status(400).json({ message: 'Invalid type provided.' });
+    }
+
+    // Validate that all selected videos exist
+    const foundVideos = await VideoModel.find({ _id: { $in: videos } });
+    if (foundVideos.length !== videos.length) {
+      return res.status(400).json({ message: 'One or more video IDs are invalid.' });
+    }
+
+    const newSection = new HomeSection({
+      title,
+      order,
+      videos,
+      status: true
+    });
+
+    await newSection.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Home section created successfully.',
+      section: newSection
+    });
+
+  } catch (error) {
+    console.error('Error creating home section:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// GET: Fetch all active home sections
+router.get('/home-sections', async (req, res) => {
+  try {
+    const sections = await HomeSection.find({ status: true })
+      .sort({ order: 1 }) // sort by order ascending
+      .populate({
+        path: 'videos',
+        // optionally select fields
+        select: 'title thumbnail duration type'
+      })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: sections.length,
+      sections
+    });
+  } catch (error) {
+    console.error('Error fetching home sections:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// PUT /home-section/:id/order
+router.put('/:id/homesection-order', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { order } = req.body;
+
+    if (typeof order !== 'number') {
+      return res.status(400).json({ message: 'Order must be a number.' });
+    }
+
+    const updatedSection = await HomeSection.findByIdAndUpdate(
+      id,
+      { order },
+      { new: true }
+    );
+
+    if (!updatedSection) {
+      return res.status(404).json({ message: 'Home section not found.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Order updated successfully.',
+      section: updatedSection
+    });
+  } catch (error) {
+    console.error('Error updating order:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 

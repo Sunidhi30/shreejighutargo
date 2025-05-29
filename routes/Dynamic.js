@@ -167,4 +167,57 @@ router.get('/search-allvideos', async (req, res) => {
       });
     }
   });
+
+// GET /search-allvideos?type=movie
+router.get('/search-allvideos-bytype', async (req, res) => {
+    try {
+      const { type } = req.query;
+  
+      if (!type) {
+        return res.status(400).json({
+          success: false,
+          message: 'Type parameter is required (e.g., movie, web_series, tv_show, dynamic)',
+        });
+      }
+  
+      let results = [];
+  
+      switch (type) {
+        case 'movie':
+          results = await Movie.find().lean();
+          results = results.map(item => ({ ...item, category: 'movie' }));
+          break;
+        case 'webseries':
+          results = await WebSeries.find().lean();
+          results = results.map(item => ({ ...item, category: 'web_series' }));
+          break;
+        case 'show':
+          results = await TvShow.find().lean();
+          results = results.map(item => ({ ...item, category: 'tv_show' }));
+          break;
+        case 'others':
+          results = await DynamicVideo.find().lean();
+          results = results.map(item => ({ ...item, category: 'dynamic' }));
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid type. Valid types are: movie, web_series, tv_show, dynamic',
+          });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        count: results.length,
+        results,
+      });
+    } catch (error) {
+      console.error('Search error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error while fetching videos',
+        error: error.message,
+      });
+    }
+  });
 module.exports = router;
