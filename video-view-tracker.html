@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Video View Tracker Test</title>
+</head>
+<body>
+  <h1>Video Playback Test</h1>
+
+  <video id="contestVideo" width="640" controls>
+    <source src="https://res.cloudinary.com/dlszwlh2k/raw/upload/v1748081436/videos/320/s7xbfeid8rz4bapmphte" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+
+  <script>
+    const contestId = '6838ad2b3da0d11027d401dd'; // Replace with actual contest ID
+    const videoId = '68319b1cefc5e081c2c6b26f';     // Replace with actual video ID
+    const token = '';      // If your route needs authentication
+
+    const video = document.getElementById('contestVideo');
+
+    let watchedSeconds = 0;
+    let lastTime = 0;
+
+    // Track watched time every second
+    const interval = setInterval(() => {
+      const currentTime = Math.floor(video.currentTime);
+      if (!video.paused && !video.ended) {
+        if (currentTime > lastTime) {
+          watchedSeconds += currentTime - lastTime;
+          lastTime = currentTime;
+          console.log(`Watched Seconds: ${watchedSeconds}`);
+        }
+      }
+    }, 1000);
+
+    // Send watch time to backend on pause or end
+    async function sendWatchedTime() {
+      try {
+        const res = await fetch(`/api/users/contest/${contestId}/video/${videoId}/view`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+            // 'Authorization': `Bearer ${token}`, // optional if auth is required
+          },
+          body: JSON.stringify({ watchedSeconds })
+        });
+
+        const data = await res.json();
+        console.log('Server response:', data);
+        alert(`Server response: ${JSON.stringify(data)}`);
+      } catch (err) {
+        console.error('Error sending view data:', err);
+      }
+    }
+
+    // Trigger send on pause or end
+    video.addEventListener('pause', sendWatchedTime);
+    video.addEventListener('ended', sendWatchedTime);
+  </script>
+</body>
+</html>

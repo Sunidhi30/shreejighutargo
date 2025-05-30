@@ -2,7 +2,12 @@ const express = require('express');
 const nodemailer = require("nodemailer");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const jwt = require('jsonwebtoken');
+const Contest = require("../models/Contest")
+const TVShow= require("../models/TVShow")
+const Series = require("../models/Series")
+const Dynamic = require("../models/DynamicVideo")
 const dotenv = require('dotenv');
+const AppRating = require("../models/appRating.model")
 const mongoose = require("mongoose");
 const ContinueWatching = require("../models/ContinueWatching")
 const User = require('../models/User');
@@ -2192,6 +2197,368 @@ router.get('/videos/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching video details:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+
+
+// ===== 1. GET CONTEST VIDEOS (Public endpoint) =====
+router.get('/contests/:id/videos', async (req, res) => {
+  try {
+    const contestId = req.params.id;
+    const { page = 1, limit = 10, sort = 'latest' } = req.query;
+    
+    const contest = await Contest
+      .findById(contestId)
+      .populate('type_id', 'name')
+      .select('title description participants status startDate endDate type_id');
+    
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    // Check if contest is active or completed (allow viewing both)
+    if (!['active', 'completed'].includes(contest.status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Contest is not available for viewing' 
+      });
+    }
+
+    // Get contest type and model
+    const contestType = contest.type_id.name;
+    const modelMap = {
+      movie: Video,
+      webseries: Series,
+      show: TVShow,
+      others: Dynamic
+    };
+    const VideoModel = modelMap[contestType];
+    
+    if (!VideoModel) {
+      return res.status(500).json({ success: false, message: 'Invalid contest type' });
+    }
+
+    const videoIds = contest.participants.map(p => p.video_id);
+    
+    if (videoIds.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No videos in this contest yet',
+        data: {
+          contest: {
+            id: contest._id,
+            title: contest.title,
+            description: contest.description,
+            status: contest.status
+          },
+          videos: [],
+          pagination: { page: parseInt(page), limit: parseInt(limit), total: 0, pages: 0 }
+        }
+      });
+    }
+
+    // Build sort criteria - IMPORTANT: Sort by contest views, not total views
+    let sortCriteria = {};
+    switch (sort) {
+      case 'contest_views': // Most popular in contest
+        // We'll sort after getting data since it's in contest schema
+        break;
+      case 'latest':
+      default:
+        sortCriteria = { createdAt: -1 };
+        break;
+    }
+
+    // Get videos with pagination
+    const skip = (page - 1) * limit;
+    const videos = await VideoModel
+      .find({ 
+        _id: { $in: videoIds },
+        status: 'approved'
+      })
+      .populate('vendor_id', 'name profile_image')
+      .populate('cast_ids', 'name image')
+      .populate('category_id', 'name')
+      .populate('language_id', 'name')
+      .select('name thumbnail landscape description video_duration release_date total_view total_like averageRating ratingCount vendor_id cast_ids category_id language_id createdAt')
+      .sort(sortCriteria)
+      .skip(sort === 'contest_views' ? 0 : skip)
+      .limit(sort === 'contest_views' ? 0 : parseInt(limit));
+
+    // Add contest-specific data and sort by contest views if needed
+    let videosWithContestData = videos.map(video => {
+      const participant = contest.participants.find(p => p.video_id.equals(video._id));
+      return {
+        ...video.toObject(),
+        contestData: participant ? {
+          joinedAt: participant.joinedAt,
+          initialViews: participant.initialViews,
+          contestViewsOnly: participant.contestViewsOnly || 0,
+          adminAdjustedViews: participant.adminAdjustedViews || 0,
+          totalContestViews: participant.totalContestViews || 0,
+          rank: participant.rank || 0
+        } : null
+      };
+    });
+
+    // Sort by contest views if requested
+    if (sort === 'contest_views') {
+      videosWithContestData.sort((a, b) => 
+        (b.contestData?.totalContestViews || 0) - (a.contestData?.totalContestViews || 0)
+      );
+      videosWithContestData = videosWithContestData.slice(skip, skip + parseInt(limit));
+    }
+
+    const totalVideos = videoIds.length;
+
+    res.json({
+      success: true,
+      data: {
+        contest: {
+          id: contest._id,
+          title: contest.title,
+          description: contest.description,
+          status: contest.status,
+          startDate: contest.startDate,
+          endDate: contest.endDate,
+          participantsCount: contest.participants.length
+        },
+        videos: videosWithContestData,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: totalVideos,
+          pages: Math.ceil(totalVideos / limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get contest videos error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
+// // ===== 2. TRACK CONTEST-SPECIFIC VIDEO VIEW =====
+// router.post('/contests/:contestId/videos/:videoId/view', async (req, res) => {
+//   try {
+//     const { contestId, videoId } = req.params;
+//     const { source = 'contest' } = req.body;
+//     const userId = req.user?.id;
+//     const ipAddress = req.ip || req.connection.remoteAddress;
+//     const userAgent = req.get('User-Agent');
+
+//     // Only accept views from contest source
+//     if (source !== 'contest') {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Invalid view source - must be from contest page' 
+//       });
+//     }
+    
+//     const contest = await Contest.findById(contestId).populate('type_id', 'name');
+    
+//     if (!contest) {
+//       return res.status(404).json({ success: false, message: 'Contest not found' });
+//     }
+
+//     // Check if contest is active
+//     const now = new Date();
+//     if (contest.status !== 'active' || now < contest.startDate || now > contest.endDate) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Contest is not currently active' 
+//       });
+//     }
+
+//     // Find participant
+//     const participantIndex = contest.participants.findIndex(p => p.video_id.equals(videoId));
+//     if (participantIndex === -1) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'Video not found in this contest' 
+//       });
+//     }
+
+//     const participant = contest.participants[participantIndex];
+
+//     // Check for unique viewer (prevent spam views)
+//     const isUniqueView = !participant.uniqueViewers.some(viewer => {
+//       if (userId && viewer.userId && viewer.userId.equals(userId)) {
+//         // Same user viewed within last 5 minutes
+//         const timeDiff = (now - viewer.viewedAt) / (1000 * 60);
+//         return timeDiff < 5;
+//       }
+//       if (!userId && viewer.ipAddress === ipAddress) {
+//         // Same IP viewed within last 5 minutes
+//         const timeDiff = (now - viewer.viewedAt) / (1000 * 60);
+//         return timeDiff < 5;
+//       }
+//       return false;
+//     });
+
+//     if (!isUniqueView) {
+//       return res.status(429).json({ 
+//         success: false, 
+//         message: 'View already counted recently' 
+//       });
+//     }
+
+//     // Get video model and update total views (for general analytics)
+//     const contestType = contest.type_id.name;
+//     const modelMap = {
+//       movie: Video,
+//       webseries: Series,
+//       show: TVShow,
+//       others: Dynamic
+//     };
+//     const VideoModel = modelMap[contestType];
+    
+//     if (!VideoModel) {
+//       return res.status(500).json({ success: false, message: 'Invalid contest type' });
+//     }
+
+//     // Update video's total views (this remains for general video analytics)
+//     const video = await VideoModel.findByIdAndUpdate(
+//       videoId,
+//       { $inc: { total_view: 1 } },
+//       { new: true }
+//     );
+
+//     if (!video) {
+//       return res.status(404).json({ success: false, message: 'Video not found' });
+//     }
+
+//     // Update CONTEST-SPECIFIC views
+//     contest.participants[participantIndex].contestViewsOnly += 1;
+//     contest.participants[participantIndex].totalContestViews = 
+//       contest.participants[participantIndex].contestViewsOnly + 
+//       contest.participants[participantIndex].adminAdjustedViews;
+    
+//     contest.participants[participantIndex].lastViewUpdate = now;
+
+//     // Add unique viewer tracking
+//     contest.participants[participantIndex].uniqueViewers.push({
+//       userId: userId || null,
+//       ipAddress: userId ? null : ipAddress, // Only store IP if no userId
+//       viewedAt: now
+//     });
+
+//     // Keep only last 100 unique viewers to prevent array from growing too large
+//     if (contest.participants[participantIndex].uniqueViewers.length > 100) {
+//       contest.participants[participantIndex].uniqueViewers = 
+//         contest.participants[participantIndex].uniqueViewers.slice(-100);
+//     }
+
+//     await contest.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Contest view tracked successfully',
+//       data: {
+//         videoId: videoId,
+//         totalVideoViews: video.total_view, // Total views across all sources
+//         contestViewsOnly: contest.participants[participantIndex].contestViewsOnly,
+//         totalContestViews: contest.participants[participantIndex].totalContestViews,
+//         source: source
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Track contest view error:', error);
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// });
+router.post('/contest/:contestId/video/:videoId/view', async (req, res) => {
+  const { contestId, videoId } = req.params;
+  const { watchedSeconds } = req.body;
+  console.log("hi " + watchedSeconds);
+  const userId = req.user?.id || null;
+  const ipAddress = req.ip;
+
+  if (!watchedSeconds || watchedSeconds <= 0) {
+    return res.status(400).json({ error: 'Invalid watchedSeconds' });
+  }
+
+  const contest = await Contest.findById(contestId);
+  if (!contest) return res.status(404).json({ error: 'Contest not found' });
+
+  const participant = contest.participants.find(p => p.video_id.equals(videoId));
+  if (!participant) return res.status(404).json({ error: 'Video not part of contest' });
+
+  // Correct this line:
+  const video = await Video.findById(videoId);
+  console.log("this is the video: ", video);
+
+  const totalDuration = video?.video_duration;
+  console.log("this is total duration: " + totalDuration);
+  if (!totalDuration) return res.status(400).json({ error: 'Video duration not available' });
+
+  // Identify the viewer (by user or IP)
+  let viewer = participant.uniqueViewers.find(v =>
+    userId ? v.userId?.equals(userId) : v.ipAddress === ipAddress
+  );
+
+  if (!viewer) {
+    viewer = {
+      userId: userId || null,
+      ipAddress: userId ? null : ipAddress,
+      watchedSeconds,
+      counted: false,
+      viewedAt: new Date(),
+    };
+    participant.uniqueViewers.push(viewer);
+  } else {
+    viewer.watchedSeconds = Math.max(viewer.watchedSeconds || 0, watchedSeconds);
+    viewer.viewedAt = new Date();
+  }
+
+  const watchedRatio = viewer.watchedSeconds / totalDuration;
+
+  // If 30% watched and not yet counted
+  if (watchedRatio >= 0.3 && !viewer.counted) {
+    participant.contestViewsOnly += 1;
+    participant.totalContestViews = participant.contestViewsOnly + participant.adminAdjustedViews;
+    viewer.counted = true;
+  }
+
+  await contest.save();
+  return res.status(200).json({ message: 'View recorded', counted: viewer.counted });
+});
+
+// ➕ Add or Update Rating
+router.post('/rate', isUser, async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const userId = req.user.id;
+
+    let existing = await AppRating.findOne({ userId });
+
+    if (existing) {
+      existing.rating = rating;
+      existing.comment = comment;
+      await existing.save();
+      return res.json({ message: 'Rating updated successfully' });
+    }
+
+    const newRating = new AppRating({ userId, rating, comment });
+    await newRating.save();
+
+    res.status(201).json({ message: 'Rating submitted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error', error: err.message });
+  }
+});
+
+// 📥 Get All Ratings (Admin use)
+router.get('/ratings', async (req, res) => {
+  try {
+    const ratings = await AppRating.find().populate('userId', 'name email');
+    res.json(ratings);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch ratings', error: err.message });
   }
 });
 

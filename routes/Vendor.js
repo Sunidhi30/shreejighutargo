@@ -7,6 +7,7 @@ const path = require('path');
 const Category = require("../models/Category")
 const VendorLockPeriod = require('../models/LockPeriod'); // adjust the path as needed
 const WithdrawalRequest = require('../models/WithdrawalRequest');
+const Dynamic = require("../models/DynamicVideo")
 const Shorts = require('../models/Short'); // Adjust path as needed
 const  Cast = require("../models/Cast")
 const TVShow = require("../models/TVShow")
@@ -41,6 +42,7 @@ const jwt = require('jsonwebtoken');
 const  Video = require("../models/Video");
 const Channel = require("../models/Channel");
 const mongoose = require("mongoose");
+
 
 
 const typeModelMap = {
@@ -4529,70 +4531,284 @@ router.get('/withdrawal/requests', isVendor, getVendorWithdrawalRequests);
 router.get('/api/vendor/wallet', isVendor, getVendorWalletInfo);
 // contests
 // 5. VENDOR REGISTER FOR CONTEST
-router.post('/contests/:id/register',isVendor, async (req, res) => {
-  
+
+// router.post('/contests/:id/register', isVendor, async (req, res) => {
+//   try {
+//     const { video_id, type } = req.body;
+
+//     if (!video_id || !type) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Both video_id and type are required',
+//       });
+//     }
+
+//     const contest = await Contest.findById(req.params.id);
+//     if (!contest) {
+//       return res.status(404).json({ success: false, message: 'Contest not found' });
+//     }
+
+//     const now = new Date();
+//     if (now < contest.registrationStartDate || now > contest.registrationEndDate) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Registration is not open for this contest' 
+//       });
+//     }
+
+//     if (contest.type !== type) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `This contest is for type '${contest.type}', but you submitted a '${type}'`,
+//       });
+//     }
+
+//     let video;
+//     switch (type) {
+//       case 'movie':
+//         video = await Movie.findById(video_id);
+//         break;
+//       case 'webseries':
+//         video = await Series.findById(video_id);
+//         break;
+//       case 'show':
+//         video = await TVShow .findById(video_id);
+//         break;
+//       case 'others':
+//         video = await DynamicVideo.findById(video_id);
+//         break;
+//       default:
+//         return res.status(400).json({ 
+//           success: false, 
+//           message: 'Invalid type. Valid types: movie, webseries, show, others' 
+//         });
+//     }
+//    console.log(video)
+//     if (!video) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'Video not found. Please ensure you selected the correct type.' 
+//       });
+//     }
+
+//     // Check ownership
+//     if (video.vendor_id.toString() !== req.vendor.id) {
+//       return res.status(403).json({ 
+//         success: false, 
+//         message: 'You can only register with your own videos' 
+//       });
+//     }
+
+//     const alreadyRegistered = contest.registrations.find(
+//       reg => reg.vendor_id.toString() === req.vendor.id
+//     );
+
+//     if (alreadyRegistered) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'You have already registered for this contest' 
+//       });
+//     }
+
+//     // Register the vendor
+//     contest.registrations.push({
+//       vendor_id: req.vendor.id,
+//       video_id,
+//       type,
+//       registrationDate: new Date()
+//     });
+
+//     await contest.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Registration submitted successfully. Wait for admin approval.',
+//       data: contest.registrations[contest.registrations.length - 1]
+//     });
+
+//   } catch (error) {
+//     console.error('Registration error:', error);
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// });
+// POST /contests/:id/register
+// router.post('/contests/:id/register', isVendor, async (req, res) => {
+//   try {
+//     const { video_id, type } = req.body;
+//     console.log(type);
+//     if (!video_id || !type) {
+//       return res.status(400).json({ success: false, message: 'video_id and type required' });
+//     }
+
+//     const contest = await Contest.findById(req.params.id);
+//     if (!contest) return res.status(404).json({ success: false, message: 'Contest not found' });
+
+//     const now = new Date();
+//     if (now < contest.registrationStartDate || now > contest.registrationEndDate) {
+//       return res.status(400).json({ success: false, message: 'Registration closed' });
+//     }
+//     console.log("tyhis is type "+contest.type)
+//     console.log("tyhis is movie type "+type)
+//     if (contest.type !== type) {
+//       return res.status(400).json({ success: false, message: `This is a '${contest.type}' contest` });
+//     }
+
+//     // fetch the right video collection
+//     // let VideoModel = { movie: Movie, webseries: Series, show: TVShow, others: DynamicVideo }[type];
+//     const video = await Video.findById(video_id);
+//     if (!video) return res.status(404).json({ success: false, message: 'Video not found' });
+//     if (video.vendor_id.toString() !== req.vendor.id) {
+//       return res.status(403).json({ success: false, message: 'Not your video' });
+//     }
+
+//     // Prevent duplicate
+//     if (contest.registrations.some(r => r.vendor_id.equals(req.vendor.id))) {
+//       return res.status(400).json({ success: false, message: 'Already registered' });
+//     }
+
+//     // Always record the registration as “joined”
+//     contest.registrations.push({
+//       vendor_id: req.vendor.id,
+//       video_id,
+//       type,
+//       registrationDate: now,
+//       status: 'joined'
+//     });
+
+//     // If contest already started, add immediately to participants
+//     if (now >= contest.startDate && now <= contest.endDate) {
+//       contest.participants.push({
+//         vendor_id: req.vendor.id,
+//         video_id,
+//         joinedAt: now,
+//         initialViews: video.total_view || 0,
+//         contestViews: 0,
+//         adminAdjustedViews: 0,
+//         totalContestViews: 0
+//       });
+//     }
+
+//     await contest.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Registered and joined!',
+//       registration: contest.registrations.slice(-1)[0]
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ success: false, message: err.message });
+//   }
+// });
+
+
+router.post('/contests/:id/register', isVendor, async (req, res) => {
   try {
     const { video_id } = req.body;
-   
-    const contest = await Contest.findById(req.params.id);
-   
+    if (!video_id) {
+      return res.status(400).json({ success: false, message: 'video_id required' });
+    }
+
+    // 1) Fetch the contest AND populate its type_id to get .name
+    const contest = await Contest
+      .findById(req.params.id)
+      .populate('type_id', 'name');             // <-- grab only the `name` field
     if (!contest) {
       return res.status(404).json({ success: false, message: 'Contest not found' });
     }
 
-    // Check if registration is open
+    // 2) Check registration window
     const now = new Date();
-    if (now < contest.registrationStartDate || now > contest.registrationEndDate) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Registration is not open for this contest' 
-      });
+    // if (now < contest.registrationStartDate || now > contest.registrationEndDate) {
+    //   return res.status(400).json({ success: false, message: 'Registration closed' });
+    // }
+     // 🔴 UPDATED: Check if registration is still open OR if contest has already started
+     const registrationOpen = now >= contest.registrationStartDate && now <= contest.registrationEndDate;
+     const contestActive = now >= contest.startDate && now <= contest.endDate;
+     
+     if (!registrationOpen && !contestActive) {
+       return res.status(400).json({ 
+         success: false, 
+         message: 'Registration is closed and contest is not active' 
+       });
+     }
+
+    // 3) Derive the string we’ll use for routing
+    const contestType = contest.type_id.name;  // e.g. "movie", "webseries"…
+    
+    // 4) Pick the right mongoose model
+    const modelMap = {
+      movie: Video,
+      webseries: Series,
+      show:    TVShow,
+      others:  Dynamic
+    };
+    const VideoModel = modelMap[contestType];
+    if (!VideoModel) {
+      return res.status(500).json({ success: false, message: 'Contest has invalid type' });
     }
 
-    // Check if video exists
-    const video = await Video.findById(video_id);
+    // 5) Load the video
+    const video = await VideoModel.findById(video_id);
     if (!video) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Video not found. Please add the video first before registering.' 
-      });
+      return res.status(404).json({ success: false, message: 'Video not found' });
     }
-
-    // Check if vendor owns the video
-    const vendorId= await Vendor.findById(req.vendor.id);
-    console.log("this is the vendor "+ vendorId)
     if (video.vendor_id.toString() !== req.vendor.id) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'You can only register with your own videos' 
-      });
+      return res.status(403).json({ success: false, message: 'Not your video' });
+    }
+// Check if already registered
+const alreadyRegistered = contest.registrations.some(r => 
+  r.vendor_id.equals(req.vendor.id) && r.video_id.equals(video_id)
+);
+if (alreadyRegistered) {
+  return res.status(400).json({ success: false, message: 'Already registered for this contest' });
+}
+    // 6) Prevent duplicate registration
+    if (contest.registrations.some(r => r.vendor_id.equals(req.vendor.id))) {
+      return res.status(400).json({ success: false, message: 'Already registered' });
     }
 
-    // Check if already registered
-    const existingRegistration = contest.registrations.find(
-      reg => reg.vendor_id.toString() === req.vendor.id
-    );
-
-    if (existingRegistration) {
-      return res.status(400).json({ success: false, message: 'Already registered for this contest' });
-    }
-
-    // Add registration
+    // 7) Record registration (always “joined”)
     contest.registrations.push({
       vendor_id: req.vendor.id,
-      video_id: video_id,
-      registrationDate: new Date()
+      video_id,
+      status: 'joined',
+      registrationDate: now
     });
 
+    // 8) If contest is already live, add to participants immediately
+    if (contestActive) {
+      const alreadyParticipant = contest.participants.some(p => 
+        p.vendor_id.equals(req.vendor.id) && p.video_id.equals(video_id)
+      );
+      
+      if (!alreadyParticipant) {
+        contest.participants.push({
+          vendor_id: req.vendor.id,
+          video_id,
+          joinedAt: now,
+          initialViews: video.total_view || 0,
+          contestViews: 0,
+          adminAdjustedViews: 0,
+          totalContestViews: 0
+        });
+      }
+    }
+
+
     await contest.save();
-    
-    res.json({ 
-      success: true, 
-      message: 'Registration submitted successfully. Wait for admin approval.',
-      data: contest.registrations[contest.registrations.length - 1]
+    const message = contestActive ? 
+    'Registered and joined the active contest!' : 
+    'Registered successfully! You will join when the contest starts.';
+    res.json({
+      success: true,
+      message,
+      registration: contest.registrations.slice(-1)[0]
     });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

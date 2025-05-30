@@ -181,6 +181,11 @@ app.get('/session', (req, res) => {
 app.get('/reset-password/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'reset-password.html'));
 });
+// video-view-tracker
+// Render reset-password.html
+app.get('/viewstesting', (req, res) => {
+  res.sendFile(path.join(__dirname, 'video-view-tracker.html'));
+});
 db().then(function (db) {
     console.log(`Db connnected`)
 })

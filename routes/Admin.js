@@ -3268,6 +3268,83 @@ router.get("/contests/:id", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+
+// ===== 3. GET CONTEST LEADERBOARD =====
+router.get('/contests/:id/leaderboard', async (req, res) => {
+  try {
+    const contestId = req.params.id;
+    const { limit = 50 } = req.query;
+    
+    const contest = await Contest
+      .findById(contestId)
+      .populate('type_id', 'name')
+      .populate({
+        path: 'participants.vendor_id',
+        select: 'name profile_image'
+      })
+      .select('title description participants status startDate endDate');
+    
+    if (!contest) {
+      return res.status(404).json({ success: false, message: 'Contest not found' });
+    }
+
+    // Get contest type to determine which model to use
+    const contestType = contest.type_id.name;
+    const modelMap = {
+      movie: Video,
+      webseries: Series,
+      show: TVShow,
+      others: DynamicVideo
+    };
+    const VideoModel = modelMap[contestType];
+
+    // Create leaderboard with video details
+    const leaderboard = await Promise.all(
+      contest.participants
+        .sort((a, b) => b.totalContestViews - a.totalContestViews)
+        .slice(0, parseInt(limit))
+        .map(async (participant, index) => {
+          const video = await VideoModel
+            .findById(participant.video_id)
+            .select('name thumbnail total_view total_like averageRating');
+          
+          return {
+            rank: index + 1,
+            vendor: participant.vendor_id,
+            video: video,
+            contestViews: participant.contestViews,
+            adminAdjustedViews: participant.adminAdjustedViews,
+            totalContestViews: participant.totalContestViews,
+            initialViews: participant.initialViews,
+            joinedAt: participant.joinedAt
+          };
+        })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        contest: {
+          id: contest._id,
+          title: contest.title,
+          description: contest.description,
+          status: contest.status,
+          startDate: contest.startDate,
+          endDate: contest.endDate
+        },
+        leaderboard: leaderboard,
+        totalParticipants: contest.participants.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get leaderboard error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
 // 4. UPDATE CONTEST (Admin only)
 router.put("/contests/:id", async (req, res) => {
   try {
@@ -3298,41 +3375,7 @@ router.put("/contests/:id", async (req, res) => {
   }
 });
 // admin approves the regsitrations of the vendor for contest
-// 6. ADMIN APPROVE/REJECT REGISTRATION
-router.put(
-  "/contests/:id/registrations/:registrationId",
-  verifyAdmin,
-  async (req, res) => {
-    try {
-      const { status } = req.body; // 'approved' or 'rejected'
-      const contest = await Contest.findById(req.params.id);
 
-      if (!contest) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Contest not found" });
-      }
-
-      const registration = contest.registrations.id(req.params.registrationId);
-      if (!registration) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Registration not found" });
-      }
-
-      registration.status = status;
-      await contest.save();
-
-      res.json({
-        success: true,
-        message: `Registration ${status} successfully`,
-        data: registration,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-);
 //updated the views
 // 8. UPDATE CONTEST VIEWS (Admin only - can only increase)
 router.put(
@@ -3421,36 +3464,6 @@ router.post("/contests/:id/update-rankings", async (req, res) => {
   }
 });
 
-// 10. GET CONTEST LEADERBOARD
-router.get("/contests/:id/leaderboard", async (req, res) => {
-  try {
-    const contest = await Contest.findById(req.params.id)
-      .populate("participants.vendor_id", "username fullName image")
-      .populate("participants.video_id", "title description thumbnail");
-
-    if (!contest) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Contest not found" });
-    }
-
-    // Sort by rank
-    const leaderboard = contest.participants
-      .sort((a, b) => a.rank - b.rank)
-      .map((participant) => ({
-        rank: participant.rank,
-        vendor: participant.vendor_id,
-        video: participant.video_id,
-        totalContestViews: participant.totalContestViews,
-        contestViews: participant.contestViews,
-        adminAdjustedViews: participant.adminAdjustedViews,
-      }));
-
-    res.json({ success: true, data: leaderboard });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 // 11. END CONTEST
 router.post("/contests/:id/end", async (req, res) => {
   try {

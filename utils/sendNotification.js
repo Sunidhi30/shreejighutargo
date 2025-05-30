@@ -1,5 +1,5 @@
 // const nodemailer = require('nodemailer');
-console.log("send is working")
+// console.log("send is working")
 const sendNotification = async ({ to, subject, message }) => {
     try {
       const transporter = nodemailer.createTransport({
