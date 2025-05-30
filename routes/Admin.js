@@ -3269,7 +3269,6 @@ router.get("/contests/:id", async (req, res) => {
   }
 });
 
-
 // ===== 3. GET CONTEST LEADERBOARD =====
 router.get('/contests/:id/leaderboard', async (req, res) => {
   try {
@@ -3507,7 +3506,6 @@ router.get("/contests/:id/views-history", async (req, res) => {
   }
 });
 // Create a new Home Section (Admin Only)
-
 // POST /home-section/create
 router.post('/create', async (req, res) => {
   try {
@@ -3565,11 +3563,7 @@ router.get('/home-sections', async (req, res) => {
   try {
     const sections = await HomeSection.find({ status: true })
       .sort({ order: 1 }) // sort by order ascending
-      .populate({
-        path: 'videos',
-        // optionally select fields
-        select: 'title thumbnail duration type'
-      })
+      .populate('videos') // fetch full video documents
       .lean();
 
     res.status(200).json({

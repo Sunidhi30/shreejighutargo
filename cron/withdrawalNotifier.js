@@ -33,7 +33,7 @@ cron.schedule('* * * * *', async () => {
       }
     }
 
-    console.log('🔔 Vendor withdrawal notifications sent');
+    //console.log('🔔 Vendor withdrawal notifications sent');
   } catch (error) {
     console.error('Error in withdrawal notifier:', error);
   }

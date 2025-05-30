@@ -4813,11 +4813,13 @@ if (alreadyRegistered) {
 });
 
 // 12. GET VENDOR'S CONTESTS
-router.get('/vendors/:vendorId/contests', async (req, res) => {
+router.get('/vendors/contests',isVendor, async (req, res) => {
+
+  // const vendorId = req.vendor.id;
   try {
     const contests = await Contest.find({
       $or: [
-        { 'registrations.vendor_id': req.params.vendorId },
+        { 'registrations.vendor_id': req.vendor.id},
         { 'participants.vendor_id': req.params.vendorId }
       ]
     }).populate('type_id');
