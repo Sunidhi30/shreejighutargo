@@ -1431,29 +1431,29 @@ router.get("/get-producers", async (req, res) => {
   }
 });
 // approves the video for the vendor
-router.post("/approve/:videoId", verifyAdmin, async (req, res) => {
-  try {
-    const { videoId } = req.params;
-    const updatedVideo = await Video.findByIdAndUpdate(
-      videoId,
-      { isApproved: true },
-      { new: true }
-    );
+// router.post("/approve/:videoId", verifyAdmin, async (req, res) => {
+//   try {
+//     const { videoId } = req.params;
+//     const updatedVideo = await Video.findByIdAndUpdate(
+//       videoId,
+//       { isApproved: true },
+//       { new: true }
+//     );
 
-    if (!updatedVideo) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Video not found" });
-    }
+//     if (!updatedVideo) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Video not found" });
+//     }
 
-    res
-      .status(200)
-      .json({ success: true, message: "Video approved", video: updatedVideo });
-  } catch (error) {
-    console.error("Approval Error:", error);
-    res.status(500).json({ success: false, message: "Server error", error });
-  }
-});
+//     res
+//       .status(200)
+//       .json({ success: true, message: "Video approved", video: updatedVideo });
+//   } catch (error) {
+//     console.error("Approval Error:", error);
+//     res.status(500).json({ success: false, message: "Server error", error });
+//   }
+// });
 // POST /api/banners - Add new banner
 router.post("/banners", verifyAdmin, async (req, res) => {
   try {
@@ -3507,41 +3507,163 @@ router.get("/contests/:id/views-history", async (req, res) => {
 });
 // Create a new Home Section (Admin Only)
 // POST /home-section/create
+// router.post('/create', async (req, res) => {
+//   try {
+//     const { title, videos, type ,order} = req.body;
+
+//     if (!title || !Array.isArray(videos) || !type) {
+//       return res.status(400).json({ message: 'Title, videos, and type are required.' });
+//     }
+//     let VideoModel;
+//     switch (type) {
+//       case 'movie':
+//         VideoModel = Video;
+//         break;
+//       case 'web_series':
+//         VideoModel = Series;
+//         break;
+//       case 'tv_show':
+//         VideoModel =  TvShow;
+//         break;
+//       case 'others':
+//         VideoModel = DynamicVideo;
+//         break;
+//       default:
+//         return res.status(400).json({ message: 'Invalid type provided.' });
+//     }
+
+//     // Validate that all selected videos exist
+//     const foundVideos = await VideoModel.find({ _id: { $in: videos } });
+//     if (foundVideos.length !== videos.length) {
+//       return res.status(400).json({ message: 'One or more video IDs are invalid.' });
+//     }
+
+//     const newSection = new HomeSection({
+//       title,
+//       order,
+//       videos,
+//       status: true
+//     });
+
+//     await newSection.save();
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Home section created successfully.',
+//       section: newSection
+//     });
+
+//   } catch (error) {
+//     console.error('Error creating home section:', error);
+//     res.status(500).json({ success: false, message: 'Server error' });
+//   }
+// });
+// Fixed CREATE route - Save type to database
+
+// CREATE HOME SECTION API
+
+// CREATE HOME SECTION API
 router.post('/create', async (req, res) => {
   try {
-    const { title, videos, type ,order} = req.body;
+    const { title, videos, type, order, isCommon, description } = req.body;
 
-    if (!title || !Array.isArray(videos) || !type) {
-      return res.status(400).json({ message: 'Title, videos, and type are required.' });
-    }
-    let VideoModel;
-    switch (type) {
-      case 'movie':
-        VideoModel = Video;
-        break;
-      case 'web_series':
-        VideoModel = Series;
-        break;
-      case 'tv_show':
-        VideoModel =  TvShow;
-        break;
-      case 'others':
-        VideoModel = DynamicVideo;
-        break;
-      default:
-        return res.status(400).json({ message: 'Invalid type provided.' });
+    if (!title || !type) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Title and type are required.' 
+      });
     }
 
-    // Validate that all selected videos exist
-    const foundVideos = await VideoModel.find({ _id: { $in: videos } });
-    if (foundVideos.length !== videos.length) {
-      return res.status(400).json({ message: 'One or more video IDs are invalid.' });
+    // Validate type
+    const validTypes = ['movie', 'web_series', 'tv_show', 'others', 'common'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid type provided.' 
+      });
+    }
+
+    let processedVideos = [];
+
+    // For common sections, videos should come with their types
+    if (type === 'common' || isCommon) {
+      if (!Array.isArray(videos) || videos.length === 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Videos array is required for common sections.' 
+        });
+      }
+
+      // Validate each video with its type
+      for (const videoItem of videos) {
+        const { videoId, videoType } = videoItem;
+        
+        if (!videoId || !videoType) {
+          return res.status(400).json({ 
+            success: false,
+            message: 'Each video must have videoId and videoType.' 
+          });
+        }
+
+        let VideoModel;
+        switch (videoType) {
+          case 'movie': VideoModel = Video; break;
+          case 'web_series': VideoModel = Series; break;
+          case 'tv_show': VideoModel = Show; break;
+          case 'others': VideoModel = DynamicVideo; break;
+          default:
+            return res.status(400).json({ 
+              success: false,
+              message: `Invalid videoType: ${videoType}` 
+            });
+        }
+
+        const foundVideo = await VideoModel.findById(videoId);
+        if (!foundVideo) {
+          return res.status(400).json({ 
+            success: false,
+            message: `Video with ID ${videoId} not found in ${videoType} collection.` 
+          });
+        }
+
+        processedVideos.push({ videoId, videoType });
+      }
+    } else {
+      // Type-specific sections - all videos are of the same type
+      if (!Array.isArray(videos) || videos.length === 0) {
+        processedVideos = []; // Allow empty sections
+      } else {
+        let VideoModel;
+        switch (type) {
+          case 'movie': VideoModel = Video; break;
+          case 'web_series': VideoModel = Series; break;
+          case 'tv_show': VideoModel = TVShow; break;
+          case 'others': VideoModel = DynamicVideo; break;
+        }
+
+        // videos can be just array of IDs for type-specific sections
+        const videoIds = Array.isArray(videos[0]) ? videos : 
+                        (typeof videos[0] === 'object' ? videos.map(v => v.videoId || v._id) : videos);
+
+        const foundVideos = await VideoModel.find({ _id: { $in: videoIds } });
+        if (foundVideos.length !== videoIds.length) {
+          return res.status(400).json({ 
+            success: false,
+            message: 'One or more video IDs are invalid.' 
+          });
+        }
+
+        processedVideos = videoIds.map(id => ({ videoId: id, videoType: type }));
+      }
     }
 
     const newSection = new HomeSection({
       title,
-      order,
-      videos,
+      videos: processedVideos,
+      type,
+      order: order || 0,
+      isCommon: type === 'common' || isCommon,
+      description,
       status: true
     });
 
@@ -3558,24 +3680,299 @@ router.post('/create', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-// GET: Fetch all active home sections
-router.get('/home-sections', async (req, res) => {
+
+// GET HOME SECTIONS BY TYPE
+
+router.get('/home-sections/:type', async (req, res) => {
   try {
-    const sections = await HomeSection.find({ status: true })
-      .sort({ order: 1 }) // sort by order ascending
-      .populate('videos') // fetch full video documents
+    const { type } = req.params;
+    let query = { status: true };
+
+    // If type is provided, get sections for that type + common sections
+    if (type && type !== 'all') {
+      const validTypes = ['movie', 'web_series', 'tv_show', 'others'];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid type provided.' 
+        });
+      }
+      
+      // Get sections specific to the type OR common sections
+      query = {
+        status: true,
+        $or: [
+          { type: type },
+          { type: 'common' },
+          { isCommon: true }
+        ]
+      };
+    }
+
+    const sections = await HomeSection.find(query)
+      .sort({ order: 1, createdAt: -1 })
       .lean();
+
+    // Populate videos based on section type
+    const populatedSections = await Promise.all(
+      sections.map(async (section) => {
+        if (section.type === 'common' || section.isCommon) {
+          // For common sections, get videos from all collections
+          const allVideos = [];
+          
+          const movieVideos = await Video.find({ _id: { $in: section.videos } }).lean();
+          const seriesVideos = await Series.find({ _id: { $in: section.videos } }).lean();
+          const showVideos = await Show.find({ _id: { $in: section.videos } }).lean();
+          const otherVideos = await DynamicVideo.find({ _id: { $in: section.videos } }).lean();
+          
+          // Add type identifier to each video
+          const typedVideos = [
+            ...movieVideos.map(v => ({ ...v, contentType: 'movie' })),
+            ...seriesVideos.map(v => ({ ...v, contentType: 'web_series' })),
+            ...showVideos.map(v => ({ ...v, contentType: 'tv_show' })),
+            ...otherVideos.map(v => ({ ...v, contentType: 'others' }))
+          ];
+          
+          return {
+            ...section,
+            videos: typedVideos
+          };
+        } else {
+          // Type-specific sections
+          let VideoModel;
+          switch (section.type) {
+            case 'movie':
+              VideoModel = Video;
+              break;
+            case 'web_series':
+              VideoModel = Series;
+              break;
+            case 'tv_show':
+              VideoModel = TVShow;
+              break;
+            case 'others':
+              VideoModel = DynamicVideo;
+              break;
+            default:
+              VideoModel = Video;
+          }
+
+          const videoIds = section.videos.map(v => v.videoId);
+          const fullVideos = await VideoModel.find({ _id: { $in: videoIds } }).lean();
+          
+          return {
+            ...section,
+            videos: fullVideos.map(v => ({ ...v, contentType: section.type }))
+          };
+        }
+      })
+    );
 
     res.status(200).json({
       success: true,
-      count: sections.length,
-      sections
+      type: type || 'all',
+      count: populatedSections.length,
+      sections: populatedSections
     });
   } catch (error) {
     console.error('Error fetching home sections:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+// GET: Fetch all active home sections
+// router.get('/home-sections', async (req, res) => {
+//   try {
+//     const sections = await HomeSection.find({ status: true })
+//       .sort({ order: 1 }) // sort by order ascending
+//       .populate('videos') // fetch full video documents
+//       .lean();
+
+//     res.status(200).json({
+//       success: true,
+//       count: sections.length,
+//       sections
+//     });
+//   } catch (error) {
+//     console.error('Error fetching home sections:', error);
+//     res.status(500).json({ success: false, message: 'Server error' });
+//   }
+// });
+
+router.get('/home-sections', async (req, res) => {
+  try {
+    const sections = await HomeSection.find({ status: true }).sort({ order: 1 }).lean();
+
+    const populatedSections = await Promise.all(
+      sections.map(async (section) => {
+        try {
+          const sectionName = section?.title || 'Unnamed';
+          const videoEntries = section?.videos || [];
+
+          // Group videos by type
+          const grouped = videoEntries.reduce((acc, entry) => {
+            if (entry.videoId && entry.videoType) {
+              const type = entry.videoType.toLowerCase();
+              if (!acc[type]) acc[type] = [];
+              acc[type].push(entry.videoId);
+            }
+            return acc;
+          }, {});
+
+          let fullVideos = [];
+
+          for (const [type, ids] of Object.entries(grouped)) {
+            if (!Array.isArray(ids) || ids.length === 0) continue;
+
+            const Model = {
+              movie: Video,
+              web_series: Series,
+              tv_show: TVShow,
+              others: DynamicVideo,
+            }[type];
+
+            if (!Model) {
+              console.warn(`Unknown type "${type}" in section "${sectionName}"`);
+              continue;
+            }
+
+            const found = await Model.find({ _id: { $in: ids } }).lean();
+            fullVideos = fullVideos.concat(found);
+          }
+
+          return {
+            ...section,
+            videos: fullVideos
+          };
+
+        } catch (innerError) {
+          console.error(`Error populating section "${section?.title || 'Unnamed'}":`, innerError);
+          return { ...section, videos: [] };
+        }
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: populatedSections.length,
+      sections: populatedSections
+    });
+
+  } catch (error) {
+    console.error('Error fetching home sections:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET: Fetch home sections by type
+router.get('/home-sections/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+
+    // Validate type
+    const validTypes = ['movie', 'web_series', 'tv_show', 'others'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid type parameter.' });
+    }
+
+    // Determine video model
+    let VideoModel;
+    switch (type) {
+      case 'movie':
+        VideoModel = Video;
+        break;
+      case 'web_series':
+        VideoModel = Series;
+        break;
+      case 'tv_show':
+        VideoModel = TvShow;
+        break;
+      case 'others':
+        VideoModel = DynamicVideo;
+        break;
+    }
+
+    // Get all sections of the given type
+    const sections = await HomeSection.find({ status: true, type })
+      .sort({ order: 1 })
+      .lean();
+
+    // Populate each section's videos from the correct model
+    const populatedSections = await Promise.all(
+      sections.map(async (section) => {
+        const fullVideos = await VideoModel.find({ _id: { $in: section.videos } }).lean();
+        return {
+          ...section,
+          videos: fullVideos
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: populatedSections.length,
+      sections: populatedSections
+    });
+
+  } catch (error) {
+    console.error('Error fetching home sections by type:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+// router.get('/home-sections/:type', async (req, res) => {
+//   try {
+//     const { type } = req.params;
+
+//     // Validate type
+//     const validTypes = ['movie', 'web_series', 'tv_show', 'others'];
+//     if (!validTypes.includes(type)) {
+//       return res.status(400).json({ success: false, message: 'Invalid type parameter.' });
+//     }
+
+//     // Determine video model
+//     let VideoModel;
+//     switch (type) {
+//       case 'movie':
+//         VideoModel = Video;
+//         break;
+//       case 'web_series':
+//         VideoModel = Series;
+//         break;
+//       case 'tv_show':
+//         VideoModel = TvShow;
+//         break;
+//       case 'others':
+//         VideoModel = DynamicVideo;
+//         break;
+//     }
+
+//     // Get all sections of the given type
+//     const sections = await HomeSection.find({ status: true, type })
+//       .sort({ order: 1 })
+//       .lean();
+
+//     // Populate each section's videos from the correct model
+//     const populatedSections = await Promise.all(
+//       sections.map(async (section) => {
+//         const fullVideos = await VideoModel.find({ _id: { $in: section.videos } }).lean();
+//         return {
+//           ...section,
+//           videos: fullVideos
+//         };
+//       })
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       count: populatedSections.length,
+//       sections: populatedSections
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching home sections by type:', error);
+//     res.status(500).json({ success: false, message: 'Server error' });
+//   }
+// });
+
 // PUT /home-section/:id/order
 router.put('/:id/homesection-order', async (req, res) => {
   try {
@@ -3606,5 +4003,156 @@ router.put('/:id/homesection-order', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+// PUT /admin/series/:id/approve
+router.put('/series/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { approvalStatus, adminNotes } = req.body;
+
+    if (!['approved', 'rejected'].includes(approvalStatus)) {
+      return res.status(400).json({ message: 'Invalid approval status' });
+    }
+
+    const updatedSeries = await Series.findByIdAndUpdate(
+      id,
+      {
+        approvalStatus,
+        isApproved: approvalStatus === 'approved',
+        adminNotes,
+        // approvedBy,
+      },
+      { new: true }
+    ).populate('vendor_id category_id type_id approvedBy');
+
+    if (!updatedSeries) {
+      return res.status(404).json({ message: 'Series not found' });
+    }
+
+    res.status(200).json({
+      message: `Series successfully ${approvalStatus}`,
+      series: updatedSeries,
+    });
+  } catch (error) {
+    console.error('Error approving series:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+// GET all approved web series with vendor, category, and type details
+router.get('/web-series', async (req, res) => {
+  try {
+    const webSeries = await Series.find({
+      // approvalStatus: 'approved'
+    })
+    .populate('vendor_id', 'name email')          // only name and email from vendor
+    .populate('category_id', 'name')              // category name
+    .populate('type_id', 'name')                  // type name (e.g., 'web-series')
+    .populate('approvedBy', 'name email')         // admin who approved
+    .sort({ createdAt: -1 });                     // latest first
+
+    res.status(200).json({ success: true, data: webSeries });
+  } catch (error) {
+    console.error('Error fetching web series:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+// ✅ GET all web series (with optional approvalStatus filter)
+router.get('/web-series', async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+
+    // If a specific status is provided: pending, approved, or rejected
+    if (status && ['pending', 'approved', 'rejected'].includes(status)) {
+      filter.approvalStatus = status;
+    }
+
+    const allSeries = await Series.find(filter)
+      .populate('vendor_id', 'name email')
+      .populate('category_id', 'name')
+      .populate('type_id', 'name')
+      .populate('approvedBy', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: allSeries });
+  } catch (error) {
+    console.error('Error fetching series:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/tvshows  => get all tv shows
+router.get('/all-tvshows', async (req, res) => {
+  try {
+    const tvShows = await TVShow.find()
+      .populate('vendor_id', 'name')      // optional: populate vendor name only
+      .populate('channel_id', 'name')     // optional: populate channel name
+      .populate('category_id', 'name')    // optional: populate category name
+      
+
+    res.status(200).json({ success: true, tvShows });
+  } catch (error) {
+    console.error('Error fetching TV shows:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch TV shows' });
+  }
+});
+router.patch('/tvshows/:id/approval',verifyAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { approvalStatus, approvalNotes } = req.body;
+
+  // Validate approvalStatus
+  if (!['approved', 'rejected'].includes(approvalStatus)) {
+    return res.status(400).json({ success: false, message: "Invalid approvalStatus. Must be 'approved' or 'rejected'." });
+  }
+
+  try {
+    const tvShow = await TVShow.findById(id);
+    if (!tvShow) {
+      return res.status(404).json({ success: false, message: "TV show not found." });
+    }
+
+    tvShow.approvalStatus = approvalStatus;
+    tvShow.isApproved = approvalStatus === 'approved';
+    if (approvalNotes) {
+      tvShow.approvalNotes = approvalNotes;
+    }
+
+    await tvShow.save();
+
+    res.status(200).json({ success: true, message: `TV show ${approvalStatus} successfully`, tvShow });
+  } catch (error) {
+    console.error("Error updating TV show approval:", error);
+    res.status(500).json({ success: false, message: "Server error updating approval." });
+  }
+});
+router.get('/tvshows', async (req, res) => {
+  try {
+    const { approvalStatus } = req.query;
+
+    // Build filter object conditionally
+    const filter = {};
+
+    if (approvalStatus) {
+      // Validate approvalStatus value
+      const validStatuses = ['pending', 'approved', 'rejected'];
+      if (!validStatuses.includes(approvalStatus)) {
+        return res.status(400).json({ success: false, message: "Invalid approvalStatus query parameter" });
+      }
+      filter.approvalStatus = approvalStatus;
+    }
+
+    const tvShows = await TVShow.find(filter)
+      .populate('vendor_id', 'name')
+      .populate('channel_id', 'name')
+      .populate('category_id', 'name')
+    
+
+    res.status(200).json({ success: true, tvShows });
+  } catch (error) {
+    console.error("Error fetching filtered TV shows:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+
 
 module.exports = router;

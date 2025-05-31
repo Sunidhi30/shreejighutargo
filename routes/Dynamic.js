@@ -98,7 +98,6 @@ router.post('/upload-dynamic-video', uploadFields, async (req, res) => {
     res.status(500).json({ success: false, message: 'Upload failed', error: err.message });
   }
 });
-
 router.get('/search-allvideos', async (req, res) => {
     try {
       const query = req.query.query;
@@ -167,7 +166,6 @@ router.get('/search-allvideos', async (req, res) => {
       });
     }
   });
-
 // GET /search-allvideos?type=movie
 router.get('/search-allvideos-bytype', async (req, res) => {
     try {
