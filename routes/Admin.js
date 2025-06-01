@@ -3563,9 +3563,9 @@ router.get("/contests/:id/views-history", async (req, res) => {
 // CREATE HOME SECTION API
 
 // CREATE HOME SECTION API
-router.post('/create', async (req, res) => {
+router.post('/create-homesection', async (req, res) => {
   try {
-    const { title, videos, type, order, isCommon, description } = req.body;
+    const { title, videos, type, order, isCommon, description,isHomeScreen } = req.body;
 
     if (!title || !type) {
       return res.status(400).json({ 
@@ -3575,7 +3575,7 @@ router.post('/create', async (req, res) => {
     }
 
     // Validate type
-    const validTypes = ['movie', 'web_series', 'tv_show', 'others', 'common'];
+    const validTypes = ['movie', 'web_series', 'show', 'others', 'common','show'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ 
         success: false,
@@ -3609,7 +3609,7 @@ router.post('/create', async (req, res) => {
         switch (videoType) {
           case 'movie': VideoModel = Video; break;
           case 'web_series': VideoModel = Series; break;
-          case 'tv_show': VideoModel = Show; break;
+          case 'show': VideoModel = Show; break;
           case 'others': VideoModel = DynamicVideo; break;
           default:
             return res.status(400).json({ 
@@ -3637,7 +3637,7 @@ router.post('/create', async (req, res) => {
         switch (type) {
           case 'movie': VideoModel = Video; break;
           case 'web_series': VideoModel = Series; break;
-          case 'tv_show': VideoModel = TVShow; break;
+          case 'show': VideoModel = TVShow; break;
           case 'others': VideoModel = DynamicVideo; break;
         }
 
@@ -3663,6 +3663,7 @@ router.post('/create', async (req, res) => {
       type,
       order: order || 0,
       isCommon: type === 'common' || isCommon,
+      isHomeScreen: isHomeScreen || false, // 👈 NEW
       description,
       status: true
     });
@@ -3680,163 +3681,37 @@ router.post('/create', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
-// GET HOME SECTIONS BY TYPE
-
-router.get('/home-sections/:type', async (req, res) => {
+router.get('/home-sections/home-screen', async (req, res) => {
   try {
-    const { type } = req.params;
-    let query = { status: true };
-
-    // If type is provided, get sections for that type + common sections
-    if (type && type !== 'all') {
-      const validTypes = ['movie', 'web_series', 'tv_show', 'others'];
-      if (!validTypes.includes(type)) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'Invalid type provided.' 
-        });
-      }
+    const homeSections = await HomeSection.find({
+      isHomeScreen: true
       
-      // Get sections specific to the type OR common sections
-      query = {
-        status: true,
-        $or: [
-          { type: type },
-          { type: 'common' },
-          { isCommon: true }
-        ]
-      };
-    }
-
-    const sections = await HomeSection.find(query)
-      .sort({ order: 1, createdAt: -1 })
-      .lean();
-
-    // Populate videos based on section type
-    const populatedSections = await Promise.all(
-      sections.map(async (section) => {
-        if (section.type === 'common' || section.isCommon) {
-          // For common sections, get videos from all collections
-          const allVideos = [];
-          
-          const movieVideos = await Video.find({ _id: { $in: section.videos } }).lean();
-          const seriesVideos = await Series.find({ _id: { $in: section.videos } }).lean();
-          const showVideos = await Show.find({ _id: { $in: section.videos } }).lean();
-          const otherVideos = await DynamicVideo.find({ _id: { $in: section.videos } }).lean();
-          
-          // Add type identifier to each video
-          const typedVideos = [
-            ...movieVideos.map(v => ({ ...v, contentType: 'movie' })),
-            ...seriesVideos.map(v => ({ ...v, contentType: 'web_series' })),
-            ...showVideos.map(v => ({ ...v, contentType: 'tv_show' })),
-            ...otherVideos.map(v => ({ ...v, contentType: 'others' }))
-          ];
-          
-          return {
-            ...section,
-            videos: typedVideos
-          };
-        } else {
-          // Type-specific sections
-          let VideoModel;
-          switch (section.type) {
-            case 'movie':
-              VideoModel = Video;
-              break;
-            case 'web_series':
-              VideoModel = Series;
-              break;
-            case 'tv_show':
-              VideoModel = TVShow;
-              break;
-            case 'others':
-              VideoModel = DynamicVideo;
-              break;
-            default:
-              VideoModel = Video;
-          }
-
-          const videoIds = section.videos.map(v => v.videoId);
-          const fullVideos = await VideoModel.find({ _id: { $in: videoIds } }).lean();
-          
-          return {
-            ...section,
-            videos: fullVideos.map(v => ({ ...v, contentType: section.type }))
-          };
-        }
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      type: type || 'all',
-      count: populatedSections.length,
-      sections: populatedSections
-    });
-  } catch (error) {
-    console.error('Error fetching home sections:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-// GET: Fetch all active home sections
-// router.get('/home-sections', async (req, res) => {
-//   try {
-//     const sections = await HomeSection.find({ status: true })
-//       .sort({ order: 1 }) // sort by order ascending
-//       .populate('videos') // fetch full video documents
-//       .lean();
-
-//     res.status(200).json({
-//       success: true,
-//       count: sections.length,
-//       sections
-//     });
-//   } catch (error) {
-//     console.error('Error fetching home sections:', error);
-//     res.status(500).json({ success: false, message: 'Server error' });
-//   }
-// });
-
-router.get('/home-sections', async (req, res) => {
-  try {
-    const sections = await HomeSection.find({ status: true }).sort({ order: 1 }).lean();
+    }).sort({ order: 1 }).lean();
 
     const populatedSections = await Promise.all(
-      sections.map(async (section) => {
+      homeSections.map(async (section) => {
         try {
-          const sectionName = section?.title || 'Unnamed';
-          const videoEntries = section?.videos || [];
-
-          // Group videos by type
-          const grouped = videoEntries.reduce((acc, entry) => {
-            if (entry.videoId && entry.videoType) {
-              const type = entry.videoType.toLowerCase();
-              if (!acc[type]) acc[type] = [];
-              acc[type].push(entry.videoId);
-            }
+          const grouped = section.videos.reduce((acc, item) => {
+            const type = item.videoType;
+            if (!acc[type]) acc[type] = [];
+            acc[type].push(item.videoId);
             return acc;
           }, {});
 
           let fullVideos = [];
 
           for (const [type, ids] of Object.entries(grouped)) {
-            if (!Array.isArray(ids) || ids.length === 0) continue;
-
             const Model = {
               movie: Video,
               web_series: Series,
-              tv_show: TVShow,
-              others: DynamicVideo,
+              show: TVShow,
+              others: DynamicVideo
             }[type];
 
-            if (!Model) {
-              console.warn(`Unknown type "${type}" in section "${sectionName}"`);
-              continue;
-            }
+            if (!Model) continue;
 
-            const found = await Model.find({ _id: { $in: ids } }).lean();
-            fullVideos = fullVideos.concat(found);
+            const videos = await Model.find({ _id: { $in: ids } }).lean();
+            fullVideos = fullVideos.concat(videos);
           }
 
           return {
@@ -3844,8 +3719,8 @@ router.get('/home-sections', async (req, res) => {
             videos: fullVideos
           };
 
-        } catch (innerError) {
-          console.error(`Error populating section "${section?.title || 'Unnamed'}":`, innerError);
+        } catch (err) {
+          console.error(`Error populating section ${section.title}:`, err);
           return { ...section, videos: [] };
         }
       })
@@ -3857,51 +3732,133 @@ router.get('/home-sections', async (req, res) => {
       sections: populatedSections
     });
 
-  } catch (error) {
-    console.error('Error fetching home sections:', error);
+  } catch (err) {
+    console.error('Error fetching home screen sections:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// GET: Fetch home sections by type
-router.get('/home-sections/:type', async (req, res) => {
+// GET /home-sections/type/:type
+// router.get('/home-sections/type/:type', async (req, res) => {
+//   try {
+//     const { type } = req.params;
+
+//     const validTypes = ['movie', 'web_series', 'tv_show', 'others'];
+//     if (!validTypes.includes(type)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid type specified'
+//       });
+//     }
+
+//     const sections = await HomeSection.find({
+//       status: true,
+//       type: type,
+//     }).sort({ order: 1 });
+
+//     const populatedSections = await Promise.all(
+//       sections.map(async (section) => {
+//         const grouped = section.videos.reduce((acc, entry) => {
+//           if (entry.videoId && entry.videoType) {
+//             if (!acc[entry.videoType]) acc[entry.videoType] = [];
+//             acc[entry.videoType].push(entry.videoId);
+//           }
+//           return acc;
+//         }, {});
+
+//         let fullVideos = [];
+
+//         for (const [videoType, ids] of Object.entries(grouped)) {
+//           const Model = {
+//             movie: Video,
+//             web_series: Series,
+//             tv_show: TVShow,
+//             others: DynamicVideo,
+//           }[videoType];
+
+//           if (!Model) continue;
+
+//           const found = await Model.find({ _id: { $in: ids } });
+//           fullVideos = fullVideos.concat(found);
+//         }
+
+//         return {
+//           ...section.toObject(),
+//           videos: fullVideos
+//         };
+//       })
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       count: populatedSections.length,
+//       sections: populatedSections
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching home sections by type:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
+router.get('/home-sections/type/:type', async (req, res) => {
   try {
-    const { type } = req.params;
+    const rawType = req.params.type;
 
-    // Validate type
-    const validTypes = ['movie', 'web_series', 'tv_show', 'others'];
-    if (!validTypes.includes(type)) {
-      return res.status(400).json({ success: false, message: 'Invalid type parameter.' });
+    const typeMap = {
+      movie: 'movie',
+      webseries: 'web_series',
+      web_series: 'web_series',
+      show: 'tv_show',
+      tvshow: 'tv_show',
+      tv_show: 'tv_show',
+      others: 'others'
+    };
+
+    const type = typeMap[rawType];
+
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid type specified'
+      });
     }
 
-    // Determine video model
-    let VideoModel;
-    switch (type) {
-      case 'movie':
-        VideoModel = Video;
-        break;
-      case 'web_series':
-        VideoModel = Series;
-        break;
-      case 'tv_show':
-        VideoModel = TvShow;
-        break;
-      case 'others':
-        VideoModel = DynamicVideo;
-        break;
-    }
+    const sections = await HomeSection.find({
+      status: true,
+      type: type,
+    }).sort({ order: 1 });
 
-    // Get all sections of the given type
-    const sections = await HomeSection.find({ status: true, type })
-      .sort({ order: 1 })
-      .lean();
-
-    // Populate each section's videos from the correct model
     const populatedSections = await Promise.all(
       sections.map(async (section) => {
-        const fullVideos = await VideoModel.find({ _id: { $in: section.videos } }).lean();
+        const grouped = section.videos.reduce((acc, entry) => {
+          if (entry.videoId && entry.videoType) {
+            if (!acc[entry.videoType]) acc[entry.videoType] = [];
+            acc[entry.videoType].push(entry.videoId);
+          }
+          return acc;
+        }, {});
+
+        let fullVideos = [];
+
+        for (const [videoType, ids] of Object.entries(grouped)) {
+          const Model = {
+            movie: Video,
+            web_series: Series,
+            tv_show: TVShow,
+            others: DynamicVideo,
+          }[videoType];
+
+          if (!Model) continue;
+
+          const found = await Model.find({ _id: { $in: ids } });
+          fullVideos = fullVideos.concat(found);
+        }
+
         return {
-          ...section,
+          ...section.toObject(),
           videos: fullVideos
         };
       })
@@ -3915,10 +3872,14 @@ router.get('/home-sections/:type', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching home sections by type:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
   }
 });
-// router.get('/home-sections/:type', async (req, res) => {
+
+
 //   try {
 //     const { type } = req.params;
 
