@@ -3681,11 +3681,12 @@ router.post('/create-homesection', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-router.get('/home-sections/home-screen', async (req, res) => {
+// Route for getting home screen sections (no type specified)
+router.get('/home-sections/type', async (req, res) => {
   try {
     const homeSections = await HomeSection.find({
-      isHomeScreen: true
-      
+      isHomeScreen: true,
+      status: true
     }).sort({ order: 1 }).lean();
 
     const populatedSections = await Promise.all(
@@ -3704,6 +3705,7 @@ router.get('/home-sections/home-screen', async (req, res) => {
             const Model = {
               movie: Video,
               web_series: Series,
+              tv_show: TVShow,
               show: TVShow,
               others: DynamicVideo
             }[type];
@@ -3732,11 +3734,149 @@ router.get('/home-sections/home-screen', async (req, res) => {
       sections: populatedSections
     });
 
-  } catch (err) {
-    console.error('Error fetching home screen sections:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+  } catch (error) {
+    console.error('Error fetching home screen sections:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
   }
 });
+
+// Route for getting sections by type
+// router.get('/home-sections/type/:type', async (req, res) => {
+//   try {
+//     const rawType = req.params.type;
+
+//     const typeMap = {
+//       movie: 'movie',
+//       webseries: 'web_series',
+//       web_series: 'web_series',
+//       show: 'tv_show',
+//       tvshow: 'tv_show',
+//       tv_show: 'tv_show',
+//       others: 'others'
+//     };
+
+//     const type = typeMap[rawType];
+
+//     if (!type) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid type specified'
+//       });
+//     }
+
+//     const sections = await HomeSection.find({
+//       status: true,
+//       type: type,
+//     }).sort({ order: 1 });
+
+//     const populatedSections = await Promise.all(
+//       sections.map(async (section) => {
+//         const grouped = section.videos.reduce((acc, entry) => {
+//           if (entry.videoId && entry.videoType) {
+//             if (!acc[entry.videoType]) acc[entry.videoType] = [];
+//             acc[entry.videoType].push(entry.videoId);
+//           }
+//           return acc;
+//         }, {});
+
+//         let fullVideos = [];
+
+//         for (const [videoType, ids] of Object.entries(grouped)) {
+//           const Model = {
+//             movie: Video,
+//             web_series: Series,
+//             tv_show: TVShow,
+//             show: TVShow,
+//             others: DynamicVideo,
+//           }[videoType];
+
+//           if (!Model) continue;
+
+//           const found = await Model.find({ _id: { $in: ids } });
+//           fullVideos = fullVideos.concat(found);
+//         }
+
+//         return {
+//           ...section.toObject(),
+//           videos: fullVideos
+//         };
+//       })
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       count: populatedSections.length,
+//       sections: populatedSections
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching home sections by type:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
+// router.get('/home-sections/home-screen', async (req, res) => {
+//   try {
+//     const homeSections = await HomeSection.find({
+//       isHomeScreen: true
+      
+//     }).sort({ order: 1 }).lean();
+
+//     const populatedSections = await Promise.all(
+//       homeSections.map(async (section) => {
+//         try {
+//           const grouped = section.videos.reduce((acc, item) => {
+//             const type = item.videoType;
+//             if (!acc[type]) acc[type] = [];
+//             acc[type].push(item.videoId);
+//             return acc;
+//           }, {});
+
+//           let fullVideos = [];
+
+//           for (const [type, ids] of Object.entries(grouped)) {
+//             const Model = {
+//               movie: Video,
+//               web_series: Series,
+//               show: TVShow,
+//               others: DynamicVideo
+//             }[type];
+
+//             if (!Model) continue;
+
+//             const videos = await Model.find({ _id: { $in: ids } }).lean();
+//             fullVideos = fullVideos.concat(videos);
+//           }
+
+//           return {
+//             ...section,
+//             videos: fullVideos
+//           };
+
+//         } catch (err) {
+//           console.error(`Error populating section ${section.title}:`, err);
+//           return { ...section, videos: [] };
+//         }
+//       })
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       count: populatedSections.length,
+//       sections: populatedSections
+//     });
+
+//   } catch (err) {
+//     console.error('Error fetching home screen sections:', err);
+//     res.status(500).json({ success: false, message: 'Server error' });
+//   }
+// });
+
 
 // GET /home-sections/type/:type
 // router.get('/home-sections/type/:type', async (req, res) => {
@@ -3878,8 +4018,6 @@ router.get('/home-sections/type/:type', async (req, res) => {
     });
   }
 });
-
-
 //   try {
 //     const { type } = req.params;
 
