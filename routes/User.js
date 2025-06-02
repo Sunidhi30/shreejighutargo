@@ -3,6 +3,7 @@ const nodemailer = require("nodemailer");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const jwt = require('jsonwebtoken');
 const Contest = require("../models/Contest")
+const TVSeason = require("../models/TVShow")
 const TVShow= require("../models/TVShow")
 const Series = require("../models/Series")
 const Dynamic = require("../models/DynamicVideo")
@@ -35,6 +36,7 @@ const { body, validationResult } = require('express-validator');
 const multer = require("multer");
 const storage = multer.memoryStorage();
 const  Admin = require("../models/Admin");
+const TVEpisode = require("../models/TvshowEpisode")
 const Season  = require("../models/Season")
 const Episode = require("../models/Episode")
 const Package = require("../models/Package");
@@ -3117,26 +3119,41 @@ router.get('/series/:id', async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-router.get('/Tv-shows/:id', async (req, res) => {
+// // tvshows 
+router.get('/tv-shows/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid series ID" });
-    }
+    // Step 1: Get the TV Show by ID
+    const show = await TVShow.findById(id);
+    if (!show) return res.status(404).json({ message: 'TV Show not found' });
+    console.log("show id ", show);
+    // Step 2: Find all seasons of this show
+    const seasons = await TVSeason.find({ _id: id });
 
-    const series = await Series.findById(id);
+    // Step 3: For each season, find its episodes
+     // Step 3: For each season, find its episodes using season_id
 
-    if (!series) {
-      return res.status(404).json({ success: false, message: "Series not found" });
-    }
-
-    res.json({ success: true, data: series });
+     console.log("this is seaons ", seasons);
+    const seasonsWithEpisodes = await Promise.all(
+      seasons.map(async (season) => {
+        const episodes = await TVEpisode.find({ _id: id });
+        return {
+          ...season.toObject(),
+          episodes,
+        };
+      })
+    );
+    // Final response
+    return res.json({
+      show,
+      seasons: seasonsWithEpisodes,
+    });
   } catch (err) {
-    console.error("Error fetching series:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error('Error fetching TV show:', err);
+    return res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 module.exports = router;

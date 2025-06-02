@@ -6,6 +6,7 @@ const Producer = require("../models/Producer");
 const DynamicVideo= require("../models/DynamicVideo")
 const { ContestController } = require("../controllers/contestController");
 const Contest = require("../models/Contest");
+const userTransaction= require("../models/transactionSchema")
 const ContestRules = require("../models/ContestRules");
 // const mongoose = require("mongoose");
 const dotenv = require("dotenv");
@@ -4235,5 +4236,18 @@ router.get("/all-video", async (req, res) => {
   }
 });
 
+// GET /admin/transactions - fetch all transactions with user info
+router.get('/users-transactions',  async (req, res) => {
+  try {
+    const transactions = await userTransaction.find()
+      .populate('user', 'email role') // include only email and role from user
+      .populate('itemReference'); // auto resolves based on itemModel
+
+    res.status(200).json({ success: true, transactions });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 module.exports = router;
