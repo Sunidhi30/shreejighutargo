@@ -3065,6 +3065,27 @@ router.get('/ratings', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch ratings', error: err.message });
   }
 });
+router.get('/series/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid series ID" });
+    }
+
+    const series = await Series.findById(id);
+
+    if (!series) {
+      return res.status(404).json({ success: false, message: "Series not found" });
+    }
+
+    res.json({ success: true, data: series });
+  } catch (err) {
+    console.error("Error fetching series:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 
 
 module.exports = router;
