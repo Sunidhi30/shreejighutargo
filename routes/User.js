@@ -35,6 +35,8 @@ const { body, validationResult } = require('express-validator');
 const multer = require("multer");
 const storage = multer.memoryStorage();
 const  Admin = require("../models/Admin");
+const Season  = require("../models/Season")
+const Episode = require("../models/Episode")
 const Package = require("../models/Package");
 const Transaction= require("../models/transactionSchema")
 // const Transaction = require("../models/Transactions");
@@ -3065,7 +3067,57 @@ router.get('/ratings', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch ratings', error: err.message });
   }
 });
+
 router.get('/series/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid series ID" });
+    }
+
+    // Get the series
+    const series = await Series.findById(id)
+      .populate('vendor_id', 'name email')
+      .populate('category_id', 'name')
+      .populate('type_id', 'name');
+
+    if (!series) {
+      return res.status(404).json({ success: false, message: "Series not found" });
+    }
+
+    // Get seasons for this series
+    const seasons = await Season.find({ series_id: id }).sort({ seasonNumber: 1 });
+
+    // For each season, fetch related episodes
+    const seasonsWithEpisodes = await Promise.all(
+      seasons.map(async (season) => {
+        const episodes = await Episode.find({ season_id: season._id })
+          .sort({ episode_number: 1 })
+          .select('-__v -createdAt -updatedAt'); // optional: exclude internal fields
+
+        return {
+          ...season.toObject(),
+          episodes
+        };
+      })
+    );
+
+    // Final response
+    res.json({
+      success: true,
+      data: {
+        ...series.toObject(),
+        seasons: seasonsWithEpisodes
+      }
+    });
+  } catch (err) {
+    console.error("Error fetching series:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+router.get('/Tv-shows/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -3086,6 +3138,5 @@ router.get('/series/:id', async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-
 
 module.exports = router;
