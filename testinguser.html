@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile & Device Management API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #response {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Testing Interface</h1>
+
+    <!-- Profile Management -->
+    <div class="section">
+        <h2>Profile Management</h2>
+        
+        <!-- Create Profile -->
+        <div class="form-group">
+            <h3>Create Profile</h3>
+            <form id="createProfileForm">
+                <input type="text" id="createUserId" placeholder="User ID" required>
+                <input type="text" id="profileName" placeholder="Profile Name" required>
+                <input type="text" id="avatar" placeholder="Avatar URL">
+                <label>
+                    <input type="checkbox" id="isKid"> Is Kid Profile
+                </label>
+                <input type="text" id="pin" placeholder="PIN (optional)">
+                <button type="submit">Create Profile</button>
+            </form>
+        </div>
+
+        <!-- Get Profiles -->
+        <div class="form-group">
+            <h3>Get Profiles</h3>
+            <form id="getProfilesForm">
+                <input type="text" id="getUserId" placeholder="User ID" required>
+                <button type="submit">Get Profiles</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Device Management -->
+    <div class="section">
+        <h2>Device Management</h2>
+
+        <!-- Sync Device -->
+        <div class="form-group">
+            <h3>Sync Device</h3>
+            <form id="syncDeviceForm">
+                <input type="text" id="syncUserId" placeholder="User ID" required>
+                <input type="text" id="deviceName" placeholder="Device Name" required>
+                <select id="deviceType" required>
+                    <option value="mobile">Mobile</option>
+                    <option value="tablet">Tablet</option>
+                    <option value="desktop">Desktop</option>
+                    <option value="tv">TV</option>
+                </select>
+                <input type="text" id="deviceToken" placeholder="Device Token" required>
+                <input type="text" id="deviceId" placeholder="Device ID" required>
+                <button type="submit">Sync Device</button>
+            </form>
+        </div>
+
+        <!-- Get Devices -->
+        <div class="form-group">
+            <h3>Get Devices</h3>
+            <form id="getDevicesForm">
+                <input type="text" id="getDevicesUserId" placeholder="User ID" required>
+                <button type="submit">Get Devices</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Response Display -->
+    <div class="section">
+        <h2>Response</h2>
+        <pre id="response">Response will appear here...</pre>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:9000/api/users'; // Adjust this to match your API URL
+
+        // Helper function to display response
+        function displayResponse(data) {
+            document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Helper function for API calls
+        async function makeAPICall(endpoint, method, body = null) {
+            try {
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+                const data = await response.json();
+                displayResponse(data);
+                return data;
+            } catch (error) {
+                displayResponse({ error: error.message });
+            }
+        }
+
+        // Create Profile
+        document.getElementById('createProfileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const body = {
+                userId: document.getElementById('createUserId').value,
+                name: document.getElementById('profileName').value,
+                avatar: document.getElementById('avatar').value,
+                isKid: document.getElementById('isKid').checked,
+                pin: document.getElementById('pin').value || null
+            };
+            await makeAPICall('/profiles', 'POST', body);
+        });
+
+        // Get Profiles
+        document.getElementById('getProfilesForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('getUserId').value;
+            await makeAPICall(`/profiles/${userId}`, 'GET');
+        });
+
+        // Sync Device
+        document.getElementById('syncDeviceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const body = {
+                userId: document.getElementById('syncUserId').value,
+                deviceName: document.getElementById('deviceName').value,
+                deviceType: document.getElementById('deviceType').value,
+                deviceToken: document.getElementById('deviceToken').value,
+                deviceId: document.getElementById('deviceId').value
+            };
+            await makeAPICall('/devices/sync', 'POST', body);
+        });
+
+        // Get Devices
+        document.getElementById('getDevicesForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('getDevicesUserId').value;
+            await makeAPICall(`/devices/${userId}`, 'GET');
+        });
+    </script>
+</body>
+</html>

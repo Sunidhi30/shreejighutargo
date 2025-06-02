@@ -1430,30 +1430,7 @@ router.get("/get-producers", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
-// approves the video for the vendor
-// router.post("/approve/:videoId", verifyAdmin, async (req, res) => {
-//   try {
-//     const { videoId } = req.params;
-//     const updatedVideo = await Video.findByIdAndUpdate(
-//       videoId,
-//       { isApproved: true },
-//       { new: true }
-//     );
 
-//     if (!updatedVideo) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Video not found" });
-//     }
-
-//     res
-//       .status(200)
-//       .json({ success: true, message: "Video approved", video: updatedVideo });
-//   } catch (error) {
-//     console.error("Approval Error:", error);
-//     res.status(500).json({ success: false, message: "Server error", error });
-//   }
-// });
 // POST /api/banners - Add new banner
 router.post("/banners", verifyAdmin, async (req, res) => {
   try {
@@ -1483,7 +1460,6 @@ router.post("/banners", verifyAdmin, async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-// add the tv shows
 // Create TV Show
 // router.post(
 //   '/create',
@@ -1675,20 +1651,21 @@ router.get("/comments", async (req, res) => {
       .json({ message: "Failed to fetch comments", error: err.message });
   }
 });
-// Admin - Get List of All Transactions
-router.get("/admin/transactions", async (req, res) => {
-  try {
-    const transactions = await Transaction.find()
-      .populate("user_id", "email") // Get user details
-      .populate("package_id", "name price") // Get package details
-      .sort({ createdAt: -1 }); // Sorting by most recent
+//not working 
+// // Admin - Get List of All Transactions
+// router.get("/admin/transactions", async (req, res) => {
+//   try {
+//     const transactions = await Transaction.find()
+//       .populate("user_id", "email") // Get user details
+//       .populate("package_id", "name price") // Get package details
+//       .sort({ createdAt: -1 }); // Sorting by most recent
 
-    res.status(200).json({ transactions });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+//     res.status(200).json({ transactions });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// });
 // Admin - Get Wallet Balance
 router.get("/wallet-balance", async (req, res) => {
   try {
@@ -2409,7 +2386,40 @@ router.get("/all-requests", verifyAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
+router.get("/videos-by-status", async (req, res) => {
+  const { status } = req.query;
 
+  if (!["approved", "rejected"].includes(status)) {
+    return res.status(400).json({
+      message: 'Invalid status. Only "approved" or "rejected" are allowed.',
+    });
+  }
+
+  try {
+    const videos = await Video.find({ status })
+      .populate("vendor_id", "name email profileImage")
+      .populate("type_id", "type")
+      .populate("channel_id", "name")
+      .populate("producer_id", "name")
+      .populate("category_id", "name")
+      .populate("language_id", "name")
+      .populate("cast_ids", "name image") // assuming cast has name & image
+      .populate("finalPackage_id", "name price duration")
+      .populate("package_id", "name price type")
+      .populate("series_id", "title description")
+      .populate("season_id", "name number")
+      .populate("approvedBy", "name email");
+
+    res.status(200).json({
+      message: `Videos with status "${status}" fetched successfully`,
+      count: videos.length,
+      videos,
+    });
+  } catch (err) {
+    console.error("Error fetching videos by status:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
 // Admin processes withdrawal request
 router.put("/process-request/:requestId", verifyAdmin, async (req, res) => {
   try {
@@ -3374,7 +3384,6 @@ router.put("/contests/:id", async (req, res) => {
   }
 });
 // admin approves the regsitrations of the vendor for contest
-
 //updated the views
 // 8. UPDATE CONTEST VIEWS (Admin only - can only increase)
 router.put(
@@ -3462,7 +3471,6 @@ router.post("/contests/:id/update-rankings", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 // 11. END CONTEST
 router.post("/contests/:id/end", async (req, res) => {
   try {
@@ -3485,7 +3493,6 @@ router.post("/contests/:id/end", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 // 13. GET CONTEST VIEWS UPDATE HISTORY
 router.get("/contests/:id/views-history", async (req, res) => {
   try {
@@ -3505,63 +3512,6 @@ router.get("/contests/:id/views-history", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-// Create a new Home Section (Admin Only)
-// POST /home-section/create
-// router.post('/create', async (req, res) => {
-//   try {
-//     const { title, videos, type ,order} = req.body;
-
-//     if (!title || !Array.isArray(videos) || !type) {
-//       return res.status(400).json({ message: 'Title, videos, and type are required.' });
-//     }
-//     let VideoModel;
-//     switch (type) {
-//       case 'movie':
-//         VideoModel = Video;
-//         break;
-//       case 'web_series':
-//         VideoModel = Series;
-//         break;
-//       case 'tv_show':
-//         VideoModel =  TvShow;
-//         break;
-//       case 'others':
-//         VideoModel = DynamicVideo;
-//         break;
-//       default:
-//         return res.status(400).json({ message: 'Invalid type provided.' });
-//     }
-
-//     // Validate that all selected videos exist
-//     const foundVideos = await VideoModel.find({ _id: { $in: videos } });
-//     if (foundVideos.length !== videos.length) {
-//       return res.status(400).json({ message: 'One or more video IDs are invalid.' });
-//     }
-
-//     const newSection = new HomeSection({
-//       title,
-//       order,
-//       videos,
-//       status: true
-//     });
-
-//     await newSection.save();
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Home section created successfully.',
-//       section: newSection
-//     });
-
-//   } catch (error) {
-//     console.error('Error creating home section:', error);
-//     res.status(500).json({ success: false, message: 'Server error' });
-//   }
-// });
-// Fixed CREATE route - Save type to database
-
-// CREATE HOME SECTION API
-
 // CREATE HOME SECTION API
 router.post('/create-homesection', async (req, res) => {
   try {
@@ -3742,8 +3692,6 @@ router.get('/home-sections/type', async (req, res) => {
     });
   }
 });
-
-// Route for getting sections by type
 // router.get('/home-sections/type/:type', async (req, res) => {
 //   try {
 //     const rawType = req.params.type;
@@ -4252,6 +4200,40 @@ router.get('/tvshows', async (req, res) => {
   }
 });
 
+router.get("/all-video", async (req, res) => {
+  try {
+    const videos = await Video.find()
+      .populate("vendor_id", "name email profileImage") // Vendor info
+      .populate("type_id", "type")
+      .populate("channel_id", "name")
+      .populate("producer_id", "name")
+      .populate("category_id", "name")
+      .populate("language_id", "name")
+      .populate("cast_ids", "name image")
+      .populate("finalPackage_id", "name price duration")
+      .populate("package_id", "name price type")
+      .populate("series_id", "title description")
+      .populate("season_id", "name number")
+      .populate("approvedBy", "name email")
+      .populate({
+        path: "comments",
+        populate: {
+          path: "user",
+          select: "name profileImage"
+        }
+      })
+      .populate("ratings.user", "name profileImage");
+
+    res.status(200).json({
+      message: "All videos retrieved successfully",
+      count: videos.length,
+      videos,
+    });
+  } catch (err) {
+    console.error("Error fetching videos:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
 
 
 module.exports = router;

@@ -7,6 +7,8 @@ const TVShow= require("../models/TVShow")
 const Series = require("../models/Series")
 const Dynamic = require("../models/DynamicVideo")
 const dotenv = require('dotenv');
+const geoip = require('geoip-lite'); // For IP location detection
+const useragent = require('useragent'); // For device detection
 const AppRating = require("../models/appRating.model")
 const mongoose = require("mongoose");
 const ContinueWatching = require("../models/ContinueWatching")
@@ -615,6 +617,501 @@ router.get('/user-locations', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch user locations', error: err.message });
   }
 });
+// Create a new profile for user
+router.post('/profiles', async (req, res) => {
+  try {
+    const { userId, name, avatar, isKid = false, pin = null } = req.body;
+
+    if (!userId || !name) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID and profile name are required' 
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    // Check if profiles array exists, if not create it
+    if (!user.profiles) {
+      user.profiles = [];
+    }
+
+    // Check profile limit (Netflix allows 5 profiles)
+    if (user.profiles.length >= 5) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Maximum 5 profiles allowed per account' 
+      });
+    }
+
+    // Check if profile name already exists
+    const existingProfile = user.profiles.find(profile => 
+      profile.name.toLowerCase() === name.toLowerCase()
+    );
+    
+    if (existingProfile) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Profile name already exists' 
+      });
+    }
+
+    const newProfile = {
+      _id: new mongoose.Types.ObjectId(),
+      name,
+      avatar: avatar || 'default-avatar.png',
+      isKid,
+      pin: isKid ? null : pin, // Kids profiles don't need PIN
+      watchHistory: [],
+      preferences: {
+        language: user.languagePreference || 'en',
+        maturityRating: isKid ? 'G' : 'R'
+      },
+      createdAt: new Date()
+    };
+
+    user.profiles.push(newProfile);
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Profile created successfully',
+      profile: newProfile
+    });
+
+  } catch (error) {
+    console.error('Create profile error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Get all profiles for a user
+router.get('/profiles/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select('profiles');
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      profiles: user.profiles || []
+    });
+
+  } catch (error) {
+    console.error('Get profiles error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Update a profile
+router.put('/profiles/:userId/:profileId', async (req, res) => {
+  try {
+    const { userId, profileId } = req.params;
+    const { name, avatar, pin } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    const profile = user.profiles.id(profileId);
+    if (!profile) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Profile not found' 
+      });
+    }
+
+    // Check if new name already exists in other profiles
+    if (name && name !== profile.name) {
+      const existingProfile = user.profiles.find(p => 
+        p._id.toString() !== profileId && 
+        p.name.toLowerCase() === name.toLowerCase()
+      );
+      
+      if (existingProfile) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Profile name already exists' 
+        });
+      }
+      profile.name = name;
+    }
+
+    if (avatar) profile.avatar = avatar;
+    if (pin !== undefined && !profile.isKid) profile.pin = pin;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      profile
+    });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+router.delete('/profiles/:userId/:profileId', async (req, res) => {
+  try {
+    const { userId, profileId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    const profile = user.profiles.id(profileId);
+    if (!profile) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Profile not found' 
+      });
+    }
+
+    // Don't allow deletion if it's the last profile
+    if (user.profiles.length === 1) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot delete the last profile' 
+      });
+    }
+
+    user.profiles.pull(profileId);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete profile error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Get all connected devices for a user
+router.get('/devices/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Get user with device sessions
+    const user = await User.findById(userId).select('deviceSessions lastLogin');
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    // Get synced devices
+    const syncedDevices = await DeviceSync.find({ 
+      user_id: userId, 
+      status: 1 
+    }).select('device_name device_type device_id createdAt');
+
+    // Get currently watching devices
+    const watchingDevices = await DeviceWatching.find({ 
+      user_id: userId, 
+      status: 1 
+    }).populate({
+      path: 'device_sync',
+      select: 'device_name device_type'
+    });
+
+    // Combine device information
+    const devicesInfo = {
+      lastLogin: user.lastLogin,
+      activeSessions: user.deviceSessions || [],
+      syncedDevices: syncedDevices,
+      currentlyWatching: watchingDevices
+    };
+
+    res.status(200).json({
+      success: true,
+      devices: devicesInfo
+    });
+
+  } catch (error) {
+    console.error('Get devices error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Add/Sync a new device
+router.post('/devices/sync', async (req, res) => {
+  try {
+    const { 
+      userId, 
+      deviceName, 
+      deviceType, 
+      deviceToken, 
+      deviceId 
+    } = req.body;
+
+    if (!userId || !deviceName || !deviceType || !deviceToken || !deviceId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'All device fields are required' 
+      });
+    }
+
+    // Check if device already exists
+    const existingDevice = await DeviceSync.findOne({ 
+      user_id: userId, 
+      device_id: deviceId 
+    });
+
+    if (existingDevice) {
+      // Update existing device
+      existingDevice.device_name = deviceName;
+      existingDevice.device_type = deviceType;
+      existingDevice.device_token = deviceToken;
+      existingDevice.status = 1;
+      await existingDevice.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Device updated successfully',
+        device: existingDevice
+      });
+    }
+
+    // Create new device sync
+    const newDevice = new DeviceSync({
+      user_id: userId,
+      device_name: deviceName,
+      device_type: deviceType,
+      device_token: deviceToken,
+      device_id: deviceId
+    });
+
+    await newDevice.save();
+
+    // Get user IP and location info
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    const agent = useragent.parse(userAgent);
+    const geo = geoip.lookup(ip);
+
+    // Update user's device sessions
+    const user = await User.findById(userId);
+    if (user) {
+      const sessionInfo = {
+        ip: ip,
+        device: `${agent.family} ${agent.major} on ${agent.os.family}`,
+        location: geo ? `${geo.city}, ${geo.country}` : 'Unknown',
+        coordinates: geo ? { lat: geo.ll[0], lng: geo.ll[1] } : null,
+        time: new Date()
+      };
+
+      // Update last login
+      user.lastLogin = sessionInfo;
+
+      // Add to device sessions (keep last 10 sessions)
+      if (!user.deviceSessions) user.deviceSessions = [];
+      user.deviceSessions.unshift(sessionInfo);
+      if (user.deviceSessions.length > 10) {
+        user.deviceSessions = user.deviceSessions.slice(0, 10);
+      }
+
+      await user.save();
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Device synced successfully',
+      device: newDevice
+    });
+
+  } catch (error) {
+    console.error('Sync device error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Remove/Unsync a device
+router.delete('/devices/:userId/:deviceId', async (req, res) => {
+  try {
+    const { userId, deviceId } = req.params;
+
+    // Remove from device sync
+    const device = await DeviceSync.findOneAndUpdate(
+      { user_id: userId, device_id: deviceId },
+      { status: 0 },
+      { new: true }
+    );
+
+    if (!device) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Device not found' 
+      });
+    }
+
+    // Also remove from watching devices
+    await DeviceWatching.findOneAndUpdate(
+      { user_id: userId, device_id: deviceId },
+      { status: 0 }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Device removed successfully'
+    });
+
+  } catch (error) {
+    console.error('Remove device error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Start watching on a device
+router.post('/devices/start-watching', async (req, res) => {
+  try {
+    const { userId, deviceId } = req.body;
+
+    if (!userId || !deviceId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID and Device ID are required' 
+      });
+    }
+
+    // Check if device is synced
+    const syncedDevice = await DeviceSync.findOne({ 
+      user_id: userId, 
+      device_id: deviceId, 
+      status: 1 
+    });
+
+    if (!syncedDevice) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Device not synced or not found' 
+      });
+    }
+
+    // Check if already watching on this device
+    let watchingDevice = await DeviceWatching.findOne({ 
+      user_id: userId, 
+      device_id: deviceId 
+    });
+
+    if (watchingDevice) {
+      watchingDevice.status = 1;
+      await watchingDevice.save();
+    } else {
+      watchingDevice = new DeviceWatching({
+        user_id: userId,
+        device_id: deviceId,
+        status: 1
+      });
+      await watchingDevice.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Started watching on device',
+      watchingDevice
+    });
+
+  } catch (error) {
+    console.error('Start watching error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Stop watching on a device
+router.post('/devices/stop-watching', async (req, res) => {
+  try {
+    const { userId, deviceId } = req.body;
+
+    await DeviceWatching.findOneAndUpdate(
+      { user_id: userId, device_id: deviceId },
+      { status: 0 }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Stopped watching on device'
+    });
+
+  } catch (error) {
+    console.error('Stop watching error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
+// Get login history/sessions
+router.get('/sessions/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select('deviceSessions lastLogin');
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      sessions: {
+        lastLogin: user.lastLogin,
+        history: user.deviceSessions || []
+      }
+    });
+
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error' 
+    });
+  }
+});
 //connect-tv
 router.post('/connect_tv', async (req, res) => {
   const { code, user_id, device_id } = req.body;
@@ -1170,50 +1667,50 @@ router.get('/get_cast', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-//do the investments in particular plan 
-router.post('/invest-plan', async (req, res) => {
-  const { userId, packageId } = req.body;
+// //do the investments in particular plan 
+// router.post('/invest-plan', async (req, res) => {
+//   const { userId, packageId } = req.body;
 
-  try {
-    // Find user and package
-    const user = await User.findById(userId);
-    const selectedPackage = await Package.findById(packageId);
+//   try {
+//     // Find user and package
+//     const user = await User.findById(userId);
+//     const selectedPackage = await SubscriptionPlan.findById(packageId);
 
-    if (!user || !selectedPackage) {
-      return res.status(404).json({ message: 'User or Package not found' });
-    }
+//     if (!user || !selectedPackage) {
+//       return res.status(404).json({ message: 'User or Package not found' });
+//     }
 
-    // Create a transaction for the investment
-    const transaction = new Transaction({
-      unique_id: `txn_${Date.now()}`,
-      user_id: userId,
-      package_id: packageId,
-      transaction_id: `txn_${Date.now()}`,
-      price: selectedPackage.price.toString(),
-      status: 1,  // Successful status
-      amount: selectedPackage.price,
-      payment_status: 'completed'
-    });
+//     // Create a transaction for the investment
+//     const transaction = new Transaction({
+//       unique_id: `txn_${Date.now()}`,
+//       user_id: userId,
+//       package_id: packageId,
+//       transaction_id: `txn_${Date.now()}`,
+//       price: selectedPackage.price.toString(),
+//       status: 1,  // Successful status
+//       amount: selectedPackage.price,
+//       payment_status: 'completed'
+//     });
 
-    await transaction.save();
+//     await transaction.save();
 
-    // Add the transaction to user's profile
-    user.transactions.push(transaction._id);
-    await user.save();
+//     // Add the transaction to user's profile
+//     user.transactions.push(transaction._id);
+//     await user.save();
 
-    // Update admin's wallet (add investment amount)
-    const admin = await Admin.findOne();
-    if (admin) {
-      admin.wallet += selectedPackage.price;
-      await admin.save();
-    }
+//     // Update admin's wallet (add investment amount)
+//     const admin = await Admin.findOne();
+//     if (admin) {
+//       admin.wallet += selectedPackage.price;
+//       await admin.save();
+//     }
 
-    res.status(200).json({ message: 'Investment successful', transaction });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+//     res.status(200).json({ message: 'Investment successful', transaction });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
 // Get all active subscription plans (for users to view)
 router.get('/plans', async (req, res) => {
   try {
@@ -1230,130 +1727,137 @@ router.get('/plans', async (req, res) => {
     });
   }
 });
-// //Subscribe to a plan
-// router.post('/subscribe', isUser, async (req, res) => {
-//   console.log("hy")
-//   try {
-//     const { planId, paymentMethod, paymentId } = req.body;
+// API to get a specific plan details (when user clicks on a plan)
+router.get('/plans/:planId', async (req, res) => {
+  try {
+    const { planId } = req.params;
     
-//     // Find the plan
-//     const plan = await SubscriptionPlan.findById(planId);
-//     if (!plan || !plan.isActive) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Subscription plan not found or inactive'
-//       });
-//     }
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found or inactive'
+      });
+    }
     
-//     // Calculate end date based on plan duration
-//     const startDate = new Date();
-//     const endDate = new Date(startDate);
+    res.status(200).json({
+      success: true,
+      data: plan
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching subscription plan',
+      error: error.message
+    });
+  }
+});
+// API to initiate subscription process (when user clicks "Subscribe")
+router.post('/initiate-subscription', isUser, async (req, res) => {
+  try {
+    const { planId } = req.body;
+    const userId = req.user._id;
     
-//     if (plan.durationType === 'day') {
-//       endDate.setDate(endDate.getDate() + plan.duration);
-//     } else if (plan.durationType === 'month') {
-//       endDate.setMonth(endDate.getMonth() + plan.duration);
-//     } else if (plan.durationType === 'year') {
-//       endDate.setFullYear(endDate.getFullYear() + plan.duration);
-//     }
+    // Check if plan exists and is active
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found or inactive'
+      });
+    }
     
-//     // Create a transaction record
-//     const transaction = new Transaction({
-//       user: req.user._id,
-//       amount: plan.price,
-//       paymentMethod,
-//       paymentId,
-//       status: 'completed', // Assuming payment is already processed
-//       type: 'subscription',
-//       itemReference: plan._id,
-//       itemModel: 'SubscriptionPlan'
-//     });
+    // Check if user already has an active subscription for this plan
+    const existingSubscription = await userSubscription.findOne({
+      user: userId,
+      plan: planId,
+      status: 'active'
+    });
     
-//     await transaction.save();
+    if (existingSubscription) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have an active subscription for this plan'
+      });
+    }
     
-//     // Create the subscription
-//     const subscription = new UserSubscription({
-//       user: req.user._id,
-//       plan: plan._id,
-//       startDate,
-//       endDate,
-//       paymentMethod,
-//       paymentId,
-//       transactionId: transaction._id
-//     });
+    // Check if user has any pending transactions for this plan
+    const pendingTransaction = await Transaction.findOne({
+      user: userId,
+      itemReference: planId,
+      status: 'pending',
+      type: 'subscription'
+    });
     
-//     await subscription.save();
+    if (pendingTransaction) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have a pending payment for this plan. Please complete or cancel it first.'
+      });
+    }
     
-//     // Update the user's subscriptions array
-//     await User.findByIdAndUpdate(
-//       req.user._id,
-//       { $push: { subscriptions: subscription._id, transactions: transaction._id } }
-//     );
+    // Return plan details and user info for payment processing
+    res.status(200).json({
+      success: true,
+      message: 'Subscription can be initiated',
+      data: {
+        plan: {
+          id: plan._id,
+          name: plan.name,
+          price: plan.price,
+          duration: plan.duration,
+          durationType: plan.durationType,
+          features: plan.features
+        },
+        user: {
+          id: userId,
+          name: req.user.name,
+          email: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error initiating subscription',
+      error: error.message
+    });
+  }
+});
+// API to check subscription eligibility
+router.post('/check-eligibility', isUser, async (req, res) => {
+  try {
+    const { planId } = req.body;
+    const userId = req.user._id;
     
-//     // Update admin's wallet with the subscription amount
-//     const planCreator = await Admin.findById(plan.createdBy);
-//     if (planCreator) {
-//       planCreator.wallet += plan.price;
-//       await planCreator.save();
-//     }
+    // Check if user has any active subscriptions
+    const activeSubscriptions = await userSubscription.find({
+      user: userId,
+      status: 'active'
+    }).populate('plan');
     
-//     res.status(201).json({
-//       success: true,
-//       message: 'Successfully subscribed to the plan',
-//       data: {
-//         subscription,
-//         expiresAt: endDate
-//       }
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Error subscribing to plan',
-//       error: error.message
-//     });
-//   }
-// });
-// //create the subscription 
-// router.post('/create-order', async (req, res) => {
-//   console.log("bye")
-//   const { planId, userId, paymentMethod } = req.body;
-
-//   try {
-//     const plan = await SubscriptionPlan.findById(planId);
-//     if (!plan) return res.status(404).json({ message: 'Plan not found' });
-
-//     const options = {
-//       amount: plan.price * 100, // Amount in paise
-//       currency: 'INR',
-//       receipt: `receipt_${new Date().getTime()}`,
-//     };
-
-//     const order = await razorpay.orders.create(options);
-//    console.log("order"+" "+order)
-//     // Create transaction
-//     const transaction = await Transaction.create({
-//       user: userId,
-//       amount: plan.price,
-//       paymentMethod,
-//       paymentId: order.id,
-//       status: 3,
-//       type: 'subscription',
-//       itemReference: planId,
-//       itemModel: 'SubscriptionPlan',
-//     });
-//    console.log("this is trsanctions"+" "+transaction)
-//     res.status(200).json({
-//       success: true,
-//       orderId: order.id,
-//       amount: options.amount,
-//       currency: options.currency,
-//       transactionId: transaction._id,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ success: false, message: 'Payment initiation failed' });
-//   }
-// });
+    // Check if user can subscribe to multiple plans or if there are restrictions
+    const canSubscribe = activeSubscriptions.length === 0; // Modify this logic based on your business rules
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        canSubscribe,
+        activeSubscriptions: activeSubscriptions.map(sub => ({
+          planName: sub.plan.name,
+          endDate: sub.endDate
+        })),
+        message: canSubscribe ? 'Eligible for subscription' : 'Already has active subscription'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error checking eligibility',
+      error: error.message
+    });
+  }
+});
 router.post('/create-order', async (req, res) => {
   const { planId, userId, paymentMethod } = req.body;
 
@@ -1377,6 +1881,7 @@ router.post('/create-order', async (req, res) => {
       amount: plan.price,
       paymentMethod,
       paymentId: order.id,
+      
       status: 'pending', // ❗ Pass string from enum
       type: 'subscription',
       itemReference: planId,
@@ -1447,7 +1952,6 @@ router.post('/verify-payment', async (req, res) => {
     res.status(500).json({ success: false, message: 'Payment verification process failed', error: err.message });
   }
 });
-//   console.log("nitesh pgl je ")
 //   const {
 //     razorpay_order_id,
 //     razorpay_payment_id,
@@ -2561,5 +3065,6 @@ router.get('/ratings', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch ratings', error: err.message });
   }
 });
+
 
 module.exports = router;

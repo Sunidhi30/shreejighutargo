@@ -5012,4 +5012,22 @@ router.get("/query-videos", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
+router.get('/all-videos', async (req, res) => {
+  try {
+    const videos = await Video.find()
+    
+      .populate('type_id', 'name')
+      .populate('channel_id', 'name')
+      .populate('producer_id', 'name')
+      .populate('category_id', 'name')
+      .populate('language_id', 'name')
+      .populate('cast_ids', 'name')
+      .select('-__v');
+
+    res.status(200).json({ success: true, videos });
+  } catch (error) {
+    console.error('Error fetching videos:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
 module.exports = router;
