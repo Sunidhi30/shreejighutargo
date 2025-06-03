@@ -2126,7 +2126,6 @@ router.post('/change-plan', isUser, async (req, res) => {
     });
   }
 });
-
 //Get subscription history
 router.get('/subscription-history', isUser, async (req, res) => {
   try {

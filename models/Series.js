@@ -13,7 +13,6 @@ const seriesSchema = new mongoose.Schema({
   totalSeasons: { type: Number, default: 0 },
   status: { type: String, enum: ['ongoing', 'completed'], default: 'ongoing' },
   isApproved: { type: Boolean, default: false },
-   // ✅ NEW Approval-specific fields
    approvalStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],

@@ -3186,6 +3186,15 @@ router.get("/vendors/:vendorId/lock-status", verifyAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
+router.get('/get-casts', async (req, res) => {
+  try {
+    const casts = await Cast.find();
+    res.status(200).json({ casts });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // 1. CREATE CONTEST (Admin only)
 router.post("/create-contests", verifyAdmin, async (req, res) => {
   try {
@@ -3353,8 +3362,6 @@ router.get('/contests/:id/leaderboard', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
-
 // 4. UPDATE CONTEST (Admin only)
 router.put("/contests/:id", async (req, res) => {
   try {
@@ -4235,7 +4242,6 @@ router.get("/all-video", async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
-
 // GET /admin/transactions - fetch all transactions with user info
 router.get('/users-transactions',  async (req, res) => {
   try {
@@ -4249,5 +4255,4 @@ router.get('/users-transactions',  async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 module.exports = router;
