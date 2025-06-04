@@ -1756,14 +1756,13 @@ router.get('/plans/:planId', async (req, res) => {
     });
   }
 });
-
-// API to initiate subscription process (when user clicks "Subscribe")
+// Single API to initiate subscription with comprehensive eligibility check
 router.post('/initiate-subscription', isUser, async (req, res) => {
   try {
     const { planId } = req.body;
     const userId = req.user.id;
     
-    // Check if plan exists and is active
+    // Validate plan exists and is active
     const plan = await SubscriptionPlan.findById(planId);
     if (!plan || !plan.isActive) {
       return res.status(404).json({
@@ -1772,25 +1771,33 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
       });
     }
     
-    // Check if user already has an active subscription for this plan
-    // FIXED: Use UserSubscription instead of userSubscription
-    const existingSubscription = await UserSubscription.findOne({
+    // Check for existing active subscriptions
+    const existingActiveSubscription = await UserSubscription.findOne({
       user: userId,
-      plan: planId,
-      status: 'active'
-    });
+      status: 'active',
+      endDate: { $gt: new Date() } // Ensure subscription hasn't expired
+    }).populate('plan');
     
-    if (existingSubscription) {
+    if (existingActiveSubscription) {
       return res.status(400).json({
         success: false,
-        message: 'You already have an active subscription for this plan'
+        message: 'You already have an active subscription. You can only update your plan.',
+        data: {
+          currentSubscription: {
+            planName: existingActiveSubscription.plan.name,
+            startDate: existingActiveSubscription.startDate,
+            endDate: existingActiveSubscription.endDate,
+            status: existingActiveSubscription.status,
+            daysRemaining: Math.ceil((existingActiveSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
+          },
+          suggestedAction: 'upgrade_or_wait'
+        }
       });
     }
     
-    // Check if user has any pending transactions for this plan
+    // Check for pending transactions for ANY subscription plan (prevent double transactions)
     const pendingTransaction = await Transaction.findOne({
       user: userId,
-      itemReference: planId,
       status: 'pending',
       type: 'subscription'
     });
@@ -1798,91 +1805,158 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
     if (pendingTransaction) {
       return res.status(400).json({
         success: false,
-        message: 'You have a pending payment for this plan. Please complete or cancel it first.'
+        message: 'You have a pending payment transaction. Please complete or cancel it first.',
+        data: {
+          pendingTransactionId: pendingTransaction._id,
+          amount: pendingTransaction.amount,
+          createdAt: pendingTransaction.createdAt
+        }
       });
     }
     
-    // Return plan details and user info for payment processing
+    // Check for any subscription for the same plan (including expired/canceled)
+    const existingPlanSubscription = await UserSubscription.findOne({
+      user: userId,
+      plan: planId
+    }).populate('plan');
+    
+    if (existingPlanSubscription) {
+      const subscriptionStatus = {
+        planName: existingPlanSubscription.plan.name,
+        startDate: existingPlanSubscription.startDate,
+        endDate: existingPlanSubscription.endDate,
+        status: existingPlanSubscription.status
+      };
+      
+      if (existingPlanSubscription.status === 'expired') {
+        // Allow renewal of expired subscription
+        return res.status(200).json({
+          success: true,
+          message: 'Your previous subscription has expired. You can renew it.',
+          data: {
+            plan: {
+              id: plan._id,
+              name: plan.name,
+              price: plan.price,
+              duration: plan.duration,
+              maxDevices: plan.maxDevices,
+              maxProfiles: plan.maxProfiles
+            },
+            user: {
+              id: userId,
+              name: req.user.name,
+              email: req.user.email
+            },
+            previousSubscription: subscriptionStatus,
+            action: 'renewal'
+          }
+        });
+      } else if (existingPlanSubscription.status === 'canceled') {
+        // Allow reactivation of canceled subscription
+        return res.status(200).json({
+          success: true,
+          message: 'You can reactivate your canceled subscription.',
+          data: {
+            plan: {
+              id: plan._id,
+              name: plan.name,
+              price: plan.price,
+              duration: plan.duration,
+              maxDevices: plan.maxDevices,
+              maxProfiles: plan.maxProfiles
+            },
+            user: {
+              id: userId,
+              name: req.user.name,
+              email: req.user.email
+            },
+            previousSubscription: subscriptionStatus,
+            action: 'reactivation'
+          }
+        });
+      }
+    }
+    
+    // All checks passed - user is eligible for new subscription
     res.status(200).json({
       success: true,
-      message: 'Subscription can be initiated',
+      message: 'Subscription can be initiated. You are eligible for this plan.',
       data: {
         plan: {
           id: plan._id,
           name: plan.name,
           price: plan.price,
           duration: plan.duration,
-          durationType: plan.durationType,
-          features: plan.features
+          maxDevices: plan.maxDevices,
+          maxProfiles: plan.maxProfiles,
+          description: plan.description
         },
         user: {
           id: userId,
           name: req.user.name,
           email: req.user.email
-        }
+        },
+        eligibility: {
+          canSubscribe: true,
+          hasActiveSubscription: false,
+          hasPendingPayment: false
+        },
+        action: 'new_subscription'
       }
     });
+    
   } catch (error) {
+    console.error('Subscription initiation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error initiating subscription',
+      message: 'Error checking subscription eligibility',
       error: error.message
     });
   }
 });
-// API to check subscription eligibility
-router.post('/check-eligibility', isUser, async (req, res) => {
-  try {
-    const { planId } = req.body;
-    const userId = req.user.id
-  
-    
-    // FIXED: Use UserSubscription instead of userSubscription
-    const activeSubscriptions = await UserSubscription.find({
-      user: userId,
-      status: 'active'
-    }).populate('plan');
-    
-    const canSubscribe = activeSubscriptions.length === 0;
-    
-    res.status(200).json({
-      success: true,
-      data: {
-        canSubscribe,
-        activeSubscriptions: activeSubscriptions.map(sub => ({
-          planName: sub.plan.name,
-          endDate: sub.endDate
-        })),
-        message: canSubscribe ? 'Eligible for subscription' : 'Already has active subscription'
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error checking eligibility',
-      error: error.message
-    });
-  }
-});
-router.post('/create-order',  isUser,async (req, res) => {
-  const { planId,  paymentMethod } = req.body;
-  const userId = req.user.id;
 
+// Enhanced create-order with additional validation
+router.post('/create-order', isUser, async (req, res) => {
   try {
+    console.log("Create order request body:", req.body);
+
+    const { planId, paymentMethod } = req.body;
+    const userId = req.user.id;
+
+    // Validate planId
+    if (!planId) {
+      return res.status(400).json({ success: false, message: 'Plan ID is required.' });
+    }
+
+    // Fetch the subscription plan
     const plan = await SubscriptionPlan.findById(planId);
-    if (!plan) return res.status(404).json({ message: 'Plan not found' });
+    if (!plan) {
+      console.log("Plan not found for ID:", planId);
+      return res.status(404).json({ success: false, message: 'Subscription plan not found.' });
+    }
 
-    if (!plan.price) return res.status(400).json({ message: 'Plan price not set' });
+    // Validate plan price
+    if (!plan.price || isNaN(plan.price)) {
+      console.log("Invalid plan price:", plan.price);
+      return res.status(400).json({ success: false, message: 'Invalid plan price.' });
+    }
+
+    const amountInPaise = Math.round(plan.price * 100); // Convert to paise
 
     const options = {
-      amount: plan.price * 100, // Razorpay requires amount in paisa
+      amount: amountInPaise,
       currency: 'INR',
       receipt: `receipt_${Date.now()}`,
+      payment_capture: 1, // Auto-capture
     };
 
-    const order = await razorpay.orders.create(options);
-    console.log("Razorpay Order Created:", order);
+    console.log("Creating Razorpay order with options:", options);
 
+    // Create order in Razorpay
+    const order = await razorpay.orders.create(options);
+    console.log("Razorpay order created successfully:", order);
+
+    // Create transaction record in your database
     const transaction = await Transaction.create({
       user: userId,
       amount: plan.price,
@@ -1894,172 +1968,233 @@ router.post('/create-order',  isUser,async (req, res) => {
       itemModel: 'SubscriptionPlan',
     });
 
-    console.log("Transaction Created:", transaction);
+    console.log("Transaction created:", transaction);
 
     res.status(200).json({
       success: true,
       orderId: order.id,
-      amount: options.amount,
-      currency: options.currency,
+      amount: order.amount,
+      currency: order.currency,
       transactionId: transaction._id,
-      userId: userId // Return for verification
-
+      planDetails: {
+        name: plan.name,
+        duration: plan.duration,
+        price: plan.price,
+        maxDevices: plan.maxDevices,
+        maxProfiles: plan.maxProfiles,
+        description: plan.description,
+      },
     });
   } catch (err) {
     console.error('Create Order Error:', err);
-    res.status(500).json({ success: false, message: 'Payment initiation failed', error: err.message });
+
+    // Handle specific Razorpay errors
+    if (err && err.error && err.error.description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Razorpay Error: ' + err.error.description,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Payment initiation failed',
+      error: err.message,
+    });
   }
 });
-// FIXED: Main issue was here in verify-payment
-router.post('/verify-payment',isUser, async (req, res) => {
+
+// Enhanced verify-payment with better validation
+router.post('/verify-payment', isUser, async (req, res) => {
   const {
     razorpay_order_id,
     razorpay_payment_id,
     razorpay_signature,
     transactionId,
-
     planId
   } = req.body;
   const userId = req.user.id;
 
   try {
+    // Verify the transaction belongs to the user
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      user: userId,
+      status: 'pending'
+    });
+    
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaction not found or already processed'
+      });
+    }
+
+    // Verify signature
     const body = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_SECRET)
       .update(body.toString())
       .digest('hex');
 
-    if (expectedSignature === razorpay_signature) {
-      const plan = await SubscriptionPlan.findById(planId);
-      if (!plan) return res.status(404).json({ message: 'Subscription plan not found' });
-
-      // Calculate end date properly based on plan duration type
-      const startDate = new Date();
-      const endDate = new Date(startDate);
-      
-      if (plan.durationType === 'day') {
-        endDate.setDate(endDate.getDate() + plan.duration);
-      } else if (plan.durationType === 'month') {
-        endDate.setMonth(endDate.getMonth() + plan.duration);
-      } else if (plan.durationType === 'year') {
-        endDate.setFullYear(endDate.getFullYear() + plan.duration);
-      } else {
-        // Default to days if durationType is not specified
-        endDate.setDate(endDate.getDate() + plan.duration);
-      }
-
-      // Update transaction status
-      await Transaction.findByIdAndUpdate(transactionId, {
-        status: 'completed',
-        paymentId: razorpay_payment_id,
-      });
-
-      // FIXED: Create user subscription with correct model name and proper fields
-      const newSubscription = await UserSubscription.create({
-        user: userId,
-        plan: planId,
-        startDate: startDate,
-        endDate: endDate,
-        status: 'active', // IMPORTANT: Set status explicitly
-        paymentMethod: 'razorpay',
-        paymentId: razorpay_payment_id,
-        transactionId: transactionId
-      });
-
-      console.log("Subscription created successfully:", newSubscription);
-
-      return res.json({ 
-        success: true, 
-        message: 'Payment verified and subscription activated',
-        subscription: newSubscription
-      });
-    } else {
+    if (expectedSignature !== razorpay_signature) {
       await Transaction.findByIdAndUpdate(transactionId, {
         status: 'failed',
+        failureReason: 'Signature verification failed'
       });
-      return res.status(400).json({ success: false, message: 'Payment verification failed' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Payment verification failed' 
+      });
     }
+
+    // Double-check no active subscription exists before creating new one
+    const existingActiveSubscription = await UserSubscription.findOne({
+      user: userId,
+      status: 'active',
+      endDate: { $gt: new Date() }
+    });
+    
+    if (existingActiveSubscription) {
+      await Transaction.findByIdAndUpdate(transactionId, {
+        status: 'failed',
+        failureReason: 'User already has active subscription'
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot complete payment: You already have an active subscription'
+      });
+    }
+
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan) {
+      await Transaction.findByIdAndUpdate(transactionId, {
+        status: 'failed',
+        failureReason: 'Plan not found'
+      });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Subscription plan not found' 
+      });
+    }
+
+    // Calculate end date based on plan duration
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + plan.duration);
+
+    // Update transaction status
+    await Transaction.findByIdAndUpdate(transactionId, {
+      status: 'completed',
+      paymentId: razorpay_payment_id,
+      completedAt: new Date()
+    });
+
+    // Create user subscription
+    const newSubscription = await UserSubscription.create({
+      user: userId,
+      plan: planId,
+      startDate: startDate,
+      endDate: endDate,
+      status: 'active',
+      paymentMethod: 'razorpay',
+      paymentId: razorpay_payment_id,
+      transactionId: transactionId
+    });
+
+    console.log("Subscription created successfully:", newSubscription);
+
+    return res.json({ 
+      success: true, 
+      message: 'Payment verified and subscription activated successfully',
+      data: {
+        subscription: {
+          id: newSubscription._id,
+          planName: plan.name,
+          startDate: newSubscription.startDate,
+          endDate: newSubscription.endDate,
+          status: newSubscription.status,
+          daysRemaining: Math.ceil((newSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
+        },
+        transaction: {
+          id: transactionId,
+          paymentId: razorpay_payment_id,
+          amount: plan.price
+        }
+      }
+    });
+    
   } catch (err) {
     console.error('Verify Payment Error:', err);
-    res.status(500).json({ success: false, message: 'Payment verification process failed', error: err.message });
+    
+    // Mark transaction as failed if error occurs
+    try {
+      await Transaction.findByIdAndUpdate(transactionId, {
+        status: 'failed',
+        failureReason: err.message
+      });
+    } catch (updateError) {
+      console.error('Error updating transaction status:', updateError);
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Payment verification process failed', 
+      error: err.message 
+    });
   }
 });
-// Enhanced debug route to see what's happening
+
+// Get current subscription with detailed information
 router.get('/my-subscription', isUser, async (req, res) => {
   try {
-    console.log('=== DEBUG MY SUBSCRIPTION ===');
-    console.log('req.user:', req.user);
-   
-    console.log('req.user._id type:', typeof req.user._id);
+    const userId = req.user.id;
     
-    // Try different approaches to find the subscription
-    const userIdString = req.user.id.toString();
-    const userIdObjectId = new mongoose.Types.ObjectId(req.user.id);
-    
-    console.log('userIdString:', userIdString);
-    console.log('userIdObjectId:', userIdObjectId);
-    
-    // Method 1: Direct query with original user ID
-    const subscription1 = await UserSubscription.findOne({
-      user: req.user.id,
-      status: 'active'
+    // Find active subscription
+    const activeSubscription = await UserSubscription.findOne({
+      user: userId,
+      status: 'active',
+      endDate: { $gt: new Date() }
     }).populate('plan');
-    console.log('Method 1 (direct req.user.id):', subscription1);
     
-    // Method 2: Query with ObjectId conversion
-    const subscription2 = await UserSubscription.findOne({
-      user: userIdObjectId,
-      status: 'active'
-    }).populate('plan');
-    console.log('Method 2 (ObjectId conversion):', subscription2);
-    
-    // Method 3: Query without status filter
-    const subscription3 = await UserSubscription.findOne({
-      user: userIdObjectId
-    }).populate('plan');
-    console.log('Method 3 (no status filter):', subscription3);
-    
-    // Method 4: Find all subscriptions for this user
-    const allUserSubs = await UserSubscription.find({
-      user: userIdObjectId
-    }).populate('plan');
-    console.log('All subscriptions for user:', allUserSubs);
-    
-    // Method 5: Check if any subscriptions exist at all
-    const totalSubs = await UserSubscription.countDocuments();
-    console.log('Total subscriptions in database:', totalSubs);
-    
-    // Method 6: Raw query to see actual data
-    const rawSubs = await UserSubscription.find({}).limit(5);
-    console.log('Sample raw subscriptions:', rawSubs);
-    
-    // Return the best match
-    const finalSubscription = subscription2 || subscription3 || subscription1;
-    
-    if (!finalSubscription) {
-      return res.status(404).json({
-        success: false,
-        message: 'No subscription found',
-        debug: {
-          userId: req.user.id,
-          userIdType: typeof req.user.id,
-          totalSubscriptions: totalSubs,
-          userSubscriptions: allUserSubs.length,
-          methods: {
-            direct: !!subscription1,
-            objectId: !!subscription2,
-            noStatus: !!subscription3
-          }
+    if (!activeSubscription) {
+      // Check for any subscription (including expired/canceled)
+      const lastSubscription = await UserSubscription.findOne({
+        user: userId
+      }).populate('plan').sort({ createdAt: -1 });
+      
+      return res.status(200).json({
+        success: true,
+        hasActiveSubscription: false,
+        message: 'No active subscription found',
+        data: {
+          lastSubscription: lastSubscription ? {
+            planName: lastSubscription.plan.name,
+            endDate: lastSubscription.endDate,
+            status: lastSubscription.status
+          } : null
         }
       });
     }
     
+    const daysRemaining = Math.ceil((activeSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24));
+    
     res.status(200).json({
       success: true,
-      data: finalSubscription,
-      debug: {
-        foundWith: subscription2 ? 'ObjectId' : subscription3 ? 'NoStatus' : 'Direct',
-        totalUserSubs: allUserSubs.length
+      hasActiveSubscription: true,
+      data: {
+        subscription: {
+          id: activeSubscription._id,
+          planName: activeSubscription.plan.name,
+          planDescription: activeSubscription.plan.description,
+          startDate: activeSubscription.startDate,
+          endDate: activeSubscription.endDate,
+          status: activeSubscription.status,
+          daysRemaining: daysRemaining,
+          maxDevices: activeSubscription.plan.maxDevices,
+          maxProfiles: activeSubscription.plan.maxProfiles,
+          autoRenew: activeSubscription.autoRenew
+        }
       }
     });
     
@@ -2067,35 +2202,348 @@ router.get('/my-subscription', isUser, async (req, res) => {
     console.error('Get subscription error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching subscription',
-      error: error.message,
-      stack: error.stack
-    });
-  }
-});
-// Get subscription history
-router.get('/subscription-history', isUser, async (req, res) => {
-  try {
-    // FIXED: Use UserSubscription instead of userSubscription
-    const subscriptions = await UserSubscription.find({
-      user: req.user.id
-    }).populate('plan').sort({ createdAt: -1 });
-    
-    res.status(200).json({
-      success: true,
-      count: subscriptions.length,
-      data: subscriptions
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching subscription history',
+      message: 'Error fetching subscription details',
       error: error.message
     });
   }
 });
+// // API to initiate subscription process (when user clicks "Subscribe")
+// router.post('/initiate-subscription', isUser, async (req, res) => {
+//   try {
+//     const { planId } = req.body;
+//     const userId = req.user.id;
+    
+//     // Check if plan exists and is active
+//     const plan = await SubscriptionPlan.findById(planId);
+//     if (!plan || !plan.isActive) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Subscription plan not found or inactive'
+//       });
+//     }
+    
+//     // Check if user already has an active subscription for this plan
+//     // FIXED: Use UserSubscription instead of userSubscription
+//     const existingSubscription = await UserSubscription.findOne({
+//       user: userId,
+//       plan: planId,
+//       status: 'active'
+//     });
+    
+//     if (existingSubscription) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'You already have an active subscription for this plan'
+//       });
+//     }
+    
+//     // Check if user has any pending transactions for this plan
+//     const pendingTransaction = await Transaction.findOne({
+//       user: userId,
+//       itemReference: planId,
+//       status: 'pending',
+//       type: 'subscription'
+//     });
+    
+//     if (pendingTransaction) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'You have a pending payment for this plan. Please complete or cancel it first.'
+//       });
+//     }
+    
+//     // Return plan details and user info for payment processing
+//     res.status(200).json({
+//       success: true,
+//       message: 'Subscription can be initiated',
+//       data: {
+//         plan: {
+//           id: plan._id,
+//           name: plan.name,
+//           price: plan.price,
+//           duration: plan.duration,
+//           durationType: plan.durationType,
+//           features: plan.features
+//         },
+//         user: {
+//           id: userId,
+//           name: req.user.name,
+//           email: req.user.email
+//         }
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error initiating subscription',
+//       error: error.message
+//     });
+//   }
+// });
+// // API to check subscription eligibility
+// router.post('/check-eligibility', isUser, async (req, res) => {
+//   try {
+//     const { planId } = req.body;
+//     const userId = req.user.id
+  
+    
+//     // FIXED: Use UserSubscription instead of userSubscription
+//     const activeSubscriptions = await UserSubscription.find({
+//       user: userId,
+//       status: 'active'
+//     }).populate('plan');
+    
+//     const canSubscribe = activeSubscriptions.length === 0;
+    
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         canSubscribe,
+//         activeSubscriptions: activeSubscriptions.map(sub => ({
+//           planName: sub.plan.name,
+//           endDate: sub.endDate
+//         })),
+//         message: canSubscribe ? 'Eligible for subscription' : 'Already has active subscription'
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error checking eligibility',
+//       error: error.message
+//     });
+//   }
+// });
+// router.post('/create-order',  isUser,async (req, res) => {
+//   const { planId,  paymentMethod } = req.body;
+//   const userId = req.user.id;
 
+//   try {
+//     const plan = await SubscriptionPlan.findById(planId);
+//     if (!plan) return res.status(404).json({ message: 'Plan not found' });
 
+//     if (!plan.price) return res.status(400).json({ message: 'Plan price not set' });
+
+//     const options = {
+//       amount: plan.price * 100, // Razorpay requires amount in paisa
+//       currency: 'INR',
+//       receipt: `receipt_${Date.now()}`,
+//     };
+
+//     const order = await razorpay.orders.create(options);
+//     console.log("Razorpay Order Created:", order);
+
+//     const transaction = await Transaction.create({
+//       user: userId,
+//       amount: plan.price,
+//       paymentMethod,
+//       paymentId: order.id,
+//       status: 'pending',
+//       type: 'subscription',
+//       itemReference: planId,
+//       itemModel: 'SubscriptionPlan',
+//     });
+
+//     console.log("Transaction Created:", transaction);
+
+//     res.status(200).json({
+//       success: true,
+//       orderId: order.id,
+//       amount: options.amount,
+//       currency: options.currency,
+//       transactionId: transaction._id,
+//       userId: userId // Return for verification
+
+//     });
+//   } catch (err) {
+//     console.error('Create Order Error:', err);
+//     res.status(500).json({ success: false, message: 'Payment initiation failed', error: err.message });
+//   }
+// });
+// // FIXED: Main issue was here in verify-payment
+// router.post('/verify-payment',isUser, async (req, res) => {
+//   const {
+//     razorpay_order_id,
+//     razorpay_payment_id,
+//     razorpay_signature,
+//     transactionId,
+
+//     planId
+//   } = req.body;
+//   const userId = req.user.id;
+
+//   try {
+//     const body = razorpay_order_id + '|' + razorpay_payment_id;
+//     const expectedSignature = crypto
+//       .createHmac('sha256', process.env.RAZORPAY_SECRET)
+//       .update(body.toString())
+//       .digest('hex');
+
+//     if (expectedSignature === razorpay_signature) {
+//       const plan = await SubscriptionPlan.findById(planId);
+//       if (!plan) return res.status(404).json({ message: 'Subscription plan not found' });
+
+//       // Calculate end date properly based on plan duration type
+//       const startDate = new Date();
+//       const endDate = new Date(startDate);
+      
+//       if (plan.durationType === 'day') {
+//         endDate.setDate(endDate.getDate() + plan.duration);
+//       } else if (plan.durationType === 'month') {
+//         endDate.setMonth(endDate.getMonth() + plan.duration);
+//       } else if (plan.durationType === 'year') {
+//         endDate.setFullYear(endDate.getFullYear() + plan.duration);
+//       } else {
+//         // Default to days if durationType is not specified
+//         endDate.setDate(endDate.getDate() + plan.duration);
+//       }
+
+//       // Update transaction status
+//       await Transaction.findByIdAndUpdate(transactionId, {
+//         status: 'completed',
+//         paymentId: razorpay_payment_id,
+//       });
+
+//       // FIXED: Create user subscription with correct model name and proper fields
+//       const newSubscription = await UserSubscription.create({
+//         user: userId,
+//         plan: planId,
+//         startDate: startDate,
+//         endDate: endDate,
+//         status: 'active', // IMPORTANT: Set status explicitly
+//         paymentMethod: 'razorpay',
+//         paymentId: razorpay_payment_id,
+//         transactionId: transactionId
+//       });
+
+//       console.log("Subscription created successfully:", newSubscription);
+
+//       return res.json({ 
+//         success: true, 
+//         message: 'Payment verified and subscription activated',
+//         subscription: newSubscription
+//       });
+//     } else {
+//       await Transaction.findByIdAndUpdate(transactionId, {
+//         status: 'failed',
+//       });
+//       return res.status(400).json({ success: false, message: 'Payment verification failed' });
+//     }
+//   } catch (err) {
+//     console.error('Verify Payment Error:', err);
+//     res.status(500).json({ success: false, message: 'Payment verification process failed', error: err.message });
+//   }
+// });
+// // Enhanced debug route to see what's happening
+// router.get('/my-subscription', isUser, async (req, res) => {
+//   try {
+//     console.log('=== DEBUG MY SUBSCRIPTION ===');
+//     console.log('req.user:', req.user);
+   
+//     console.log('req.user._id type:', typeof req.user._id);
+    
+//     // Try different approaches to find the subscription
+//     const userIdString = req.user.id.toString();
+//     const userIdObjectId = new mongoose.Types.ObjectId(req.user.id);
+    
+//     console.log('userIdString:', userIdString);
+//     console.log('userIdObjectId:', userIdObjectId);
+    
+//     // Method 1: Direct query with original user ID
+//     const subscription1 = await UserSubscription.findOne({
+//       user: req.user.id,
+//       status: 'active'
+//     }).populate('plan');
+//     console.log('Method 1 (direct req.user.id):', subscription1);
+    
+//     // Method 2: Query with ObjectId conversion
+//     const subscription2 = await UserSubscription.findOne({
+//       user: userIdObjectId,
+//       status: 'active'
+//     }).populate('plan');
+//     console.log('Method 2 (ObjectId conversion):', subscription2);
+    
+//     // Method 3: Query without status filter
+//     const subscription3 = await UserSubscription.findOne({
+//       user: userIdObjectId
+//     }).populate('plan');
+//     console.log('Method 3 (no status filter):', subscription3);
+    
+//     // Method 4: Find all subscriptions for this user
+//     const allUserSubs = await UserSubscription.find({
+//       user: userIdObjectId
+//     }).populate('plan');
+//     console.log('All subscriptions for user:', allUserSubs);
+    
+//     // Method 5: Check if any subscriptions exist at all
+//     const totalSubs = await UserSubscription.countDocuments();
+//     console.log('Total subscriptions in database:', totalSubs);
+    
+//     // Method 6: Raw query to see actual data
+//     const rawSubs = await UserSubscription.find({}).limit(5);
+//     console.log('Sample raw subscriptions:', rawSubs);
+    
+//     // Return the best match
+//     const finalSubscription = subscription2 || subscription3 || subscription1;
+    
+//     if (!finalSubscription) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'No subscription found',
+//         debug: {
+//           userId: req.user.id,
+//           userIdType: typeof req.user.id,
+//           totalSubscriptions: totalSubs,
+//           userSubscriptions: allUserSubs.length,
+//           methods: {
+//             direct: !!subscription1,
+//             objectId: !!subscription2,
+//             noStatus: !!subscription3
+//           }
+//         }
+//       });
+//     }
+    
+//     res.status(200).json({
+//       success: true,
+//       data: finalSubscription,
+//       debug: {
+//         foundWith: subscription2 ? 'ObjectId' : subscription3 ? 'NoStatus' : 'Direct',
+//         totalUserSubs: allUserSubs.length
+//       }
+//     });
+    
+//   } catch (error) {
+//     console.error('Get subscription error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error fetching subscription',
+//       error: error.message,
+//       stack: error.stack
+//     });
+//   }
+// });
+// // Get subscription history
+// router.get('/subscription-history', isUser, async (req, res) => {
+//   try {
+//     // FIXED: Use UserSubscription instead of userSubscription
+//     const subscriptions = await UserSubscription.find({
+//       user: req.user.id
+//     }).populate('plan').sort({ createdAt: -1 });
+    
+//     res.status(200).json({
+//       success: true,
+//       count: subscriptions.length,
+//       data: subscriptions
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error fetching subscription history',
+//       error: error.message
+//     });
+//   }
+// });
 //Cancel subscription (turn off auto-renewal)
 router.patch('/cancel-subscription', isUser, async (req, res) => {
   try {
@@ -2436,7 +2884,6 @@ router.get('/search', async (req, res) => {
     });
   }
 });
-
 // GET /api/trailers/coming-soon
 router.get('/coming-soon', async (req, res) => {
   try {
@@ -2579,7 +3026,6 @@ router.get('/video-url/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching video' });
   }
 });
-
 router.get('/sections', async (req, res) => {
   try {
     const sections = await HomeSection.find()
@@ -2656,9 +3102,6 @@ router.get('/videos/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
-
-
 // ===== 1. GET CONTEST VIDEOS (Public endpoint) =====
 router.get('/contests/:id/videos', async (req, res) => {
   try {
@@ -2796,8 +3239,6 @@ router.get('/contests/:id/videos', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
-
 // // ===== 2. TRACK CONTEST-SPECIFIC VIDEO VIEW =====
 // router.post('/contests/:contestId/videos/:videoId/view', async (req, res) => {
 //   try {
@@ -2984,7 +3425,6 @@ router.post('/contest/:contestId/video/:videoId/view', async (req, res) => {
   await contest.save();
   return res.status(200).json({ message: 'View recorded', counted: viewer.counted });
 });
-
 // ➕ Add or Update Rating
 router.post('/rate', isUser, async (req, res) => {
   try {
@@ -3008,7 +3448,6 @@ router.post('/rate', isUser, async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: err.message });
   }
 });
-
 // 📥 Get All Ratings (Admin use)
 router.get('/ratings', async (req, res) => {
   try {
@@ -3018,7 +3457,6 @@ router.get('/ratings', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch ratings', error: err.message });
   }
 });
-
 router.get('/series/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -3103,6 +3541,5 @@ router.get('/tv-shows/:id', async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 });
-
 
 module.exports = router;

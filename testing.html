@@ -2,19 +2,101 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Razorpay Payment Test - Static Token</title>
+  <title>Razorpay Payment Test - Enhanced</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .section {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    
+    button {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    
+    button:hover {
+      background-color: #0056b3;
+    }
+    
+    button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    
+    .success {
+      color: green;
+      background-color: #d4edda;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    .error {
+      color: red;
+      background-color: #f8d7da;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    .warning {
+      color: #856404;
+      background-color: #fff3cd;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    #result {
+      margin-top: 20px;
+    }
+    
+    .subscription-info {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+  </style>
 </head>
 <body>
-  <h1>Test Razorpay Payment Integration</h1>
+  <h1>Enhanced Razorpay Payment Integration</h1>
 
-  <!-- Payment section -->
-  <div id="payment-section">
+  <!-- User Info Section -->
+  <div class="section">
     <h3>Current User: <span id="current-user"></span></h3>
-    <input type="text" id="planId" placeholder="Plan ID" value="680539d76018e48c05d3d1dd">
-    <button id="rzp-button">Pay ₹1</button>
-    <button onclick="checkMySubscription()">Check My Subscription</button>
+    <button onclick="checkMySubscription()">Check My Current Subscription</button>
   </div>
 
+  <!-- Plan Selection Section -->
+  <div class="section">
+    <h3>Plan Selection</h3>
+    <label for="planId">Plan ID:</label>
+    <input type="text" id="planId" placeholder="Enter Plan ID" value="680539d76018e48c05d3d1dd" style="width: 300px; padding: 5px;">
+    <br><br>
+    <button id="check-eligibility-btn" onclick="checkEligibility()">Check Eligibility & Initiate Subscription</button>
+  </div>
+
+  <!-- Payment Section (Initially Hidden) -->
+  <div id="payment-section" class="section" style="display: none;">
+    <h3>Payment Details</h3>
+    <div id="plan-details"></div>
+    <button id="rzp-button">Proceed to Payment</button>
+    <button onclick="cancelPayment()">Cancel</button>
+  </div>
+
+  <!-- Results Section -->
   <div id="result"></div>
 
   <!-- Razorpay Checkout script -->
@@ -22,18 +104,138 @@
 
   <script>
     // ✅ Use your actual static JWT token here
-    let authToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2ODJjMTZlMzEzNzgzNTY4Y2U0NWJmMGEiLCJlbWFpbCI6InN1cmJoaXNpbmdoYWwwMTAxMTk5OEBnbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTc0ODU4NjY2OCwiZXhwIjoxNzQ5MTkxNDY4fQ.4bpuHGJsPYUq_5rSNyDCcErShojvyv-GvU_h7lH0qOM';
-    let userEmail = 'surbhisinghal01011998@gmail.com'; // optional display email
+    let authToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2ODNkNGNiOTBjYzU0MWFiMDU3MGFhMTIiLCJlbWFpbCI6InN1bmlkaGkxNDA4LmJlMjFAY2hpdGthcmEuZWR1LmluIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDkwMzM4MjIsImV4cCI6MTc0OTYzODYyMn0.XsyiCWTsdX6B3cLa2PGBNCeVQwhIPT5p9dZlAxyKMy0';
+    let userEmail = 'sunidhi1408.be21@chitkara.edu.in';
+    let currentPlanData = null;
 
     window.onload = function () {
-      document.getElementById('payment-section').style.display = 'block';
       document.getElementById('current-user').textContent = userEmail;
+      checkMySubscription(); // Auto-check on load
     };
 
-    // Payment function
-    document.getElementById('rzp-button').onclick = async function () {
+    // Step 1: Check eligibility and initiate subscription
+    async function checkEligibility() {
       try {
         const planId = document.getElementById('planId').value;
+        if (!planId) {
+          alert('Please enter a Plan ID');
+          return;
+        }
+
+        document.getElementById('check-eligibility-btn').disabled = true;
+        document.getElementById('check-eligibility-btn').textContent = 'Checking...';
+
+        const response = await fetch('/api/users/initiate-subscription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({
+            planId: planId
+          })
+        });
+
+        const data = await response.json();
+        console.log('Eligibility check result:', data);
+
+        document.getElementById('check-eligibility-btn').disabled = false;
+        document.getElementById('check-eligibility-btn').textContent = 'Check Eligibility & Initiate Subscription';
+
+        if (data.success) {
+          // User is eligible - show payment section
+          currentPlanData = data.data;
+          showPaymentSection(data);
+        } else {
+          // User is not eligible - show reason
+          showIneligibilityReason(data);
+        }
+
+      } catch (error) {
+        console.error('Eligibility check error:', error);
+        document.getElementById('check-eligibility-btn').disabled = false;
+        document.getElementById('check-eligibility-btn').textContent = 'Check Eligibility & Initiate Subscription';
+        
+        document.getElementById('result').innerHTML = 
+          `<div class="error">
+            <h3>❌ Error</h3>
+            <p>Failed to check eligibility. Please try again.</p>
+            <p>Error: ${error.message}</p>
+          </div>`;
+      }
+    }
+
+    // Show payment section when user is eligible
+    function showPaymentSection(data) {
+      document.getElementById('payment-section').style.display = 'block';
+      
+      const planDetails = `
+        <div class="subscription-info">
+          <h4>📋 Plan Details</h4>
+          <p><strong>Plan:</strong> ${data.data.plan.name}</p>
+          <p><strong>Price:</strong> ₹${data.data.plan.price}</p>
+          <p><strong>Duration:</strong> ${data.data.plan.duration} days</p>
+          <p><strong>Max Devices:</strong> ${data.data.plan.maxDevices}</p>
+          <p><strong>Max Profiles:</strong> ${data.data.plan.maxProfiles}</p>
+          ${data.data.plan.description ? `<p><strong>Description:</strong> ${data.data.plan.description}</p>` : ''}
+        </div>
+      `;
+      
+      document.getElementById('plan-details').innerHTML = planDetails;
+      
+      document.getElementById('result').innerHTML = 
+        `<div class="success">
+          <h3>✅ Eligible for Subscription</h3>
+          <p>${data.message}</p>
+          <p><strong>Action:</strong> ${data.data.action.replace('_', ' ').toUpperCase()}</p>
+        </div>`;
+    }
+
+    // Show reason why user cannot subscribe
+    function showIneligibilityReason(data) {
+      document.getElementById('payment-section').style.display = 'none';
+      
+      let resultHTML = `<div class="error"><h3>❌ Cannot Subscribe</h3><p>${data.message}</p>`;
+      
+      if (data.data && data.data.currentSubscription) {
+        const sub = data.data.currentSubscription;
+        resultHTML += `
+          <div class="subscription-info">
+            <h4>📋 Current Active Subscription</h4>
+            <p><strong>Plan:</strong> ${sub.planName}</p>
+            <p><strong>Start Date:</strong> ${new Date(sub.startDate).toLocaleDateString()}</p>
+            <p><strong>End Date:</strong> ${new Date(sub.endDate).toLocaleDateString()}</p>
+            <p><strong>Days Remaining:</strong> ${sub.daysRemaining}</p>
+            <p><strong>Status:</strong> ${sub.status}</p>
+          </div>
+        `;
+      }
+      
+      if (data.data && data.data.pendingTransactionId) {
+        resultHTML += `
+          <div class="warning">
+            <h4>⚠️ Pending Payment</h4>
+            <p><strong>Transaction ID:</strong> ${data.data.pendingTransactionId}</p>
+            <p><strong>Amount:</strong> ₹${data.data.amount}</p>
+            <p>Please complete or cancel this payment first.</p>
+          </div>
+        `;
+      }
+      
+      resultHTML += '</div>';
+      document.getElementById('result').innerHTML = resultHTML;
+    }
+
+    // Step 2: Create Razorpay order and process payment
+    document.getElementById('rzp-button').onclick = async function () {
+      try {
+        if (!currentPlanData) {
+          alert('Please check eligibility first');
+          return;
+        }
+
+        document.getElementById('rzp-button').disabled = true;
+        document.getElementById('rzp-button').textContent = 'Creating Order...';
 
         // Create order
         const orderRes = await fetch('/api/users/create-order', {
@@ -43,15 +245,18 @@
             'Authorization': `Bearer ${authToken}`
           },
           body: JSON.stringify({
-            planId: planId,
+            planId: currentPlanData.plan.id,
             paymentMethod: "razorpay"
           })
         });
 
         const orderData = await orderRes.json();
-        console.log('Order created for user:', orderData.userId);
+        console.log('Order response:', orderData);
 
-        if (!orderRes.ok || !orderData.orderId) {
+        document.getElementById('rzp-button').disabled = false;
+        document.getElementById('rzp-button').textContent = 'Proceed to Payment';
+
+        if (!orderRes.ok || !orderData.success) {
           alert("❌ Failed to create Razorpay order: " + orderData.message);
           return;
         }
@@ -62,51 +267,96 @@
           amount: orderData.amount,
           currency: orderData.currency,
           name: "OTT Subscription",
-          description: "Test Transaction",
+          description: `${orderData.planDetails.name} - ${orderData.planDetails.duration} days`,
           order_id: orderData.orderId,
           handler: async function (response) {
-            const verifyRes = await fetch('/api/users/verify-payment', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-              },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                transactionId: orderData.transactionId,
-                planId: planId
-              })
-            });
-
-            const verifyResult = await verifyRes.json();
-            console.log('Payment verification result:', verifyResult);
-
-            if (verifyResult.success) {
-              alert("✅ Payment verified successfully!");
-              document.getElementById('result').innerHTML = 
-                `<h3>✅ Success!</h3>
-                 <p>Subscription created for user: ${verifyResult.subscription.user}</p>
-                 <p>Plan: ${verifyResult.subscription.plan}</p>`;
-            } else {
-              alert("❌ Payment verification failed: " + verifyResult.message);
-            }
+            await verifyPayment(response, orderData);
+          },
+          prefill: {
+            email: userEmail
           },
           theme: {
             color: "#3399cc"
+          },
+          modal: {
+            ondismiss: function() {
+              document.getElementById('rzp-button').disabled = false;
+              document.getElementById('rzp-button').textContent = 'Proceed to Payment';
+            }
           }
         };
 
         const rzp = new Razorpay(options);
         rzp.open();
+
       } catch (error) {
-        console.error(error);
+        console.error('Payment initiation error:', error);
+        document.getElementById('rzp-button').disabled = false;
+        document.getElementById('rzp-button').textContent = 'Proceed to Payment';
         alert("❌ Something went wrong. Check console for details.");
       }
     };
 
-    // Check subscription
+    // Step 3: Verify payment
+    async function verifyPayment(razorpayResponse, orderData) {
+      try {
+        const verifyRes = await fetch('/api/users/verify-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({
+            razorpay_order_id: razorpayResponse.razorpay_order_id,
+            razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+            razorpay_signature: razorpayResponse.razorpay_signature,
+            transactionId: orderData.transactionId,
+            planId: currentPlanData.plan.id
+          })
+        });
+
+        const verifyResult = await verifyRes.json();
+        console.log('Payment verification result:', verifyResult);
+
+        if (verifyResult.success) {
+          const sub = verifyResult.data.subscription;
+          document.getElementById('result').innerHTML = 
+            `<div class="success">
+              <h3>🎉 Payment Successful!</h3>
+              <p>${verifyResult.message}</p>
+              <div class="subscription-info">
+                <h4>📋 Your New Subscription</h4>
+                <p><strong>Plan:</strong> ${sub.planName}</p>
+                <p><strong>Start Date:</strong> ${new Date(sub.startDate).toLocaleDateString()}</p>
+                <p><strong>End Date:</strong> ${new Date(sub.endDate).toLocaleDateString()}</p>
+                <p><strong>Days Remaining:</strong> ${sub.daysRemaining}</p>
+                <p><strong>Status:</strong> ${sub.status}</p>
+                <p><strong>Payment ID:</strong> ${verifyResult.data.transaction.paymentId}</p>
+              </div>
+            </div>`;
+          
+          document.getElementById('payment-section').style.display = 'none';
+          currentPlanData = null;
+          
+        } else {
+          document.getElementById('result').innerHTML = 
+            `<div class="error">
+              <h3>❌ Payment Verification Failed</h3>
+              <p>${verifyResult.message}</p>
+            </div>`;
+        }
+
+      } catch (error) {
+        console.error('Payment verification error:', error);
+        document.getElementById('result').innerHTML = 
+          `<div class="error">
+            <h3>❌ Verification Error</h3>
+            <p>Failed to verify payment. Please contact support.</p>
+          </div>`;
+      }
+    }
+
+    // Check current subscription
     async function checkMySubscription() {
       try {
         const response = await fetch('/api/users/my-subscription', {
@@ -118,21 +368,65 @@
         const data = await response.json();
         console.log('My subscription:', data);
 
-        if (data.success) {
-          document.getElementById('result').innerHTML = 
-            `<h3>My Active Subscription:</h3>
-             <p>Plan: ${data.data.plan.name}</p>
-             <p>Status: ${data.data.status}</p>
-             <p>End Date: ${new Date(data.data.endDate).toLocaleDateString()}</p>`;
+        let resultHTML = '';
+
+        if (data.success && data.hasActiveSubscription) {
+          const sub = data.data.subscription;
+          resultHTML = 
+            `<div class="success">
+              <h3>📱 Your Active Subscription</h3>
+              <div class="subscription-info">
+                <p><strong>Plan:</strong> ${sub.planName}</p>
+                <p><strong>Status:</strong> ${sub.status}</p>
+                <p><strong>Start Date:</strong> ${new Date(sub.startDate).toLocaleDateString()}</p>
+                <p><strong>End Date:</strong> ${new Date(sub.endDate).toLocaleDateString()}</p>
+                <p><strong>Days Remaining:</strong> ${sub.daysRemaining}</p>
+                <p><strong>Max Devices:</strong> ${sub.maxDevices}</p>
+                <p><strong>Max Profiles:</strong> ${sub.maxProfiles}</p>
+                <p><strong>Auto Renew:</strong> ${sub.autoRenew ? 'Yes' : 'No'}</p>
+              </div>
+            </div>`;
         } else {
-          document.getElementById('result').innerHTML = 
-            `<h3>No Active Subscription</h3>
-             <p>${data.message}</p>`;
+          resultHTML = 
+            `<div class="warning">
+              <h3>📭 No Active Subscription</h3>
+              <p>${data.message}</p>`;
+          
+          if (data.data && data.data.lastSubscription) {
+            const last = data.data.lastSubscription;
+            resultHTML += 
+              `<div class="subscription-info">
+                <h4>Last Subscription:</h4>
+                <p><strong>Plan:</strong> ${last.planName}</p>
+                <p><strong>End Date:</strong> ${new Date(last.endDate).toLocaleDateString()}</p>
+                <p><strong>Status:</strong> ${last.status}</p>
+              </div>`;
+          }
+          
+          resultHTML += '</div>';
         }
+
+        document.getElementById('result').innerHTML = resultHTML;
+
       } catch (error) {
         console.error('Check subscription error:', error);
-        alert('Failed to check subscription');
+        document.getElementById('result').innerHTML = 
+          `<div class="error">
+            <h3>❌ Error</h3>
+            <p>Failed to check subscription status.</p>
+          </div>`;
       }
+    }
+
+    // Cancel payment
+    function cancelPayment() {
+      document.getElementById('payment-section').style.display = 'none';
+      currentPlanData = null;
+      document.getElementById('result').innerHTML = 
+        `<div class="warning">
+          <h3>⚠️ Payment Cancelled</h3>
+          <p>You can check eligibility again when ready to subscribe.</p>
+        </div>`;
     }
   </script>
 </body>
