@@ -1,147 +1,96 @@
-<!-- 
-
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Razorpay Test</title>
-</head>
-<body>
-  <h1>Test Razorpay Integration</h1>
-  <button id="rzp-button">Pay ₹1</button>
-
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  <script>
-    document.getElementById('rzp-button').onclick = async function () {
-      // Step 1: Call server to create Razorpay order
-      const res = await fetch('/api/users/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-    planId: "680539d76018e48c05d3d1dd",
-    userId: "682844e902d69be6267eba45",
-    paymentMethod: "razorpay"
-  })
-      });
-
-      const data = await res.json();
-
-      // Step 2: Initialize Razorpay
-      const options = {
-        key: "rzp_test_7m8iz2GqqZ6H9C", // Replace with your Razorpay Key ID
-        amount: data.amount,
-        currency: data.currency,
-        name: "OTT Subscription",
-        description: "Test Transaction",
-        // order_id: data.id,
-        order_id: data.orderId,
-        handler: async function (response) {
-          // Step 3: Send response to backend for verification
-          const verifyRes = await fetch('/api/users/verify-payment', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              transactionId: data.transactionId,
-              planId: "680539d76018e48c05d3d1dd",
-              userId: "682844e902d69be6267eba45"
-            })
-          });
-
-          const result = await verifyRes.json();
-
-          if (result.success) {
-            alert("✅ Payment verified and successful!");
-          } else {
-            alert("❌ Payment failed verification. Please try again.");
-          }
-        },
-        theme: {
-          color: "#3399cc"
-        }
-      };
-      const rzp1 = new Razorpay(options);
-      rzp1.open();
-    };
-  </script>
-</body>
-</html> -->
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Razorpay Payment Test</title>
+  <title>Razorpay Payment Test - Static Token</title>
 </head>
 <body>
   <h1>Test Razorpay Payment Integration</h1>
-  <button id="rzp-button">Pay ₹1</button>
+
+  <!-- Payment section -->
+  <div id="payment-section">
+    <h3>Current User: <span id="current-user"></span></h3>
+    <input type="text" id="planId" placeholder="Plan ID" value="680539d76018e48c05d3d1dd">
+    <button id="rzp-button">Pay ₹1</button>
+    <button onclick="checkMySubscription()">Check My Subscription</button>
+  </div>
+
+  <div id="result"></div>
 
   <!-- Razorpay Checkout script -->
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
   <script>
+    // ✅ Use your actual static JWT token here
+    let authToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2ODJjMTZlMzEzNzgzNTY4Y2U0NWJmMGEiLCJlbWFpbCI6InN1cmJoaXNpbmdoYWwwMTAxMTk5OEBnbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTc0ODU4NjY2OCwiZXhwIjoxNzQ5MTkxNDY4fQ.4bpuHGJsPYUq_5rSNyDCcErShojvyv-GvU_h7lH0qOM';
+    let userEmail = 'surbhisinghal01011998@gmail.com'; // optional display email
+
+    window.onload = function () {
+      document.getElementById('payment-section').style.display = 'block';
+      document.getElementById('current-user').textContent = userEmail;
+    };
+
+    // Payment function
     document.getElementById('rzp-button').onclick = async function () {
       try {
-        // Step 1: Create Razorpay Order
+        const planId = document.getElementById('planId').value;
+
+        // Create order
         const orderRes = await fetch('/api/users/create-order', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
           },
           body: JSON.stringify({
-            
-            planId: "680539d76018e48c05d3d1dd",   // Replace with actual plan ID
-            userId: "682c16e313783568ce45bf0a",   // Replace with actual user ID
+            planId: planId,
             paymentMethod: "razorpay"
           })
         });
 
         const orderData = await orderRes.json();
+        console.log('Order created for user:', orderData.userId);
 
         if (!orderRes.ok || !orderData.orderId) {
-          alert("❌ Failed to create Razorpay order.");
+          alert("❌ Failed to create Razorpay order: " + orderData.message);
           return;
         }
 
-        // Step 2: Open Razorpay Checkout
+        // Open Razorpay
         const options = {
-          key: "rzp_test_7m8iz2GqqZ6H9C", // Replace with your Razorpay key
+          key: "rzp_test_7m8iz2GqqZ6H9C", // Your test key
           amount: orderData.amount,
           currency: orderData.currency,
           name: "OTT Subscription",
           description: "Test Transaction",
           order_id: orderData.orderId,
           handler: async function (response) {
-            // Step 3: Verify Payment
             const verifyRes = await fetch('/api/users/verify-payment', {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
               },
               body: JSON.stringify({
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 transactionId: orderData.transactionId,
-                planId: "680539d76018e48c05d3d1dd",
-                userId: "682c16e313783568ce45bf0a"
+                planId: planId
               })
             });
 
             const verifyResult = await verifyRes.json();
+            console.log('Payment verification result:', verifyResult);
 
             if (verifyResult.success) {
               alert("✅ Payment verified successfully!");
+              document.getElementById('result').innerHTML = 
+                `<h3>✅ Success!</h3>
+                 <p>Subscription created for user: ${verifyResult.subscription.user}</p>
+                 <p>Plan: ${verifyResult.subscription.plan}</p>`;
             } else {
-              alert("❌ Payment verification failed.");
+              alert("❌ Payment verification failed: " + verifyResult.message);
             }
           },
           theme: {
@@ -156,6 +105,35 @@
         alert("❌ Something went wrong. Check console for details.");
       }
     };
+
+    // Check subscription
+    async function checkMySubscription() {
+      try {
+        const response = await fetch('/api/users/my-subscription', {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+
+        const data = await response.json();
+        console.log('My subscription:', data);
+
+        if (data.success) {
+          document.getElementById('result').innerHTML = 
+            `<h3>My Active Subscription:</h3>
+             <p>Plan: ${data.data.plan.name}</p>
+             <p>Status: ${data.data.status}</p>
+             <p>End Date: ${new Date(data.data.endDate).toLocaleDateString()}</p>`;
+        } else {
+          document.getElementById('result').innerHTML = 
+            `<h3>No Active Subscription</h3>
+             <p>${data.message}</p>`;
+        }
+      } catch (error) {
+        console.error('Check subscription error:', error);
+        alert('Failed to check subscription');
+      }
+    }
   </script>
 </body>
 </html>
