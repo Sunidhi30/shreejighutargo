@@ -3904,7 +3904,7 @@ router.get('/home-sections/type/:type', async (req, res) => {
     const typeMap = {
       movie: 'movie',
       webseries: 'web_series',
-      web_series: 'web_series',
+      web_series: 'webseries',
       show: 'tv_show',
       tvshow: 'tv_show',
       tv_show: 'tv_show',

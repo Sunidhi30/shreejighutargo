@@ -2146,6 +2146,67 @@ router.post('/verify-payment', isUser, async (req, res) => {
 });
 
 // Get current subscription with detailed information
+// router.get('/my-subscription', isUser, async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+    
+//     // Find active subscription
+//     const activeSubscription = await UserSubscription.findOne({
+//       user: userId,
+//       status: 'active',
+//       endDate: { $gt: new Date() }
+//     }).populate('plan');
+    
+//     if (!activeSubscription) {
+//       // Check for any subscription (including expired/canceled)
+//       const lastSubscription = await UserSubscription.findOne({
+//         user: userId
+//       }).populate('plan').sort({ createdAt: -1 });
+      
+//       return res.status(200).json({
+//         success: true,
+//         hasActiveSubscription: false,
+//         message: 'No active subscription found',
+//         data: {
+//           lastSubscription: lastSubscription ? {
+//             planName: lastSubscription.plan.name,
+//             endDate: lastSubscription.endDate,
+//             status: lastSubscription.status
+//           } : null
+//         }
+//       });
+//     }
+    
+//     const daysRemaining = Math.ceil((activeSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24));
+    
+//     res.status(200).json({
+//       success: true,
+//       hasActiveSubscription: true,
+//       data: {
+//         subscription: {
+//           id: activeSubscription._id,
+//           planName: activeSubscription.plan.name,
+//           planDescription: activeSubscription.plan.description,
+//           startDate: activeSubscription.startDate,
+//           endDate: activeSubscription.endDate,
+//           status: activeSubscription.status,
+//           daysRemaining: daysRemaining,
+//           maxDevices: activeSubscription.plan.maxDevices,
+//           maxProfiles: activeSubscription.plan.maxProfiles,
+//           autoRenew: activeSubscription.autoRenew
+//         }
+//       }
+//     });
+    
+//   } catch (error) {
+//     console.error('Get subscription error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error fetching subscription details',
+//       error: error.message
+//     });
+//   }
+// });
 router.get('/my-subscription', isUser, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -2158,7 +2219,7 @@ router.get('/my-subscription', isUser, async (req, res) => {
     }).populate('plan');
     
     if (!activeSubscription) {
-      // Check for any subscription (including expired/canceled)
+      // Check for any previous subscription
       const lastSubscription = await UserSubscription.findOne({
         user: userId
       }).populate('plan').sort({ createdAt: -1 });
@@ -2169,6 +2230,7 @@ router.get('/my-subscription', isUser, async (req, res) => {
         message: 'No active subscription found',
         data: {
           lastSubscription: lastSubscription ? {
+            planId: lastSubscription.plan._id,
             planName: lastSubscription.plan.name,
             endDate: lastSubscription.endDate,
             status: lastSubscription.status
@@ -2185,6 +2247,7 @@ router.get('/my-subscription', isUser, async (req, res) => {
       data: {
         subscription: {
           id: activeSubscription._id,
+          planId: activeSubscription.plan._id,
           planName: activeSubscription.plan.name,
           planDescription: activeSubscription.plan.description,
           startDate: activeSubscription.startDate,
@@ -2197,7 +2260,7 @@ router.get('/my-subscription', isUser, async (req, res) => {
         }
       }
     });
-    
+
   } catch (error) {
     console.error('Get subscription error:', error);
     res.status(500).json({
@@ -2207,6 +2270,7 @@ router.get('/my-subscription', isUser, async (req, res) => {
     });
   }
 });
+
 // // API to initiate subscription process (when user clicks "Subscribe")
 // router.post('/initiate-subscription', isUser, async (req, res) => {
 //   try {
