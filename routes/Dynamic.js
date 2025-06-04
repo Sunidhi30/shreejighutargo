@@ -185,9 +185,9 @@ router.get('/search-allvideos-bytype', async (req, res) => {
           results = await Movie.find().lean();
           results = results.map(item => ({ ...item, category: 'movie' }));
           break;
-        case 'webseries':
+        case 'web-series':
           results = await WebSeries.find().lean();
-          results = results.map(item => ({ ...item, category: 'web_series' }));
+          results = results.map(item => ({ ...item, category: 'web-series' }));
           break;
         case 'show':
           results = await TvShow.find().lean();
@@ -200,7 +200,7 @@ router.get('/search-allvideos-bytype', async (req, res) => {
         default:
           return res.status(400).json({
             success: false,
-            message: 'Invalid type. Valid types are: movie, web_series, tv_show, dynamic',
+            message: 'Invalid type. Valid types are: movie, web-series, tv_show, dynamic',
           });
       }
   
