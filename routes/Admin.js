@@ -3194,7 +3194,6 @@ router.get('/get-casts', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-
 // 1. CREATE CONTEST (Admin only)
 router.post("/create-contests", verifyAdmin, async (req, res) => {
   try {
@@ -3288,7 +3287,6 @@ router.get("/contests/:id", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 // ===== 3. GET CONTEST LEADERBOARD =====
 router.get('/contests/:id/leaderboard', async (req, res) => {
   try {

@@ -97,8 +97,9 @@
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            
             planId: "680539d76018e48c05d3d1dd",   // Replace with actual plan ID
-            userId: "682844e902d69be6267eba45",   // Replace with actual user ID
+            userId: "682c16e313783568ce45bf0a",   // Replace with actual user ID
             paymentMethod: "razorpay"
           })
         });
@@ -131,7 +132,7 @@
                 razorpay_signature: response.razorpay_signature,
                 transactionId: orderData.transactionId,
                 planId: "680539d76018e48c05d3d1dd",
-                userId: "682844e902d69be6267eba45"
+                userId: "682c16e313783568ce45bf0a"
               })
             });
 
