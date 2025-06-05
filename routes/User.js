@@ -1914,7 +1914,6 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
     });
   }
 });
-
 // Enhanced create-order with additional validation
 router.post('/create-order', isUser, async (req, res) => {
   try {
@@ -2145,7 +2144,6 @@ router.post('/verify-payment', isUser, async (req, res) => {
   }
 });
 
-// Get current subscription with detailed information
 // router.get('/my-subscription', isUser, async (req, res) => {
 //   try {
 //     const userId = req.user.id;
@@ -2270,7 +2268,6 @@ router.get('/my-subscription', isUser, async (req, res) => {
     });
   }
 });
-
 // // API to initiate subscription process (when user clicks "Subscribe")
 // router.post('/initiate-subscription', isUser, async (req, res) => {
 //   try {

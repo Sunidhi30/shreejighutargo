@@ -3531,7 +3531,7 @@ router.post('/create-homesection', async (req, res) => {
     }
 
     // Validate type
-    const validTypes = ['movie', 'web_series', 'show', 'others', 'common','show'];
+    const validTypes = ['movie', 'web_series', 'show', 'others', 'common','show','web-series'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ 
         success: false,
