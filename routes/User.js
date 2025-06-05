@@ -3440,8 +3440,6 @@ router.get('/available-plans', isUser, async (req, res) => {
   }
 });
 
-
-
 // 2. UPDATED: Modify initiate-subscription to handle upgrades
 router.post('/initiate-subscription', isUser, async (req, res) => {
   try {
