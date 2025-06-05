@@ -160,6 +160,10 @@ app.listen(PORT,()=>{
     res.sendFile(__dirname + "/testingVideos.html");
   })
 
+  app.get("/Admintransactions", (req, res) => {
+    res.sendFile(__dirname + "/payementAdmin.html");
+  })
+
   app.get("/users", (req, res) => {
     res.sendFile(__dirname + "/testinguser.html");
   })

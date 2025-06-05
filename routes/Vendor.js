@@ -3,6 +3,7 @@ const Admin = require("../models/Admin");
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
+const  Ad = require("../models/Ad")
 const path = require('path');
 const Category = require("../models/Category")
 const VendorLockPeriod = require('../models/LockPeriod'); // adjust the path as needed
@@ -5028,6 +5029,324 @@ router.get('/all-videos', async (req, res) => {
   } catch (error) {
     console.error('Error fetching videos:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+// adss configuration
+// ===== CONFIGURE GOOGLE ADS =====
+router.post('/google/configure/:videoId', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const { 
+      publisherId,
+      adUnitId,
+      adFormat = 'video',
+      adSize = '728x90',
+      testMode = true,
+      adInterval = 300,
+      preRollAd = true,
+      midRollAd = true,
+      postRollAd = true,
+      skipAfter = 5
+    } = req.body;
+
+    // Validate required fields
+    if (!publisherId || !adUnitId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google Publisher ID and Ad Unit ID are required'
+      });
+    }
+
+    // Check if video exists
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    let adConfig = await Ad.findOne({ video_id: videoId });
+    
+    if (adConfig) {
+      // Update existing configuration
+      adConfig.adConfig = {
+        enabled: true,
+        adInterval,
+        preRollAd,
+        midRollAd,
+        postRollAd,
+        skipAfter,
+        adBreakPositions: []
+      };
+      
+      adConfig.adProviders.google = {
+        enabled: true,
+        publisherId,
+        adUnitId,
+        adFormat,
+        adSize,
+        testMode
+      };
+      
+    } else {
+      // Create new configuration
+      adConfig = new Ad({
+        video_id: videoId,
+        adConfig: {
+          enabled: true,
+          adInterval,
+          preRollAd,
+          midRollAd,
+          postRollAd,
+          skipAfter,
+          adBreakPositions: []
+        },
+        adProviders: {
+          google: {
+            enabled: true,
+            publisherId,
+            adUnitId,
+            adFormat,
+            adSize,
+            testMode
+          }
+        }
+      });
+    }
+    
+    adConfig.calculateAdBreaks(video.video_duration);
+    await adConfig.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Google Ads configured successfully',
+      data: {
+        videoId: videoId,
+        googleAds: adConfig.adProviders.google,
+        adBreakPositions: adConfig.adConfig.adBreakPositions
+      }
+    });
+
+  } catch (error) {
+    console.error('Error configuring Google Ads:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+// ===== GET AD CONFIGURATION FOR PLAYER =====
+router.get('/player/:videoId', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    const adConfig = await Ad.findOne({ video_id: videoId, isActive: true });
+    
+    if (!adConfig || !adConfig.adConfig.enabled) {
+      return res.status(200).json({
+        success: true,
+        message: 'No ads configured for this video',
+        data: {
+          hasAds: false,
+          adBreaks: []
+        }
+      });
+    }
+
+    // Prepare ad breaks with provider information
+    const adBreaks = adConfig.adConfig.adBreakPositions.map(position => {
+      let adProvider = null;
+      let adData = null;
+
+      // Check which provider is enabled
+      if (adConfig.adProviders.google.enabled) {
+        adProvider = 'google';
+        adData = {
+          type: 'google',
+          publisherId: adConfig.adProviders.google.publisherId,
+          adUnitId: adConfig.adProviders.google.adUnitId,
+          adFormat: adConfig.adProviders.google.adFormat,
+          adSize: adConfig.adProviders.google.adSize,
+          testMode: adConfig.adProviders.google.testMode
+        };
+      } else if (adConfig.adProviders.facebook.enabled) {
+        adProvider = 'facebook';
+        adData = {
+          type: 'facebook',
+          placementId: adConfig.adProviders.facebook.placementId,
+          adFormat: adConfig.adProviders.facebook.adFormat
+        };
+      } else if (adConfig.adProviders.custom.enabled && adConfig.adProviders.custom.adContent.length > 0) {
+        adProvider = 'custom';
+        const randomAd = adConfig.adProviders.custom.adContent[
+          Math.floor(Math.random() * adConfig.adProviders.custom.adContent.length)
+        ];
+        adData = {
+          type: 'custom',
+          ...randomAd
+        };
+      }
+
+      return {
+        position: position,
+        provider: adProvider,
+        adData: adData,
+        skipAfter: adConfig.adConfig.skipAfter
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        hasAds: true,
+        adBreaks: adBreaks,
+        totalBreaks: adBreaks.length,
+        videoDuration: video.video_duration
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching player ad config:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// ===== TRACK AD EVENTS =====
+router.post('/track/:videoId', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const { 
+      provider, // 'google', 'facebook', 'custom'
+      adId = null,
+      position,
+      action = 'impression', // 'impression', 'click', 'complete'
+      revenue = 0
+    } = req.body;
+
+    const adConfig = await Ad.findOne({ video_id: videoId });
+    
+    if (!adConfig) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ad configuration not found'
+      });
+    }
+
+    // Update tracking based on provider and action
+    if (provider === 'custom' && adId) {
+      const adContent = adConfig.adProviders.custom.adContent.find(ad => ad.adId === adId);
+      if (adContent) {
+        if (action === 'impression') {
+          adContent.impressions += 1;
+        } else if (action === 'click') {
+          adContent.clicks += 1;
+        }
+      }
+    }
+
+    // Update overall stats
+    if (action === 'impression') {
+      adConfig.totalAdViews += 1;
+      adConfig.revenue += revenue || 0.01; // Default revenue per impression
+    } else if (action === 'click') {
+      adConfig.revenue += revenue || 0.05; // Default revenue per click
+    }
+
+    await adConfig.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Ad ${action} tracked successfully`,
+      data: {
+        provider: provider,
+        action: action,
+        totalAdViews: adConfig.totalAdViews,
+        totalRevenue: adConfig.revenue
+      }
+    });
+
+  } catch (error) {
+    console.error('Error tracking ad:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// ===== GET AD ANALYTICS =====
+router.get('/analytics/:videoId', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    
+    const adConfig = await Ad.findOne({ video_id: videoId }).populate('video_id', 'name video_duration');
+    
+    if (!adConfig) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ad configuration not found'
+      });
+    }
+
+    // Calculate analytics
+    const analytics = {
+      videoInfo: {
+        name: adConfig.video_id.name,
+        duration: adConfig.video_id.video_duration
+      },
+      adConfig: adConfig.adConfig,
+      providers: {
+        google: adConfig.adProviders.google,
+        facebook: adConfig.adProviders.facebook,
+        custom: {
+          enabled: adConfig.adProviders.custom.enabled,
+          totalAds: adConfig.adProviders.custom.adContent.length
+        }
+      },
+      performance: {
+        totalAdViews: adConfig.totalAdViews,
+        totalRevenue: adConfig.revenue,
+        revenuePerView: adConfig.totalAdViews > 0 ? (adConfig.revenue / adConfig.totalAdViews).toFixed(4) : 0
+      }
+    };
+
+    // Custom ads detailed analytics
+    if (adConfig.adProviders.custom.enabled) {
+      analytics.customAdsDetails = adConfig.adProviders.custom.adContent.map(ad => ({
+        adId: ad.adId,
+        impressions: ad.impressions,
+        clicks: ad.clicks,
+        ctr: ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(2) + '%' : '0%'
+      }));
+    }
+
+    res.status(200).json({
+      success: true,
+      data: analytics
+    });
+
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
 module.exports = router;

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Bank & Withdrawal</title>
+  <meta charset="UTF-8" />
+  <script>
+    const adminId = "67f8c0c7b93925ebef56c0c1"; // 💡 Replace this with dynamic value if needed
+    const token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZjhjMGM3YjkzOTI1ZWJlZjU2YzBjMSIsImVtYWlsIjoic3VuaWRoaXJhdHJhMjFAZ21haWwuY29tIiwiaWF0IjoxNzQ5MTA4Mjg5LCJleHAiOjE3NDk3MTMwODl9.NvdM2F-1MLcOJ5TJS9XVKgXaH-LKYLU5Q4jis8Frr6o";
+
+    async function submitBankDetails(event) {
+      event.preventDefault();
+
+      const payload = {
+        accountHolderName: document.getElementById('accountHolderName').value,
+        accountNumber: document.getElementById('accountNumber').value,
+        ifscCode: document.getElementById('ifscCode').value,
+        bankName: document.getElementById('bankName').value,
+        branchName: document.getElementById('branchName').value,
+        accountType: document.getElementById('accountType').value
+      };
+
+      const res = await fetch(`http://localhost:9000/api/admin/${adminId}/bank-details`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      alert(JSON.stringify(data, null, 2));
+    }
+
+    async function submitWithdrawal(event) {
+      event.preventDefault();
+
+      const payload = {
+        amount: document.getElementById('amount').value,
+        description: document.getElementById('description').value
+      };
+
+      const res = await fetch(`http://localhost:9000/api/admin/withdrawal/${adminId}`, {
+        
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      alert(JSON.stringify(data, null, 2));
+    }
+  </script>
+</head>
+<body>
+  <h1>Admin Panel – Bank & Withdrawal</h1>
+
+  <h2>1. Add / Update Bank Details</h2>
+  <form onsubmit="submitBankDetails(event)">
+    <label>Account Holder Name:</label><br />
+    <input type="text" id="accountHolderName" required /><br /><br />
+
+    <label>Account Number:</label><br />
+    <input type="text" id="accountNumber" required /><br /><br />
+
+    <label>IFSC Code:</label><br />
+    <input type="text" id="ifscCode" required /><br /><br />
+
+    <label>Bank Name:</label><br />
+    <input type="text" id="bankName" required /><br /><br />
+
+    <label>Branch Name:</label><br />
+    <input type="text" id="branchName" /><br /><br />
+
+    <label>Account Type:</label><br />
+    <select id="accountType">
+      <option value="savings">Savings</option>
+      <option value="current">Current</option>
+    </select><br /><br />
+
+    <button type="submit">Save Bank Details</button>
+  </form>
+
+  <hr />
+
+  <h2>2. Withdraw Funds</h2>
+  <form onsubmit="submitWithdrawal(event)">
+    <label>Amount (INR):</label><br />
+    <input type="number" id="amount" required /><br /><br />
+
+    <label>Description:</label><br />
+    <input type="text" id="description" /><br /><br />
+
+    <button type="submit">Withdraw</button>
+  </form>
+</body>
+</html>

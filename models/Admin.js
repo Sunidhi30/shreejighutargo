@@ -16,8 +16,32 @@ const adminSchema = new mongoose.Schema({
 
   wallet: { type: Number, default: 0 } , // Admin's wallet balance
 
-  defaultWalletLockDays: { type: Number, default: 90 }, // Default lock period
-
+  // defaultWalletLockDays: { type: Number, default: 90 }, // Default lock period
+  // 🆕 Bank Account Details for Admin Transactions
+  bankDetails: {
+    accountNumber: { type: String },
+    ifscCode: { type: String },
+    bankName: { type: String },
+    accountHolderName: { type: String },
+    branchName: { type: String },
+    accountType: { type: String, enum: ['savings', 'current'], default: 'savings' },
+    isVerified: { type: Boolean, default: false }
+  },
+  
+  // 🆕 Razorpay Configuration
+  razorpayConfig: {
+    keyId: { type: String },
+    keySecret: { type: String },
+    webhookSecret: { type: String },
+    isActive: { type: Boolean, default: false }
+  },
+  
+  // 🆕 UPI Details (Alternative payment method)
+  upiDetails: {
+    upiId: { type: String },
+    qrCode: { type: String }, // Base64 encoded QR code or URL
+    isActive: { type: Boolean, default: false }
+  },
   notificationDays: { type: Number, default: 2 }, // Days before expiry to send notification
   emailSettings: {
     smtpHost: String,

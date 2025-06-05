@@ -1,8 +1,9 @@
 const express = require("express");
 const nodemailer = require("nodemailer");
 const { uploadToCloudinary } = require("../utils/cloudinary");
-const jwt = require("jsonwebtoken");
+const AminTransactions = require("../models/AdminTransactions")
 const Producer = require("../models/Producer");
+const PaymentController = require("../controllers/PaymentController")
 const DynamicVideo= require("../models/DynamicVideo")
 const { ContestController } = require("../controllers/contestController");
 const Contest = require("../models/Contest");
@@ -4253,4 +4254,34 @@ router.get('/users-transactions',  async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+// GET admin earnings
+router.get('/admin-earnings', verifyAdmin, async (req, res) => {
+  try {
+    const admin = await Admin.findOne({ role: 'admin' });
+
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    res.status(200).json({
+      walletBalance: admin.wallet,
+      totalEarningsFromViews: admin.totalEarningsFromViews,
+      adminPercentage: admin.adminPercentage,
+      vendorPercentage: admin.vendorPercentage,
+      pricePerView: admin.pricePerView,
+      targetAmount: admin.targetAmount
+    });
+  } catch (err) {
+    console.error('Error fetching admin earnings:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+
+// history of transactions /////////// transactions functionality /////////////
+router.post('/:adminId/bank-details', PaymentController.addOrUpdateBankDetails);
+
+router.post('/withdrawal/:adminId', verifyAdmin, PaymentController.processWithdrawal);
+
 module.exports = router;

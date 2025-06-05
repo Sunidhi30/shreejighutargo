@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player with Google Ads</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        #videoPlayer {
+            width: 100%;
+            height: 400px;
+            background: #000;
+        }
+        
+        .ad-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 1000;
+        }
+        
+        .ad-content {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .skip-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.8);
+            color: #000;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+        }
+        
+        .ad-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-width: 300px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        
+        .analytics {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .google-ad-preview {
+            border: 2px dashed #4285f4;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            margin: 10px 0;
+        }
+        
+        .facebook-ad-preview {
+            border: 2px dashed #1877f2;
+            padding: 20px;
+            text-align: center;
+            background: #f0f2f5;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Video Player with Ad Integration</h1>
+    
+    <!-- Ad Configuration Panel -->
+    <div class="ad-controls">
+        <h3>📺 Configure Ads</h3>
+        
+        <div class="form-group">
+            <label>Video ID:</label>
+            <input type="text" id="videoId" placeholder="Enter your video MongoDB ObjectId">
+        </div>
+        
+        <!-- Google Ads Configuration -->
+        <h4>🔍 Google Ads Configuration</h4>
+        <div class="form-group">
+            <label>Publisher ID:</label>
+            <input type="text" id="googlePublisherId" placeholder="pub-1234567890123456">
+        </div>
+        
+        <div class="form-group">
+            <label>Ad Unit ID:</label>
+            <input type="text" id="googleAdUnitId" placeholder="1234567890">
+        </div>
+        
+        <div class="form-group">
+            <label>Ad Format:</label>
+            <select id="googleAdFormat">
+                <option value="video">Video Ad</option>
+                <option value="banner">Banner Ad</option>
+                <option value="interstitial">Interstitial Ad</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Ad Interval (seconds):</label>
+            <input type="number" id="adInterval" value="180" min="60">
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="testMode" checked> Test Mode
+            </label>
+        </div>
+        
+        <button onclick="configureGoogleAds()">Configure Google Ads</button>
+        <button onclick="configureFacebookAds()">Configure Facebook Ads</button>
+        <button onclick="loadVideo()">Load Video with Ads</button>
+        <button onclick="getAnalytics()">View Analytics</button>
+        
+        <div id="status"></div>
+    </div>
+    
+    <!-- Video Player -->
+    <div class="video-container">
+        <video id="videoPlayer" controls>
+            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        
+        <!-- Ad Overlay -->
+        <div id="adOverlay" class="ad-overlay">
+            <div class="ad-content">
+                <!-- Google Ad will be rendered here -->
+                <div id="googleAdContainer" style="display: none;">
+                    <div class="google-ad-preview">
+                        <h3>🔍 Google Ad</h3>
+                        <p>Google AdSense Ad would appear here</p>
+                        <p>Publisher: <span id="adPublisherId"></span></p>
+                        <p>Ad Unit: <span id="adUnitDisplay"></span></p>
+                        <p>Format: <span id="adFormatDisplay"></span></p>
+                    </div>
+                </div>
+                
+                <!-- Facebook Ad Preview -->
+                <div id="facebookAdContainer" style="display: none;">
+                    <div class="facebook-ad-preview">
+                        <h3>📘 Facebook Ad</h3>
+                        <p>Facebook Audience Network Ad would appear here</p>
+                        <p>Placement ID: <span id="fbPlacementId"></span></p>
+                    </div>
+                </div>
+                
+                <!-- Custom Ad Preview -->
+                <div id="customAdContainer" style="display: none;">
+                    <video id="adVideo" width="100%" height="300" autoplay>
+                        <source id="adVideoSource" src="" type="video/mp4">
+                    </video>
+                </div>
+            </div>
+            
+            <button id="skipButton" class="skip-button" onclick="skipAd()">Skip Ad</button>
+        </div>
+    </div>
+    
+    <!-- Analytics Panel -->
+    <div id="analyticsPanel" class="analytics" style="display: none;">
+        <h3>📊 Ad Analytics</h3>
+        <div id="analyticsContent"></div>
+    </div>
+
+    <script>
+        let currentVideoId = '';
+        let adBreaks = [];
+        let currentAdIndex = 0;
+        let adTimeout = null;
+        let skipTimeout = null;
+        
+        const API_BASE = 'http://localhost:3000/api/ads'; // Update with your API URL
+        
+        // Show status messages
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => statusDiv.innerHTML = '', 5000);
+        }
+        
+        // Configure Google Ads
+        async function configureGoogleAds() {
+            const videoId = document.getElementById('videoId').value;
+            const publisherId = document.getElementById('googlePublisherId').value;
+            const adUnitId = document.getElementById('googleAdUnitId').value;
+            const adFormat = document.getElementById('googleAdFormat').value;
+            const adInterval = parseInt(document.getElementById('adInterval').value);
+            const testMode = document.getElementById('testMode').checked;
+            
+            if (!videoId || !publisherId || !adUnitId) {
+                showStatus('Please fill in Video ID, Publisher ID, and Ad Unit ID', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/google/configure/${videoId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        publisherId,
+                        adUnitId,
+                        adFormat,
+                        adInterval,
+                        testMode,
+                        preRollAd: true,
+                        midRollAd: true,
+                        postRollAd: true,
+                        skipAfter: 5
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`Google Ads configured! Ad breaks at: ${data.data.adBreakPositions.join(', ')} seconds`, 'success');
+                    currentVideoId = videoId;
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Configure Facebook Ads
+        async function configureFacebookAds() {
+            const videoId = document.getElementById('videoId').value;
+            const placementId = prompt('Enter Facebook Placement ID:');
+            
+            if (!videoId || !placementId) {
+                showStatus('Video ID and Placement ID are required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/facebook/configure/${videoId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        placementId,
+                        adFormat: 'video'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('Facebook Ads configured successfully!', 'success');
+                    currentVideoId = videoId;
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Load video with ads
+        async function loadVideo() {
+            const videoId = document.getElementById('videoId').value;
+            
+            if (!videoId) {
+                showStatus('Please enter a Video ID', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/player/${videoId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data.hasAds) {
+                    adBreaks = data.data.adBreaks;
+                    currentVideoId = videoId;
+                    setupVideoPlayer();
+                    showStatus(`Video loaded with ${adBreaks.length} ad breaks`, 'success');
+                } else {
+                    showStatus('No ads configured for this video', 'info');
+                }
+            } catch (error) {
+                showStatus(`Error loading video: ${error.message}`, 'error');
+            }
+        }
+        
+        // Setup video player with ad breaks
+        function setupVideoPlayer() {
+            const video = document.getElementById('videoPlayer');
+            currentAdIndex = 0;
+            
+            video.addEventListener('timeupdate', () => {
+                const currentTime = Math.floor(video.currentTime);
+                
+                // Check for ad breaks
+                const adBreak = adBreaks.find(ad => 
+                    Math.abs(ad.position - currentTime) < 1 && !ad.played
+                );
+                
+                if (adBreak) {
+                    video.pause();
+                    showAd(adBreak);
+                    adBreak.played = true;
+                }
+            });
+        }
+        
+        // Show ad based on provider
+        function showAd(adBreak) {
+            const overlay = document.getElementById('adOverlay');
+            const skipButton = document.getElementById('skipButton');
+            
+            // Hide all ad containers
+            document.getElementById('googleAdContainer').style.display = 'none';
+            document.getElementById('facebookAdContainer').style.display = 'none';
+            document.getElementById('customAdContainer').style.display = 'none';
+            
+            // Show appropriate ad based on provider
+            if (adBreak.provider === 'google') {
+                showGoogleAd(adBreak.adData);
+            } else if (adBreak.provider === 'facebook') {
+                showFacebookAd(adBreak.adData);
+            } else if (adBreak.provider === 'custom') {
+                showCustomAd(adBreak.adData);
+            }
+            
+            overlay.style.display = 'flex';
+            
+            // Track ad impression
+            trackAdEvent('impression', adBreak);
+            
+            // Show skip button after specified time
+            if (adBreak.skipAfter > 0) {
+                skipTimeout = setTimeout(() => {
+                    skipButton.style.display = 'block';
+                }, adBreak.skipAfter * 1000);
+            }
+            
+            // Auto-hide ad after 30 seconds
+            adTimeout = setTimeout(() => {
+                hideAd();
+            }, 30000);
+        }
+        
+        // Show Google Ad
+        function showGoogleAd(adData) {
+            const container = document.getElementById('googleAdContainer');
+            document.getElementById('adPublisherId').textContent = adData.publisherId;
+            document.getElementById('adUnitDisplay').textContent = adData.adUnitId;
+            document.getElementById('adFormatDisplay').textContent = adData.adFormat;
+            container.style.display = 'block';
+            
+            // In a real implementation,
