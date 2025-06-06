@@ -41,6 +41,7 @@
 
 // module.exports  = mongoose.model('UserSubscription', userSubscriptionSchema);
 // Updated UserSubscription Schema
+
 const mongoose = require("mongoose");
 
 const userSubscriptionSchema = new mongoose.Schema({

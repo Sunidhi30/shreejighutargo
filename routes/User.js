@@ -3327,6 +3327,109 @@ router.get('/tv-shows/:id', async (req, res) => {
   }
 });
 // 1. NEW ENDPOINT: Get available plans (including upgrades)
+// router.get('/available-plans', isUser, async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+
+//     // 1. Get current active subscription
+//     const currentSubscription = await UserSubscription.findOne({
+//       user: userId,
+//       status: 'active',
+//       endDate: { $gt: new Date() }
+//     }).populate('plan');
+
+//     // 2. No active subscription → Show all plans
+//     if (!currentSubscription) {
+//       const allPlans = await SubscriptionPlan.find({ isActive: true });
+
+//       return res.status(200).json({
+//         success: true,
+//         hasActiveSubscription: false,
+//         message: 'No active subscription. All plans available.',
+//         availablePlans: allPlans.map(plan => ({
+//           id: plan._id,
+//           name: plan.name,
+//           price: plan.price,
+//           duration: plan.duration,
+//           maxDevices: plan.maxDevices,
+//           maxProfiles: plan.maxProfiles,
+//           description: plan.description,
+//           action: 'new_subscription',
+//           badge: 'Available'
+//         }))
+//       });
+//     }
+
+//     // 3. Active subscription → Fetch higher priced plans only
+//     const currentPlanId = currentSubscription.plan._id;
+//     const currentPlanPrice = Number(currentSubscription.plan.price);
+//     console.log("plan price ", currentPlanPrice);
+
+
+//     const upgradePlans = await SubscriptionPlan.find({
+//       isActive: true,
+//       _id: { $ne: currentPlanId },
+//       price: { $gt: currentPlanPrice }
+//     });
+
+//     const daysRemaining = Math.ceil(
+//       (currentSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24)
+//     );
+
+//     // ✅ Condition: Only respond with upgrades if they exist
+//     if (!upgradePlans.length) {
+//       return res.status(200).json({
+//         success: true,
+//         hasActiveSubscription: true,
+//         message: 'No higher-priced plans available for upgrade.',
+//         currentPlan: {
+//           id: currentPlanId,
+//           name: currentSubscription.plan.name,
+//           price: currentPlanPrice,
+//           daysRemaining,
+//           endDate: currentSubscription.endDate,
+//           status: currentSubscription.status
+//         },
+//         availablePlans: []
+//       });
+//     }
+
+//     // 4. Return available upgrades
+//     res.status(200).json({
+//       success: true,
+//       hasActiveSubscription: true,
+//       message: 'Current subscription found. Available upgrades:',
+//       currentPlan: {
+//         id: currentPlanId,
+//         name: currentSubscription.plan.name,
+//         price: currentPlanPrice,
+//         daysRemaining,
+//         endDate: currentSubscription.endDate,
+//         status: currentSubscription.status
+//       },
+//       availablePlans: upgradePlans.map(plan => ({
+//         id: plan._id,
+//         name: plan.name,
+//         price: plan.price,
+//         duration: plan.duration,
+//         maxDevices: plan.maxDevices,
+//         maxProfiles: plan.maxProfiles,
+//         description: plan.description,
+//         action: 'upgrade',
+//         badge: 'Upgrade',
+//         priceDifference: plan.price - currentPlanPrice
+//       }))
+//     });
+
+//   } catch (error) {
+//     console.error('Get available plans error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error fetching available plans',
+//       error: error.message
+//     });
+//   }
+// });
 router.get('/available-plans', isUser, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -3338,7 +3441,7 @@ router.get('/available-plans', isUser, async (req, res) => {
       endDate: { $gt: new Date() }
     }).populate('plan');
 
-    // 2. No active subscription → Show all plans
+    // 2. No active subscription → Show all plans with currentPlan as empty array
     if (!currentSubscription) {
       const allPlans = await SubscriptionPlan.find({ isActive: true });
 
@@ -3346,6 +3449,7 @@ router.get('/available-plans', isUser, async (req, res) => {
         success: true,
         hasActiveSubscription: false,
         message: 'No active subscription. All plans available.',
+        currentPlan: [], // 👈 empty array as requested
         availablePlans: allPlans.map(plan => ({
           id: plan._id,
           name: plan.name,
@@ -3363,8 +3467,6 @@ router.get('/available-plans', isUser, async (req, res) => {
     // 3. Active subscription → Fetch higher priced plans only
     const currentPlanId = currentSubscription.plan._id;
     const currentPlanPrice = Number(currentSubscription.plan.price);
-    console.log("plan price ", currentPlanPrice);
-
 
     const upgradePlans = await SubscriptionPlan.find({
       isActive: true,
@@ -3376,7 +3478,6 @@ router.get('/available-plans', isUser, async (req, res) => {
       (currentSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24)
     );
 
-    // ✅ Condition: Only respond with upgrades if they exist
     if (!upgradePlans.length) {
       return res.status(200).json({
         success: true,
@@ -3394,7 +3495,6 @@ router.get('/available-plans', isUser, async (req, res) => {
       });
     }
 
-    // 4. Return available upgrades
     res.status(200).json({
       success: true,
       hasActiveSubscription: true,
@@ -3430,6 +3530,7 @@ router.get('/available-plans', isUser, async (req, res) => {
     });
   }
 });
+
 
 // 2. UPDATED: Modify initiate-subscription to handle upgrades
 router.post('/initiate-subscription', isUser, async (req, res) => {
@@ -4039,6 +4140,23 @@ router.post('/users-logout', isUser, async (req, res) => {
     return res.status(200).json({ message: 'Logout successful' });
   } catch (err) {
     console.error('Logout error:', err);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.get('/user/transactions', isUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch all user subscriptions with related plan and transaction details
+    const subscriptions = await UserSubscription.find({ user: userId })
+      .populate('plan') // Includes subscription plan details
+      .populate('transactionId') // Includes transaction details
+      .sort({ createdAt: -1 }); // Newest first
+
+    return res.status(200).json({ subscriptions });
+  } catch (err) {
+    console.error('Error fetching subscription transactions:', err);
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
