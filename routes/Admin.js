@@ -1354,7 +1354,7 @@ router.post(
   }
 );
 router.put(
-  "/edit-channel/:id",
+  "/update-channel/:id",
   verifyAdmin,
   upload.fields([
     { name: "portrait_img", maxCount: 1 },
