@@ -1711,10 +1711,66 @@ router.get("/all-users", async (req, res) => {
   }
 });
 // get in excel format
+// router.get("/export-users", async (req, res) => {
+//   try {
+//     const users = await User.find({ deleted: false })
+//       .select("email image createdAt subscriptions")
+//       .populate({
+//         path: "subscriptions",
+//         select: "packageName price duration isActive startedAt expiresAt",
+//         options: { sort: { startedAt: -1 }, limit: 1 },
+//       });
+
+//     const workbook = new ExcelJS.Workbook();
+//     const worksheet = workbook.addWorksheet("Users");
+
+//     worksheet.columns = [
+//       { header: "S.No.", key: "index", width: 10 },
+//       { header: "Email", key: "email", width: 30 },
+//       { header: "Profile-Image", key: "profileImage", width: 40 },
+//       { header: "Registration-Date", key: "registeredAt", width: 25 },
+//       { header: "Duration (Days)", key: "duration", width: 15 },
+//       { header: "Plan", key: "plan", width: 20 },
+//       { header: "Price", key: "price", width: 10 },
+//       { header: "Active", key: "isActive", width: 10 },
+//     ];
+
+//     users.forEach((user, index) => {
+//       const sub = user.subscriptions?.[0];
+//       worksheet.addRow({
+//         index: index + 1,
+//         email: user.email,
+//         profileImage: user.image || "",
+//         registeredAt: user.createdAt.toISOString().split("T")[0],
+//         plan: sub?.packageName || "",
+//         price: sub?.price || "",
+//         duration: sub?.duration || "",
+//         isActive: sub?.isActive ? "Yes" : "No",
+//       });
+//     });
+
+//     res.setHeader(
+//       "Content-Type",
+//       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+//     );
+//     res.setHeader(
+//       "Content-Disposition",
+//       "attachment; filename=users-list.xlsx"
+//     );
+
+//     await workbook.xlsx.write(res);
+//     res.end();
+//   } catch (error) {
+//     console.error("Export Error:", error);
+//     res.status(500).json({ success: false, message: "Failed to export users" });
+//   }
+// });
 router.get("/export-users", async (req, res) => {
   try {
     const users = await User.find({ deleted: false })
-      .select("email image createdAt subscriptions")
+      .select(
+        "email profileImage createdAt device_name device_type device_token device_id investedAmount languagePreference watchlist downloads favorites rentedVideos profiles lastLogin subscriptions"
+      )
       .populate({
         path: "subscriptions",
         select: "packageName price duration isActive startedAt expiresAt",
@@ -1725,27 +1781,59 @@ router.get("/export-users", async (req, res) => {
     const worksheet = workbook.addWorksheet("Users");
 
     worksheet.columns = [
-      { header: "S.No.", key: "index", width: 10 },
+      { header: "S.No.", key: "index", width: 6 },
       { header: "Email", key: "email", width: 30 },
-      { header: "Profile-Image", key: "profileImage", width: 40 },
-      { header: "Registration-Date", key: "registeredAt", width: 25 },
-      { header: "Duration (Days)", key: "duration", width: 15 },
+      { header: "Profile Image", key: "profileImage", width: 40 },
+      { header: "Registered At", key: "registeredAt", width: 20 },
+      { header: "Device Name", key: "deviceName", width: 15 },
+      { header: "Device Type", key: "deviceType", width: 15 },
+      { header: "Device Token", key: "deviceToken", width: 25 },
+      { header: "Device ID", key: "deviceId", width: 25 },
+      { header: "Last Login IP", key: "lastLoginIp", width: 20 },
+      { header: "Last Login Device", key: "lastLoginDevice", width: 20 },
+      { header: "Last Login Time", key: "lastLoginTime", width: 25 },
       { header: "Plan", key: "plan", width: 20 },
       { header: "Price", key: "price", width: 10 },
-      { header: "Active", key: "isActive", width: 10 },
+      { header: "Duration", key: "duration", width: 10 },
+      { header: "Plan Active", key: "isActive", width: 10 },
+      { header: "Invested Amount", key: "investedAmount", width: 15 },
+      { header: "Language Preference", key: "languagePref", width: 20 },
+      { header: "Watchlist Count", key: "watchlistCount", width: 15 },
+      { header: "Downloads Count", key: "downloadsCount", width: 15 },
+      { header: "Favorites Count", key: "favoritesCount", width: 15 },
+      { header: "Rented Videos", key: "rentedVideosCount", width: 15 },
+      { header: "Profiles", key: "profileNames", width: 40 },
     ];
 
     users.forEach((user, index) => {
       const sub = user.subscriptions?.[0];
+      const lastLogin = user.lastLogin || {};
+
       worksheet.addRow({
         index: index + 1,
         email: user.email,
-        profileImage: user.image || "",
+        profileImage: user.profileImage || "",
         registeredAt: user.createdAt.toISOString().split("T")[0],
+        deviceName: user.device_name || "",
+        deviceType: user.device_type || "",
+        deviceToken: user.device_token || "",
+        deviceId: user.device_id || "",
+        lastLoginIp: lastLogin.ip || "",
+        lastLoginDevice: lastLogin.device || "",
+        lastLoginTime: lastLogin.time
+          ? new Date(lastLogin.time).toISOString()
+          : "",
         plan: sub?.packageName || "",
         price: sub?.price || "",
         duration: sub?.duration || "",
         isActive: sub?.isActive ? "Yes" : "No",
+        investedAmount: user.investedAmount || 0,
+        languagePref: user.languagePreference || "",
+        watchlistCount: user.watchlist?.length || 0,
+        downloadsCount: user.downloads?.length || 0,
+        favoritesCount: user.favorites?.length || 0,
+        rentedVideosCount: user.rentedVideos?.length || 0,
+        profileNames: user.profiles?.map((p) => p.name).join(", "),
       });
     });
 
@@ -1762,7 +1850,9 @@ router.get("/export-users", async (req, res) => {
     res.end();
   } catch (error) {
     console.error("Export Error:", error);
-    res.status(500).json({ success: false, message: "Failed to export users" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to export users" });
   }
 });
 // GET /api/comments - Get all comments with user email
