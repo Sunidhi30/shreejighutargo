@@ -1353,6 +1353,69 @@ router.post(
     }
   }
 );
+router.put(
+  "/edit-channel/:id",
+  verifyAdmin,
+  upload.fields([
+    { name: "portrait_img", maxCount: 1 },
+    { name: "landscape_img", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, is_title, status } = req.body;
+
+      const channel = await Channel.findById(id);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+
+      // Update fields if provided
+      if (name) channel.name = name;
+      if (is_title !== undefined) channel.is_title = is_title;
+      if (status !== undefined) channel.status = status;
+
+      const portraitFile = req.files["portrait_img"]?.[0];
+      const landscapeFile = req.files["landscape_img"]?.[0];
+
+      if (portraitFile) {
+        const portraitBase64 = `data:${portraitFile.mimetype};base64,${portraitFile.buffer.toString("base64")}`;
+        const portraitUrl = await uploadToCloudinary(portraitBase64, "channelImages", portraitFile.mimetype);
+        channel.portrait_img = portraitUrl;
+      }
+
+      if (landscapeFile) {
+        const landscapeBase64 = `data:${landscapeFile.mimetype};base64,${landscapeFile.buffer.toString("base64")}`;
+        const landscapeUrl = await uploadToCloudinary(landscapeBase64, "channelImages", landscapeFile.mimetype);
+        channel.landscape_img = landscapeUrl;
+      }
+
+      await channel.save();
+
+      res.status(200).json({ message: "Channel updated successfully", channel });
+    } catch (err) {
+      console.error("Error while editing channel:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+router.delete("/delete-channel/:id", verifyAdmin , async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedChannel = await Channel.findByIdAndDelete(id);
+
+    if (!deletedChannel) {
+      return res.status(404).json({ message: "Channel not found" });
+    }
+
+    res.status(200).json({ message: "Channel deleted successfully" });
+  } catch (err) {
+    console.error("Error while deleting channel:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // Get all channels
 router.get("/get-channels", async (req, res) => {
   try {
