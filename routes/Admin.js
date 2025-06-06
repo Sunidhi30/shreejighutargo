@@ -28,6 +28,7 @@ const Plans = require("../models/Subscription");
 const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
 const Video = require("../models/Video");
+const jwt = require("jsonwebtoken");
 const Channel = require("../models/Channel");
 const Banner = require("../models/Banner");
 const TVShow = require("../models/TVShow");
