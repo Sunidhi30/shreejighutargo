@@ -1217,16 +1217,7 @@ router.post('/confirm', async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
-//Logout
-router.post('/logout', async (req, res) => {
-  const { code } = req.body;
-  try {
-    await TvLogin.findOneAndUpdate({ unique_code: code }, { status: 0 });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false });
-  }
-});
+
 // Update User Profile Image API
 router.put('/upload-profile-image', isUser, upload.single('profileImage'), async (req, res) => {
   try {
@@ -4030,4 +4021,26 @@ router.patch('/cancel-subscription', isUser, async (req, res) => {
     });
   }
 });
+// Logout route
+// Logout API
+router.post('/users-logout', isUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Optional: Remove device session (if tracked)
+    await User.findByIdAndUpdate(userId, {
+      $pull: {
+        deviceSessions: {
+          ip: req.ip
+        }
+      }
+    });
+
+    return res.status(200).json({ message: 'Logout successful' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 module.exports = router;
