@@ -1094,6 +1094,78 @@ router.post(
     }
   }
 );
+router.put(
+  "/update-vendor/:id",
+  verifyAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        fullName,
+        email,
+        mobile,
+        monthlyTarget,
+        monthlyTargetUser,
+        monthlyTargetVideo,
+        status,
+        upiId
+      } = req.body;
+
+      const vendor = await Vendor.findById(id);
+      if (!vendor) {
+        return res.status(404).json({ message: "Vendor not found" });
+      }
+
+      if (email && email !== vendor.email) {
+        const existing = await Vendor.findOne({ email });
+        if (existing) {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        vendor.email = email.trim();
+      }
+
+      if (req.file) {
+        const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+        const cloudinaryResult = await uploadToCloudinary(base64, "image", req.file.mimetype);
+        vendor.image = cloudinaryResult.secure_url;
+      }
+
+      if (fullName) vendor.fullName = fullName.trim();
+      if (mobile) vendor.mobile = mobile;
+      if (monthlyTarget !== undefined) vendor.monthlyTarget = monthlyTarget;
+      if (monthlyTargetUser !== undefined) vendor.monthlyTargetUser = monthlyTargetUser;
+      if (monthlyTargetVideo !== undefined) vendor.monthlyTargetVideo = monthlyTargetVideo;
+      if (upiId) vendor.upiId = upiId;
+      if (status && ["pending", "approved", "rejected"].includes(status)) {
+        vendor.status = status;
+      }
+
+      await vendor.save();
+
+      res.status(200).json({ message: "Vendor updated successfully", vendor });
+    } catch (err) {
+      console.error("Error editing vendor:", err);
+      res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+  }
+);
+router.delete("/delete-vendor/:id", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const vendor = await Vendor.findByIdAndDelete(id);
+    if (!vendor) {
+      return res.status(404).json({ message: "Vendor not found" });
+    }
+
+    res.status(200).json({ message: "Vendor deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting vendor:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // get vendor
 router.get("/get-vendors", async (req, res) => {
   try {
