@@ -18,6 +18,11 @@ const TypeSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Type', TypeSchema);
+
+
+
+
+
 // 1: 'Movie',   2: 'show',
   // 3: 'web-series',
   // 4: 'Short videos',
