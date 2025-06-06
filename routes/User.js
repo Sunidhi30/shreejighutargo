@@ -3546,7 +3546,7 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
       });
     }
     
-    // Check for pending transactions first (prevent double transactions)
+    // Check for pending transactions, but allow if it's for the same plan (upgrade scenario)
     const pendingTransaction = await Transaction.findOne({
       user: userId,
       status: 'pending',
@@ -3554,13 +3554,45 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
     });
     
     if (pendingTransaction) {
+      // If pending transaction is for the same plan being requested, allow it to proceed
+      if (pendingTransaction.itemReference.toString() === planId) {
+        return res.status(200).json({
+          success: true,
+          message: 'You have a pending payment for this plan. You can proceed to complete the payment.',
+          data: {
+            plan: {
+              id: plan._id,
+              name: plan.name,
+              price: plan.price,
+              duration: plan.duration,
+              maxDevices: plan.maxDevices,
+              maxProfiles: plan.maxProfiles,
+              description: plan.description
+            },
+            user: {
+              id: userId,
+              name: req.user.name,
+              email: req.user.email
+            },
+            existingTransaction: {
+              id: pendingTransaction._id,
+              amount: pendingTransaction.amount,
+              createdAt: pendingTransaction.createdAt
+            },
+            action: 'complete_pending_payment'
+          }
+        });
+      }
+      
+      // If pending transaction is for a different plan, block it
       return res.status(400).json({
         success: false,
-        message: 'You have a pending payment transaction. Please complete or cancel it first.',
+        message: 'You have a pending payment transaction for a different plan. Please complete or cancel it first.',
         data: {
           pendingTransactionId: pendingTransaction._id,
           amount: pendingTransaction.amount,
-          createdAt: pendingTransaction.createdAt
+          createdAt: pendingTransaction.createdAt,
+          suggestion: 'Complete the pending payment or contact support to cancel it'
         }
       });
     }
@@ -3749,7 +3781,6 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
     });
   }
 });
-// // 2. UPDATED: Modify initiate-subscription to handle upgrades
 // router.post('/initiate-subscription', isUser, async (req, res) => {
 //   try {
 //     const { planId } = req.body;
@@ -3764,86 +3795,7 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
 //       });
 //     }
     
-//     // Check for existing active subscriptions
-//     const existingActiveSubscription = await UserSubscription.findOne({
-//       user: userId,
-//       status: 'active',
-//       endDate: { $gt: new Date() } // Ensure subscription hasn't expired
-//     }).populate('plan');
-    
-//     if (existingActiveSubscription) {
-//       // Check if this is a plan change request
-//       if (planId !== existingActiveSubscription.plan._id.toString()) {
-//         const isUpgrade = plan.price > existingActiveSubscription.plan.price;
-//         const isDowngrade = plan.price < existingActiveSubscription.plan.price;
-        
-//         return res.status(200).json({
-//           success: true,
-//           message: `Plan ${isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'change'} detected. You can proceed with payment.`,
-//           data: {
-//             currentPlan: {
-//               id: existingActiveSubscription.plan._id,
-//               name: existingActiveSubscription.plan.name,
-//               price: existingActiveSubscription.plan.price,
-//               daysRemaining: Math.ceil((existingActiveSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
-//             },
-//             newPlan: {
-//               id: plan._id,
-//               name: plan.name,
-//               price: plan.price,
-//               duration: plan.duration,
-//               maxDevices: plan.maxDevices,
-//               maxProfiles: plan.maxProfiles,
-//               description: plan.description
-//             },
-//             changeType: isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'change',
-//             priceDifference: plan.price - existingActiveSubscription.plan.price,
-//             action: 'plan_change',
-//             user: {
-//               id: userId,
-//               name: req.user.name,
-//               email: req.user.email
-//             }
-//           }
-//         });
-//       }
-      
-//       // Same plan - prevent duplicate subscription
-//       return res.status(400).json({
-//         success: false,
-//         message: 'You already have an active subscription for this plan.',
-//         data: {
-//           currentSubscription: {
-//             planName: existingActiveSubscription.plan.name,
-//             startDate: existingActiveSubscription.startDate,
-//             endDate: existingActiveSubscription.endDate,
-//             status: existingActiveSubscription.status,
-//             daysRemaining: Math.ceil((existingActiveSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
-//           },
-//           suggestedAction: 'already_subscribed'
-//         }
-//       });
-//     }
-    
-//     // Ensure new plan price is higher (upgrade only)
-//     if (plan.price <= existingActiveSubscription.plan.price) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Plan downgrade is not allowed. Please select a higher-tier plan.',
-//         data: {
-//           currentPlan: {
-//             name: existingActiveSubscription.plan.name,
-//             price: existingActiveSubscription.plan.price
-//           },
-//           requestedPlan: {
-//             name: plan.name,
-//             price: plan.price
-//           }
-//         }
-//       });
-//     }
-
-//     // Check for pending transactions for ANY subscription plan (prevent double transactions)
+//     // Check for pending transactions first (prevent double transactions)
 //     const pendingTransaction = await Transaction.findOne({
 //       user: userId,
 //       status: 'pending',
@@ -3862,77 +3814,162 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
 //       });
 //     }
     
-//     // Check for any subscription for the same plan (including expired/canceled)
-//     const existingPlanSubscription = await UserSubscription.findOne({
+//     // Check for existing active subscriptions
+//     const existingActiveSubscription = await UserSubscription.findOne({
 //       user: userId,
-//       plan: planId
+//       status: 'active',
+//       endDate: { $gt: new Date() }
 //     }).populate('plan');
     
-//     if (existingPlanSubscription) {
-//       const subscriptionStatus = {
-//         planName: existingPlanSubscription.plan.name,
-//         startDate: existingPlanSubscription.startDate,
-//         endDate: existingPlanSubscription.endDate,
-//         status: existingPlanSubscription.status
-//       };
+//     // CASE 1: No active subscription - Allow any plan
+//     if (!existingActiveSubscription) {
+//       // Check for any previous subscription for the same plan
+//       const existingPlanSubscription = await UserSubscription.findOne({
+//         user: userId,
+//         plan: planId
+//       }).populate('plan');
       
-//       if (existingPlanSubscription.status === 'expired') {
-//         // Allow renewal of expired subscription
-//         return res.status(200).json({
-//           success: true,
-//           message: 'Your previous subscription has expired. You can renew it.',
-//           data: {
-//             plan: {
-//               id: plan._id,
-//               name: plan.name,
-//               price: plan.price,
-//               duration: plan.duration,
-//               maxDevices: plan.maxDevices,
-//               maxProfiles: plan.maxProfiles,
-//               description: plan.description
-//             },
-//             user: {
-//               id: userId,
-//               name: req.user.name,
-//               email: req.user.email
-//             },
-//             previousSubscription: subscriptionStatus,
-//             action: 'renewal'
-//           }
-//         });
-//       } else if (existingPlanSubscription.status === 'canceled') {
-//         // Allow reactivation of canceled subscription
-//         return res.status(200).json({
-//           success: true,
-//           message: 'You can reactivate your canceled subscription.',
-//           data: {
-//             plan: {
-//               id: plan._id,
-//               name: plan.name,
-//               price: plan.price,
-//               duration: plan.duration,
-//               maxDevices: plan.maxDevices,
-//               maxProfiles: plan.maxProfiles,
-//               description: plan.description
-//             },
-//             user: {
-//               id: userId,
-//               name: req.user.name,
-//               email: req.user.email
-//             },
-//             previousSubscription: subscriptionStatus,
-//             action: 'reactivation'
-//           }
-//         });
+//       if (existingPlanSubscription) {
+//         const subscriptionStatus = {
+//           planName: existingPlanSubscription.plan.name,
+//           startDate: existingPlanSubscription.startDate,
+//           endDate: existingPlanSubscription.endDate,
+//           status: existingPlanSubscription.status
+//         };
+        
+//         if (existingPlanSubscription.status === 'expired') {
+//           return res.status(200).json({
+//             success: true,
+//             message: 'Your previous subscription has expired. You can renew it.',
+//             data: {
+//               plan: {
+//                 id: plan._id,
+//                 name: plan.name,
+//                 price: plan.price,
+//                 duration: plan.duration,
+//                 maxDevices: plan.maxDevices,
+//                 maxProfiles: plan.maxProfiles,
+//                 description: plan.description
+//               },
+//               user: {
+//                 id: userId,
+//                 name: req.user.name,
+//                 email: req.user.email
+//               },
+//               previousSubscription: subscriptionStatus,
+//               action: 'renewal'
+//             }
+//           });
+//         } else if (existingPlanSubscription.status === 'canceled') {
+//           return res.status(200).json({
+//             success: true,
+//             message: 'You can reactivate your canceled subscription.',
+//             data: {
+//               plan: {
+//                 id: plan._id,
+//                 name: plan.name,
+//                 price: plan.price,
+//                 duration: plan.duration,
+//                 maxDevices: plan.maxDevices,
+//                 maxProfiles: plan.maxProfiles,
+//                 description: plan.description
+//               },
+//               user: {
+//                 id: userId,
+//                 name: req.user.name,
+//                 email: req.user.email
+//               },
+//               previousSubscription: subscriptionStatus,
+//               action: 'reactivation'
+//             }
+//           });
+//         }
 //       }
+      
+//       // No previous subscription or different plan - new subscription
+//       return res.status(200).json({
+//         success: true,
+//         message: 'Subscription can be initiated. You are eligible for this plan.',
+//         data: {
+//           plan: {
+//             id: plan._id,
+//             name: plan.name,
+//             price: plan.price,
+//             duration: plan.duration,
+//             maxDevices: plan.maxDevices,
+//             maxProfiles: plan.maxProfiles,
+//             description: plan.description
+//           },
+//           user: {
+//             id: userId,
+//             name: req.user.name,
+//             email: req.user.email
+//           },
+//           eligibility: {
+//             canSubscribe: true,
+//             hasActiveSubscription: false,
+//             hasPendingPayment: false
+//           },
+//           action: 'new_subscription'
+//         }
+//       });
 //     }
     
-//     // All checks passed - user is eligible for new subscription
-//     res.status(200).json({
+//     // CASE 2: Has active subscription
+//     // Check if requesting same plan
+//     if (planId === existingActiveSubscription.plan._id.toString()) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'You already have an active subscription for this plan.',
+//         data: {
+//           currentSubscription: {
+//             planName: existingActiveSubscription.plan.name,
+//             startDate: existingActiveSubscription.startDate,
+//             endDate: existingActiveSubscription.endDate,
+//             status: existingActiveSubscription.status,
+//             daysRemaining: Math.ceil((existingActiveSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
+//           },
+//           suggestedAction: 'already_subscribed'
+//         }
+//       });
+//     }
+    
+//     // CASE 3: Different plan - check if upgrade/downgrade
+//     const isUpgrade = plan.price > existingActiveSubscription.plan.price;
+//     const isDowngrade = plan.price < existingActiveSubscription.plan.price;
+    
+//     // If your business logic only allows upgrades, uncomment this:
+//     /*
+//     if (isDowngrade) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Plan downgrade is not allowed. Please select a higher-tier plan.',
+//         data: {
+//           currentPlan: {
+//             name: existingActiveSubscription.plan.name,
+//             price: existingActiveSubscription.plan.price
+//           },
+//           requestedPlan: {
+//             name: plan.name,
+//             price: plan.price
+//           }
+//         }
+//       });
+//     }
+//     */
+    
+//     // Allow plan change (upgrade/downgrade)
+//     return res.status(200).json({
 //       success: true,
-//       message: 'Subscription can be initiated. You are eligible for this plan.',
+//       message: `Plan ${isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'change'} detected. You can proceed with payment.`,
 //       data: {
-//         plan: {
+//         currentPlan: {
+//           id: existingActiveSubscription.plan._id,
+//           name: existingActiveSubscription.plan.name,
+//           price: existingActiveSubscription.plan.price,
+//           daysRemaining: Math.ceil((existingActiveSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
+//         },
+//         newPlan: {
 //           id: plan._id,
 //           name: plan.name,
 //           price: plan.price,
@@ -3941,17 +3978,14 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
 //           maxProfiles: plan.maxProfiles,
 //           description: plan.description
 //         },
+//         changeType: isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'change',
+//         priceDifference: plan.price - existingActiveSubscription.plan.price,
+//         action: 'plan_change',
 //         user: {
 //           id: userId,
 //           name: req.user.name,
 //           email: req.user.email
-//         },
-//         eligibility: {
-//           canSubscribe: true,
-//           hasActiveSubscription: false,
-//           hasPendingPayment: false
-//         },
-//         action: 'new_subscription'
+//         }
 //       }
 //     });
     
@@ -3964,6 +3998,8 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
 //     });
 //   }
 // });
+
+
 // 3. KEEP YOUR EXISTING create-order AS IS (no changes needed!)
 router.post('/create-order', isUser, async (req, res) => {
   try {

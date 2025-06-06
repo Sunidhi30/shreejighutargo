@@ -269,35 +269,68 @@
                 showResult(`<div class="error">❌ ${error.message}</div>`);
             }
         }
-
         async function initiatePayment(planId) {
-            try {
-                showLoading('Creating payment order...');
-                const response = await fetch('http://localhost:9000/api/users/create-order', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        planId: planId,
-                        paymentMethod: 'razorpay'
-                    })
-                });
+    if (!planId) {
+        showResult(`<div class="error">❌ Plan ID is missing</div>`);
+        return;
+    }
 
-                const data = await response.json();
-                console.log('Create order response:', data);
+    try {
+        showLoading('Creating payment order...');
+        const response = await fetch('http://localhost:9000/api/users/create-order', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                planId: planId,
+                paymentMethod: 'razorpay'
+            })
+        });
 
-                if (data.success) {
-                    displayPaymentSection(data, planId);
-                } else {
-                    showResult(`<div class="error">❌ ${data.message}</div>`);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showResult(`<div class="error">❌ ${error.message}</div>`);
-            }
+        const data = await response.json();
+        console.log('Create order response:', data);
+
+        if (data.success) {
+            displayPaymentSection(data, planId);
+        } else {
+            showResult(`<div class="error">❌ ${data.message}</div>`);
         }
+    } catch (error) {
+        console.error('Error:', error);
+        showResult(`<div class="error">❌ ${error.message}</div>`);
+    }
+}
+
+        // async function initiatePayment(planId) {
+        //     try {
+        //         showLoading('Creating payment order...');
+        //         const response = await fetch('http://localhost:9000/api/users/create-order', {
+        //             method: 'POST',
+        //             headers: {
+        //                 'Authorization': `Bearer ${authToken}`,
+        //                 'Content-Type': 'application/json'
+        //             },
+        //             body: JSON.stringify({
+        //                 planId: planId,
+        //                 paymentMethod: 'razorpay'
+        //             })
+        //         });
+
+        //         const data = await response.json();
+        //         console.log('Create order response:', data);
+
+        //         if (data.success) {
+        //             displayPaymentSection(data, planId);
+        //         } else {
+        //             showResult(`<div class="error">❌ ${data.message}</div>`);
+        //         }
+        //     } catch (error) {
+        //         console.error('Error:', error);
+        //         showResult(`<div class="error">❌ ${error.message}</div>`);
+        //     }
+        // }
 
         function displayPaymentSection(orderData, planId) {
             const paymentSection = document.getElementById('payment-section');
@@ -449,19 +482,23 @@
         }
 
         function displayEligibilityResult(data) {
-            const resultHtml = `
-                <div class="success">
-                    <h4>✅ Eligibility Check Result</h4>
-                    <div class="subscription-info">
-                        <p>${data.message}</p>
-                        <button onclick="initiatePayment('${data.data.plan.id}')" class="upgrade-btn">
-                            Proceed with Payment
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            showResult(resultHtml);
+    // Get the plan ID based on the response structure
+    const planId = data.data.newPlan ? data.data.newPlan.id : data.data.plan.id;
+    
+    const resultHtml = `
+        <div class="success">
+            <h4>✅ Eligibility Check Result</h4>
+            <div class="subscription-info">
+                <p>${data.message}</p>
+                <button onclick="initiatePayment('${planId}')" class="upgrade-btn">
+                    Proceed with Payment
+                </button>
+            </div>
+        </div>
+    `;
+    
+    showResult(resultHtml);
+
         }
     </script>
 </body>
