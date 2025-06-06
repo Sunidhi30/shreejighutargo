@@ -1690,7 +1690,7 @@ router.get("/casts-count", async (req, res) => {
 router.get("/all-users", async (req, res) => {
   try {
     const users = await User.find({ deleted: false })
-      .select("email image createdAt subscriptions")
+      .select("email profileImage createdAt subscriptions")
       .populate({
         path: "subscriptions",
         select: "packageName price duration isActive startedAt expiresAt",
@@ -1699,7 +1699,7 @@ router.get("/all-users", async (req, res) => {
 
     const formattedUsers = users.map((user) => ({
       email: user.email,
-      profileImage: user.image || "",
+      profileImage: user.profileImage || "",
       registeredAt: user.createdAt,
       plan: user.subscriptions.length > 0 ? user.subscriptions[0] : null,
     }));
