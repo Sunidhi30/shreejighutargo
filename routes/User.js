@@ -569,9 +569,6 @@ async function getUserSubscriptionDetails(userId) {
   
   return subscription;
 }
-
-// Create a new profile for user (with subscription limit check)
-// Create a new profile for user (with subscription limit check and device tracking)
 router.post('/profiles', async (req, res) => {
   try {
     const { userId, name, avatar, isKid = false, pin = null, deviceId } = req.body;
@@ -704,7 +701,6 @@ router.post('/profiles', async (req, res) => {
     });
   }
 });
-
 // Get all profiles for a user with subscription info
 router.get('/profiles/:userId', async (req, res) => {
   try {
@@ -742,7 +738,6 @@ router.get('/profiles/:userId', async (req, res) => {
     });
   }
 });
-
 // Start watching on a device (with screen limit check)
 router.post('/devices/start-watching', async (req, res) => {
   try {
@@ -846,7 +841,6 @@ router.post('/devices/start-watching', async (req, res) => {
     });
   }
 });
-
 // Get current watching status with limits
 router.get('/devices/watching-status/:userId', async (req, res) => {
   try {
@@ -895,7 +889,105 @@ router.get('/devices/watching-status/:userId', async (req, res) => {
     });
   }
 });
+// New API endpoint for selecting a profile and syncing device
+router.post('/profiles/select', async (req, res) => {
+  try {
+    const { userId, profileId, deviceInfo } = req.body;
 
+    if (!userId || !profileId || !deviceInfo) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID, Profile ID, and device information are required'
+      });
+    }
+
+    // Get user and validate profile
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const profile = user.profiles.id(profileId);
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    // Get or create device sync
+    let deviceSync = await DeviceSync.findOne({
+      user_id: userId,
+      device_id: deviceInfo.deviceId
+    });
+
+    if (!deviceSync) {
+      // Create new device sync
+      deviceSync = new DeviceSync({
+        user_id: userId,
+        device_name: deviceInfo.deviceName,
+        device_type: deviceInfo.deviceType,
+        device_id: deviceInfo.deviceId,
+        device_token: deviceInfo.deviceToken || 'default-token',
+        status: 1
+      });
+      await deviceSync.save();
+    } else {
+      // Update existing device sync
+      deviceSync.status = 1;
+      deviceSync.device_name = deviceInfo.deviceName;
+      deviceSync.device_type = deviceInfo.deviceType;
+      await deviceSync.save();
+    }
+
+    // Start watching session
+    let watchingDevice = await DeviceWatching.findOne({
+      user_id: userId,
+      device_id: deviceInfo.deviceId
+    });
+
+    if (watchingDevice) {
+      watchingDevice.status = 1;
+      watchingDevice.profileId = profileId;
+      await watchingDevice.save();
+    } else {
+      watchingDevice = new DeviceWatching({
+        user_id: userId,
+        device_id: deviceInfo.deviceId,
+        profileId: profileId,
+        status: 1
+      });
+      await watchingDevice.save();
+    }
+
+    // Update profile's last accessed information
+    profile.lastAccessedFrom = {
+      deviceId: deviceInfo.deviceId,
+      deviceName: deviceInfo.deviceName,
+      deviceType: deviceInfo.deviceType,
+      timestamp: new Date()
+    };
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile selected and device synced successfully',
+      profile,
+      deviceSync,
+      watchingDevice
+    });
+
+  } catch (error) {
+    console.error('Profile selection error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
 // Get user subscription dashboard
 router.get('/subscription/dashboard/:userId', async (req, res) => {
   try {
@@ -968,7 +1060,6 @@ router.get('/subscription/dashboard/:userId', async (req, res) => {
     });
   }
 });
-
 // Update a profile (with subscription validation)
 router.put('/profiles/:userId/:profileId', async (req, res) => {
   try {
@@ -1035,7 +1126,6 @@ router.put('/profiles/:userId/:profileId', async (req, res) => {
     });
   }
 });
-
 // Delete a profile (with subscription validation)
 router.delete('/profiles/:userId/:profileId', async (req, res) => {
   try {
@@ -1129,16 +1219,16 @@ router.post('/devices/stop-watching', async (req, res) => {
   }
 });
 
-// Get all existing routes with minor enhancements
-router.get('/api/user/:id/login-info', async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).select('lastLogin email role');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+// // Get all existing routes with minor enhancements
+// router.get('/api/user/:id/login-info', async (req, res) => {
+//   try {
+//     const user = await User.findById(req.params.id).select('lastLogin email role');
+//     if (!user) return res.status(404).json({ message: 'User not found' });
+//     res.json(user);
+//   } catch (err) {
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
 
 router.get('/user-locations', async (req, res) => {
   try {
@@ -1157,175 +1247,54 @@ router.get('/user-locations', async (req, res) => {
   }
 });
 
-// Enhanced device routes with existing functionality
-router.get('/devices/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
+// // Enhanced device routes with existing functionality
+// router.get('/devices/:userId', async (req, res) => {
+//   try {
+//     const { userId } = req.params;
 
-    const user = await User.findById(userId).select('deviceSessions lastLogin');
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User not found' 
-      });
-    }
+//     const user = await User.findById(userId).select('deviceSessions lastLogin');
+//     if (!user) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'User not found' 
+//       });
+//     }
 
-    const syncedDevices = await DeviceSync.find({ 
-      user_id: userId, 
-      status: 1 
-    }).select('device_name device_type device_id createdAt');
+//     const syncedDevices = await DeviceSync.find({ 
+//       user_id: userId, 
+//       status: 1 
+//     }).select('device_name device_type device_id createdAt');
 
-    const watchingDevices = await DeviceWatching.find({ 
-      user_id: userId, 
-      status: 1 
-    }).populate({
-      path: 'device_sync',
-      select: 'device_name device_type'
-    });
+//     const watchingDevices = await DeviceWatching.find({ 
+//       user_id: userId, 
+//       status: 1 
+//     }).populate({
+//       path: 'device_sync',
+//       select: 'device_name device_type'
+//     });
 
-    const devicesInfo = {
-      lastLogin: user.lastLogin,
-      activeSessions: user.deviceSessions || [],
-      syncedDevices: syncedDevices,
-      currentlyWatching: watchingDevices
-    };
+//     const devicesInfo = {
+//       lastLogin: user.lastLogin,
+//       activeSessions: user.deviceSessions || [],
+//       syncedDevices: syncedDevices,
+//       currentlyWatching: watchingDevices
+//     };
 
-    res.status(200).json({
-      success: true,
-      devices: devicesInfo
-    });
+//     res.status(200).json({
+//       success: true,
+//       devices: devicesInfo
+//     });
 
-  } catch (error) {
-    console.error('Get devices error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error' 
-    });
-  }
-});
+//   } catch (error) {
+//     console.error('Get devices error:', error);
+//     res.status(500).json({ 
+//       success: false, 
+//       message: 'Internal server error' 
+//     });
+//   }
+// });
 
-router.post('/devices/sync', async (req, res) => {
-  try {
-    const { 
-      userId, 
-      deviceName, 
-      deviceType, 
-      deviceToken, 
-      deviceId 
-    } = req.body;
 
-    if (!userId || !deviceName || !deviceType || !deviceToken || !deviceId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All device fields are required' 
-      });
-    }
-
-    const existingDevice = await DeviceSync.findOne({ 
-      user_id: userId, 
-      device_id: deviceId 
-    });
-
-    if (existingDevice) {
-      existingDevice.device_name = deviceName;
-      existingDevice.device_type = deviceType;
-      existingDevice.device_token = deviceToken;
-      existingDevice.status = 1;
-      await existingDevice.save();
-
-      return res.status(200).json({
-        success: true,
-        message: 'Device updated successfully',
-        device: existingDevice
-      });
-    }
-
-    const newDevice = new DeviceSync({
-      user_id: userId,
-      device_name: deviceName,
-      device_type: deviceType,
-      device_token: deviceToken,
-      device_id: deviceId
-    });
-
-    await newDevice.save();
-
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    const userAgent = req.headers['user-agent'];
-    const agent = useragent.parse(userAgent);
-    const geo = geoip.lookup(ip);
-
-    const user = await User.findById(userId);
-    if (user) {
-      const sessionInfo = {
-        ip: ip,
-        device: `${agent.family} ${agent.major} on ${agent.os.family}`,
-        location: geo ? `${geo.city}, ${geo.country}` : 'Unknown',
-        coordinates: geo ? { lat: geo.ll[0], lng: geo.ll[1] } : null,
-        time: new Date()
-      };
-
-      user.lastLogin = sessionInfo;
-
-      if (!user.deviceSessions) user.deviceSessions = [];
-      user.deviceSessions.unshift(sessionInfo);
-      if (user.deviceSessions.length > 10) {
-        user.deviceSessions = user.deviceSessions.slice(0, 10);
-      }
-
-      await user.save();
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Device synced successfully',
-      device: newDevice
-    });
-
-  } catch (error) {
-    console.error('Sync device error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error' 
-    });
-  }
-});
-
-router.delete('/devices/:userId/:deviceId', async (req, res) => {
-  try {
-    const { userId, deviceId } = req.params;
-
-    const device = await DeviceSync.findOneAndUpdate(
-      { user_id: userId, device_id: deviceId },
-      { status: 0 },
-      { new: true }
-    );
-
-    if (!device) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Device not found' 
-      });
-    }
-
-    await DeviceWatching.findOneAndUpdate(
-      { user_id: userId, device_id: deviceId },
-      { status: 0 }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Device removed successfully'
-    });
-
-  } catch (error) {
-    console.error('Remove device error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error' 
-    });
-  }
-});
 
 // // get the login information places 
 // router.get('/api/user/:id/login-info', async (req, res) => {
@@ -1850,39 +1819,39 @@ router.get('/sessions/:userId', async (req, res) => {
   }
 });
 //connect-tv
-router.post('/connect_tv', async (req, res) => {
-  const { code, user_id, device_id } = req.body;
-  try {
-    const tvLogin = await TvLogin.findOne({ unique_code: code, user_id });
+// router.post('/connect_tv', async (req, res) => {
+//   const { code, user_id, device_id } = req.body;
+//   try {
+//     const tvLogin = await TvLogin.findOne({ unique_code: code, user_id });
 
-    if (!tvLogin) {
-      return res.status(400).json({ success: false, message: 'Invalid code or user ID' });
-    }
+//     if (!tvLogin) {
+//       return res.status(400).json({ success: false, message: 'Invalid code or user ID' });
+//     }
 
-    // If device_token not provided, generate it
-    const deviceToken = crypto.randomBytes(16).toString('hex');
+//     // If device_token not provided, generate it
+//     const deviceToken = crypto.randomBytes(16).toString('hex');
 
-    const newDevice = new DeviceSync({
-      user_id,
-      device_name: 'TV Device',
-      device_id,
-      device_type: 3,
-      device_token: deviceToken,
-      tv_login_id: tvLogin._id
-    });
+//     const newDevice = new DeviceSync({
+//       user_id,
+//       device_name: 'TV Device',
+//       device_id,
+//       device_type: 3,
+//       device_token: deviceToken,
+//       tv_login_id: tvLogin._id
+//     });
 
-    await newDevice.save();
+//     await newDevice.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'TV connected successfully',
-      device_token: deviceToken // <-- send it back
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: 'Failed to connect TV' });
-  }
-});
+//     return res.status(200).json({
+//       success: true,
+//       message: 'TV connected successfully',
+//       device_token: deviceToken // <-- send it back
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ success: false, message: 'Failed to connect TV' });
+//   }
+// });
 // POST /connect_tv
 // router.post('/connect_tv', async (req, res) => {
 //   const { code, user_id, device_id, device_token } = req.body;
@@ -1932,24 +1901,24 @@ router.post('/connect_tv', async (req, res) => {
 // });
 
 // 3. Link code from web/mobile after login
-router.post('/confirm', async (req, res) => {
-  const { code, user_id } = req.body;
-  if (!code || !user_id) return res.status(400).json({ success: false, message: 'Code and user_id are required' });
+// router.post('/confirm', async (req, res) => {
+//   const { code, user_id } = req.body;
+//   if (!code || !user_id) return res.status(400).json({ success: false, message: 'Code and user_id are required' });
 
-  try {
-    const tvLogin = await TvLogin.findOneAndUpdate(
-      { unique_code: code, status: 1 },
-      { user_id },
-      { new: true }
-    );
+//   try {
+//     const tvLogin = await TvLogin.findOneAndUpdate(
+//       { unique_code: code, status: 1 },
+//       { user_id },
+//       { new: true }
+//     );
 
-    if (!tvLogin) return res.status(404).json({ success: false, message: 'Invalid or expired code' });
+//     if (!tvLogin) return res.status(404).json({ success: false, message: 'Invalid or expired code' });
 
-    res.json({ success: true, message: 'TV linked successfully' });
-  } catch (err) {
-    res.status(500).json({ success: false });
-  }
-});
+//     res.json({ success: true, message: 'TV linked successfully' });
+//   } catch (err) {
+//     res.status(500).json({ success: false });
+//   }
+// });
 
 // Update User Profile Image API
 router.put('/upload-profile-image', isUser, upload.single('profileImage'), async (req, res) => {
@@ -3015,7 +2984,7 @@ router.get('/videos/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-//get contests
+//get all  contests
 router.get('/contests', async (req, res) => {
   try {
     const contests = await Contest.find()
@@ -3038,7 +3007,6 @@ router.get('/contests', async (req, res) => {
     res.status(500).json({ message: 'Server error while fetching contests' });
   }
 });
-
 // ===== 1. GET CONTEST VIDEOS (Public endpoint) =====
 router.get('/contests/:id/videos', async (req, res) => {
   try {
