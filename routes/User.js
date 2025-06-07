@@ -2587,27 +2587,23 @@ router.post('/rate-video', isUser,async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-// Search videos by name
+//search 
 // router.get('/search', async (req, res) => {
 //   const { name } = req.query;
 
-//   if (!name) {
-//     return res.status(400).json({
-//       success: false,
-//       message: 'Please provide a search query (name)'
-//     });
-//   }
-
 //   try {
-//     const videos = await Video.find({
-//       name: { $regex: name, $options: 'i' }
-//     })
-//     .populate('category_id', 'name')
-//     .populate('cast_ids', 'name')
-//     .populate('language_id', 'name')
-//     .populate('producer_id', 'name')
-//     .populate('vendor_id', 'name');
-    
+//     // If `name` exists, search by it; otherwise fetch all movies
+//     const filter = name
+//       ? { name: { $regex: name, $options: 'i' } }
+//       : {};
+
+//     const videos = await Video.find(filter)
+//       .populate('category_id', 'name')
+//       .populate('cast_ids', 'name')
+//       .populate('language_id', 'name')
+//       .populate('producer_id', 'name')
+//       .populate('vendor_id', 'name');
+
 //     videos.forEach(video => {
 //       console.log("Category: ", video.category_id?.name);
 //       console.log("Cast IDs: ", video.cast_ids?.map(c => c.name));
@@ -2615,7 +2611,6 @@ router.post('/rate-video', isUser,async (req, res) => {
 //       console.log("Producer: ", video.producer_id?.name);
 //       console.log("Vendor: ", video.vendor_id?.name);
 //     });
-    
 
 //     res.status(200).json({
 //       success: true,
@@ -2635,29 +2630,45 @@ router.get('/search', async (req, res) => {
   const { name } = req.query;
 
   try {
-    // If `name` exists, search by it; otherwise fetch all movies
     const filter = name
       ? { name: { $regex: name, $options: 'i' } }
       : {};
+      const seriesFilter = name
+      ? { title: { $regex: name, $options: 'i' } }
+      : {};
+      const showFilter = name
+      ? { title: { $regex: name, $options: 'i' } }
+      : {};
+    // Run all 3 queries in parallel
+    const [videos, series, tvshows] = await Promise.all([
+      Video.find(filter)
+        .populate('category_id', 'name')
+        .populate('cast_ids', 'name')
+        .populate('language_id', 'name')
+        .populate('producer_id', 'name')
+        .populate('vendor_id', 'name'),
 
-    const videos = await Video.find(filter)
-      .populate('category_id', 'name')
-      .populate('cast_ids', 'name')
-      .populate('language_id', 'name')
-      .populate('producer_id', 'name')
-      .populate('vendor_id', 'name');
+      Series.find(seriesFilter)
+        .populate('category_id', 'name')
 
-    videos.forEach(video => {
-      console.log("Category: ", video.category_id?.name);
-      console.log("Cast IDs: ", video.cast_ids?.map(c => c.name));
-      console.log("Language: ", video.language_id?.name);
-      console.log("Producer: ", video.producer_id?.name);
-      console.log("Vendor: ", video.vendor_id?.name);
-    });
+        
+        .populate('vendor_id', 'name'),
+
+      TVShow.find(showFilter)
+        .populate('category_id', 'name')
+        .populate('vendor_id', 'name'),
+    ]);
+
+    const allResults = [
+      ...videos.map(item => ({ ...item.toObject(), type: 'movie' })),
+      ...series.map(item => ({ ...item.toObject(), type: 'series' })),
+      ...tvshows.map(item => ({ ...item.toObject(), type: 'tvshow' })),
+    ];
 
     res.status(200).json({
       success: true,
-      results: videos
+      total: allResults.length,
+      results: allResults
     });
 
   } catch (error) {

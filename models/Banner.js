@@ -33,6 +33,8 @@
 // });
 
 // module.exports = mongoose.model('Banner', bannerSchema);
+
+
 // models/Banner.js
 const mongoose = require('mongoose');
 const bannerSchema = new mongoose.Schema({

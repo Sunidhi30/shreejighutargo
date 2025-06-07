@@ -9,6 +9,8 @@ const { ContestController } = require("../controllers/contestController");
 const Contest = require("../models/Contest");
 const userTransaction= require("../models/transactionSchema")
 const ContestRules = require("../models/ContestRules");
+const mongoose = require("mongoose");
+
 // const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const RentalLimit = require("../models/RentalLimit");
@@ -890,6 +892,119 @@ router.get("/videos/language/:languageId", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching videos by language:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+// Alternative: More efficient approach using aggregation
+// router.get("/videos/language/:languageId", async (req, res) => {
+//   try {
+//     const { languageId } = req.params;
+//     const { type } = req.query;
+
+//     console.log("Language ID:", languageId);
+//     console.log("Content Type:", type);
+
+//     const typeMapping = {
+//       'movie': { model: Video },
+//       'tvshow': { model: TVShow },
+//       'webseries': { model: Series},
+//       'video': { model: Video },
+//     };
+
+//     // If `type` is specified, fetch only from that model
+//     if (type) {
+//       const mapped = typeMapping[type.toLowerCase()];
+//       if (!mapped) {
+//         return res.status(400).json({
+//           message: "Invalid content type. Supported types: movie, tvshow, webseries, video"
+//         });
+//       }
+
+//       const items = await mapped.model.find({ language_id: languageId }).populate("language_id");
+
+//       if (!items.length) {
+//         return res.status(404).json({ message: `No ${type}s found for this language` });
+//       }
+
+//       return res.status(200).json({
+//         message: `${type.charAt(0).toUpperCase() + type.slice(1)}s fetched successfully`,
+//         languageId,
+//         contentType: type,
+//         totalCount: items.length,
+//         data: items.map(v => ({ ...v.toObject(), contentType: mapped.type })),
+//       });
+//     }
+
+//     // If no type is specified, fetch from all models
+//     const [videos, series, tvShows] = await Promise.all([
+//       Video.find({ language_id: languageId }).populate("language_id"),
+//       Series.find({ language_id: languageId }).populate("language_id"),
+//       TVShow.find({ language_id: languageId }).populate("language_id"),
+//     ]);
+
+//     if (!videos.length && !series.length && !tvShows.length) {
+//       return res.status(404).json({ message: "No content found for this language" });
+//     }
+
+//     const groupedContent = {
+//       movies: [],
+//       webSeries: [],
+//       tvShows: [],
+//       videos: [],
+//     };
+
+//     videos.forEach(v => {
+//       const contentType = v.video_type;
+//       const videoObj = { ...v.toObject(), contentType };
+//       if (contentType === 'movie') groupedContent.movies.push(videoObj);
+//       else if (contentType === 'video') groupedContent.videos.push(videoObj);
+//     });
+
+//     series.forEach(s => groupedContent.webSeries.push({ ...s.toObject(), contentType: 'web_series' }));
+//     tvShows.forEach(t => groupedContent.tvShows.push({ ...t.toObject(), contentType: 'tv_show' }));
+
+//     return res.status(200).json({
+//       message: "All content fetched successfully",
+//       languageId,
+//       contentType: 'all',
+//       totalCount: videos.length + series.length + tvShows.length,
+//       data: groupedContent,
+//     });
+
+//   } catch (error) {
+//     console.error("Error fetching content by language:", error);
+//     return res.status(500).json({ message: "Internal Server Error" });
+//   }
+// });
+
+// Alternative: If you want to check what video_types exist in your database
+router.get("/videos/types/:languageId", async (req, res) => {
+  try {
+    const { languageId } = req.params;
+    
+    // Get distinct video_types for this language
+    const videoTypes = await Video.distinct("video_type", { 
+      language_id: languageId 
+    });
+    
+    const typeCounts = {};
+    for (const type of videoTypes) {
+      const count = await Video.countDocuments({ 
+        language_id: languageId, 
+        video_type: type 
+      });
+      typeCounts[type] = count;
+    }
+
+    return res.status(200).json({
+      message: "Video types fetched successfully",
+      languageId,
+      availableTypes: videoTypes,
+      typeCounts,
+    });
+    
+  } catch (error) {
+    console.error("Error fetching video types:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
