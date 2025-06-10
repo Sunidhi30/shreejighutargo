@@ -19,7 +19,6 @@ const vendorSchema = new mongoose.Schema({
   wallet: { type: Number, default: 0 }, // Vendor's earning balance
   lockedBalance: { type: Number, default: 0 }, // Balance within 90-day lock period
   totalEarningsFromViews: { type: Number, default: 0 }, // 🆕 Separate variable to store total earnings from views
-  
   viewsEarningsHistory: [{ // 🆕 Track individual earnings transactions
     date: { type: Date, default: Date.now },
     viewsCount: Number,

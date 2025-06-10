@@ -11,6 +11,7 @@ const dotenv = require('dotenv');
 const geoip = require('geoip-lite'); // For IP location detection
 const useragent = require('useragent'); // For device detection
 const AppRating = require("../models/appRating.model")
+const contentController = require('../controllers/language');
 const mongoose = require("mongoose");
 const ContinueWatching = require("../models/ContinueWatching")
 const User = require('../models/User');
@@ -5088,5 +5089,6 @@ router.get('/user/transactions', isUser, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
+router.get('/language/:languageId', contentController.getContentByLanguage);
 
 module.exports = router;

@@ -2851,6 +2851,8 @@ router.post("/set-vendor-lock", verifyAdmin, async (req, res) => {
       lock.adminId = adminId;
       lock.isActive = true;
       lock.startDate = new Date(); // reset
+      vendor.walletLockDays = lockPeriodDays;
+await vendor.save();
       await lock.save();
       console.log("lock " + lock);
       // Populate refs
