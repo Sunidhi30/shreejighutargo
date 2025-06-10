@@ -8,6 +8,12 @@ const  tvShowSchema = new mongoose.Schema({
   vendor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
   channel_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' },
   category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+  language_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Language' },
+  video_type: {
+    type: String,
+    default: 'show',
+    immutable: true // Prevent updates
+  },
   type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Types' },
   thumbnail: { type: String },
   landscape: { type: String },

@@ -1280,7 +1280,6 @@ router.delete("/delete-vendor/:id", verifyAdmin, async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
 // get vendor
 router.get("/get-vendors", async (req, res) => {
   try {

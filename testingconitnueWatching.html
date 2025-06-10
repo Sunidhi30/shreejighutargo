@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continue Watching API Testing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">Continue Watching API Testing</h1>
+
+        <!-- Save Progress Form -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Save Watching Progress</h2>
+            <form id="saveProgressForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Video Type</label>
+                    <select id="video_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+                        <option value="movie">Movie</option>
+                        <option value="series">Series</option>
+                        <option value="show">TV Show</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Content ID</label>
+                    <input type="text" id="contentId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2" 
+                        placeholder="Enter content ID">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Progress (%)</label>
+                    <input type="number" id="progress" min="0" max="100" value="50" 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+                </div>
+
+                <!-- Quick Test Buttons -->
+                <div class="space-y-2">
+                    <button type="button" onclick="fillTestData('movie', '68319b1cefc5e081c2c6b26f')" 
+                        class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600">
+                        Test Movie (ID: 68319b1cefc5e081c2c6b26f)
+                    </button>
+                    <button type="button" onclick="fillTestData('series', '6846c4d3fd87f676f09950f1')"
+                        class="w-full bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600">
+                        Test Series (ID: 6846c4d3fd87f676f09950f1)
+                    </button>
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-500 text-white py-2 px-4 rounded-md hover:bg-indigo-600">
+                    Save Progress
+                </button>
+            </form>
+        </div>
+
+        <!-- Continue Watching List -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Continue Watching List</h2>
+                <button id="fetchList" class="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600">
+                    Refresh List
+                </button>
+            </div>
+            <div id="continueWatchingList" class="space-y-4">
+                <!-- Results will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:9000/api';
+        const AUTH_TOKEN = localStorage.getItem('token') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiI2ODNkNGNiOTBjYzU0MWFiMDU3MGFhMTIiLCJlbWFpbCI6InN1bmlkaGkxNDA4LmJlMjFAY2hpdGthcmEuZWR1LmluIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDk0OTM0MzEsImV4cCI6MTc1MDA5ODIzMX0.QFrcDZ7kLZTwSSodh67IIhpQCvjN8WVA2KHDYSxecT8';
+
+        // Function to fill test data
+        function fillTestData(videoType, contentId) {
+            document.getElementById('video_type').value = videoType;
+            document.getElementById('contentId').value = contentId;
+            document.getElementById('progress').value = 50;
+        }
+
+        // Save Progress Form Submit
+        document.getElementById('saveProgressForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const payload = {
+                contentId: document.getElementById('contentId').value,
+                video_type: document.getElementById('video_type').value,
+                progress: parseInt(document.getElementById('progress').value)
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/users/continue-watching`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('Progress saved successfully!');
+                    fetchContinueWatchingList();
+                } else {
+                    alert(`Error: ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Error saving progress:', error);
+                alert('Failed to save progress');
+            }
+        });
+
+        // Fetch Continue Watching List
+        async function fetchContinueWatchingList() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/users/continue-watching`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayContinueWatchingList(data);
+                } else {
+                    alert(`Error: ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Error fetching list:', error);
+                alert('Failed to fetch continue watching list');
+            }
+        }
+
+        // Display Continue Watching List
+        function displayContinueWatchingList(data) {
+            const listContainer = document.getElementById('continueWatchingList');
+            listContainer.innerHTML = '';
+            
+            data.data.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'border rounded-lg p-4 space-y-2';
+                
+                let content = `
+                    <div class="flex items-center space-x-4">
+                        <img src="${item.content.thumbnail || '/placeholder.png'}" 
+                            alt="${item.content.title}" 
+                            class="w-24 h-24 object-cover rounded">
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="font-semibold">${item.content.title}</h3>
+                                    <p class="text-sm text-gray-600">Type: ${item.contentType}</p>
+                                </div>
+                                <button onclick="deleteWatchingItem('${item.id}')" 
+                                    class="text-red-500 hover:text-red-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="mt-2 h-2 bg-gray-200 rounded">
+                                <div class="h-full bg-blue-500 rounded" 
+                                    style="width: ${item.progress}%"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Progress: ${item.progress}%</p>
+                            <p class="text-xs text-gray-500">
+                                Last watched: ${new Date(item.lastWatchedAt).toLocaleString()}
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Add season and episode info if available
+                if (item.parentContent) {
+                    content += `
+                        <div class="mt-2 text-sm text-gray-600">
+                            <p>From: ${item.parentContent.title}</p>
+                            ${item.parentContent.season ? 
+                                `<p>Season ${item.parentContent.season.number}: ${item.parentContent.season.name}</p>` 
+                                : ''}
+                        </div>
+                    `;
+                }
+
+                itemElement.innerHTML = content;
+                listContainer.appendChild(itemElement);
+            });
+        }
+
+        // Delete watching item
+        async function deleteWatchingItem(itemId) {
+            if (!confirm('Are you sure you want to remove this item from continue watching?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/users/continue-watching/${itemId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (response.ok) {
+                    alert('Item removed successfully');
+                    fetchContinueWatchingList();
+                } else {
+                    const data = await response.json();
+                    alert(`Error: ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Error deleting item:', error);
+                alert('Failed to remove item');
+            }
+        }
+
+        // Fetch button click handler
+        document.getElementById('fetchList').addEventListener('click', fetchContinueWatchingList);
+
+        // Initial fetch
+        fetchContinueWatchingList();
+    </script>
+</body>
+</html>

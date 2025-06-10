@@ -1056,6 +1056,14 @@ router.post('/create-video', isVendor, upload.fields([
       is_title, is_download, is_like, is_comment, total_like, total_view, is_rent
     } = req.body;
 
+    // ✅ Enforce video_type to be 'movie' only
+    if (video_type && video_type.toLowerCase() !== 'movie') {
+      return res.status(400).json({
+        success: false,
+        message: 'video_type must be "movie" only.'
+      });
+    }
+
     // Validate required fields
     if (!name) {
       return res.status(400).json({
@@ -1192,7 +1200,7 @@ router.post('/create-video', isVendor, upload.fields([
 
     // Create new video object
     const newVideo = new Video({
-      video_type: video_type || 'movie',
+      video_type: 'movie', // ✅ forcefully set
       vendor_id: new mongoose.Types.ObjectId(vendorId),
       channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,
       producer_id: producer_id ? new mongoose.Types.ObjectId(producer_id) : null,
@@ -2438,109 +2446,296 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
   }
 });
 // Create a new series
+// router.post('/series', isVendor, upload.fields([
+//   { name: 'thumbnail', maxCount: 1 },
+//   { name: 'landscape', maxCount: 1 }
+// ]), async (req, res) => {
+//   try {
+//     const {
+//       title,
+//       description,
+//       category_id,
+//       releaseYear,
+//       tags,
+//       language_id,
+//       type_id // ✅ vendor can now pass this
+//     } = req.body;
+
+//     let thumbnailUrl = '';
+//     let landscapeUrl = '';
+
+//     // Upload helper
+//     const uploadFile = async (field, folder) => {
+//       if (req.files && req.files[field]?.[0]) {
+//         let file = req.files[field][0];
+//         let buffer = file.buffer;
+//         let mimetype = file.mimetype;
+
+//         if (mimetype === 'image/heic' || mimetype === 'image/heif') {
+//           const outputBuffer = await heicConvert({
+//             buffer,
+//             format: 'JPEG',
+//             quality: 1
+//           });
+//           buffer = outputBuffer;
+//           mimetype = 'image/jpeg';
+//         }
+
+//         const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
+//         return await uploadToCloudinary(base64, folder, mimetype);
+//       }
+//       return '';
+//     };
+
+//     // Upload images
+//     thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
+//     landscapeUrl = await uploadFile('landscape', 'series/landscapes');
+
+//     // Validate required fields
+//     if (!title) {
+//       return res.status(400).json({ success: false, error: 'Title is required' });
+//     }
+
+//     let finalTypeId = type_id;
+
+//     // If type_id not given, set default to web-series
+//     if (!finalTypeId) {
+//       const defaultType = await Type.findOne({ name: 'web-series' });
+//       if (!defaultType) {
+//         return res.status(400).json({ success: false, error: 'Default type "web-series" not found' });
+//       }
+//       finalTypeId = defaultType._id;
+//     }
+
+//     // Create new Series
+//     const newSeries = new Series({
+//       title,
+//       description: description || '',
+//       vendor_id: req.vendor.id,
+//       category_id: category_id || null,
+//       language_id,
+//       releaseYear: releaseYear || new Date().getFullYear(),
+//       thumbnail: thumbnailUrl,
+//       landscape: landscapeUrl,
+//       type_id: finalTypeId, // ✅ use vendor’s or fallback type
+//       video_type: 'series', // ✅ enforce always
+//       tags: tags ? tags.split(',').map(t => t.trim()) : []
+//     });
+
+//     await newSeries.save();
+
+//     return res.status(201).json({
+//       success: true,
+//       message: 'Series created successfully',
+//       series: newSeries
+//     });
+
+//   } catch (err) {
+//     console.error('Error creating series:', err);
+//     return res.status(500).json({
+//       success: false,
+//       error: 'Internal Server Error',
+//       details: err.message
+//     });
+//   }
+// });
+// router.post('/series', isVendor, upload.fields([
+//   { name: 'thumbnail', maxCount: 1 },
+//   { name: 'landscape', maxCount: 1 }
+// ]), async (req, res) => {
+//   try {
+//     const {
+//       title,
+//       description,
+//       category_id,
+//       releaseYear,
+//       channel_id,
+//       video_type,
+//       tags,
+//       language_id,
+//       type_id // ✅ vendor can now pass this
+//     } = req.body;
+
+//     let thumbnailUrl = '';
+//     let landscapeUrl = '';
+
+//     // Upload helper
+//     const uploadFile = async (field, folder) => {
+//       if (req.files && req.files[field]?.[0]) {
+//         let file = req.files[field][0];
+//         let buffer = file.buffer;
+//         let mimetype = file.mimetype;
+
+//         if (mimetype === 'image/heic' || mimetype === 'image/heif') {
+//           const outputBuffer = await heicConvert({
+//             buffer,
+//             format: 'JPEG',
+//             quality: 1
+//           });
+//           buffer = outputBuffer;
+//           mimetype = 'image/jpeg';
+//         }
+
+//         const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
+//         return await uploadToCloudinary(base64, folder, mimetype);
+//       }
+//       return '';
+//     };
+
+//     // Upload images
+//     thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
+//     landscapeUrl = await uploadFile('landscape', 'series/landscapes');
+
+//     // Validate required fields
+//     if (!title) {
+//       return res.status(400).json({ success: false, error: 'Title is required' });
+//     }
+
+//     let finalTypeId = type_id;
+
+//     // If type_id not given, set default to web-series
+//     if (!finalTypeId) {
+//       const defaultType = await Type.findOne({ name: 'web-series' });
+//       if (!defaultType) {
+//         return res.status(400).json({ success: false, error: 'Default type "web-series" not found' });
+//       }
+//       finalTypeId = defaultType._id;
+//     }
+
+//     // Create new Series
+//     const newSeries = new Series({
+//       title,
+//       channel_id,
+//       description: description || '',
+//       vendor_id: req.vendor.id,
+//       category_id: category_id || null,
+//       language_id,
+//       releaseYear: releaseYear || new Date().getFullYear(),
+//       thumbnail: thumbnailUrl,
+//       landscape: landscapeUrl,
+//       type_id: finalTypeId, // ✅ use vendor’s or fallback type
+//       video_type: 'series', // ✅ enforce always
+//       tags: tags ? tags.split(',').map(t => t.trim()) : []
+//     });
+
+//     await newSeries.save();
+
+//     return res.status(201).json({
+//       success: true,
+//       message: 'Series created successfully',
+//       series: newSeries
+//     });
+
+//   } catch (err) {
+//     console.error('Error creating series:', err);
+//     return res.status(500).json({
+//       success: false,
+//       error: 'Internal Server Error',
+//       details: err.message
+//     });
+//   }
+// });
 router.post('/series', isVendor, upload.fields([
   { name: 'thumbnail', maxCount: 1 },
   { name: 'landscape', maxCount: 1 }
 ]), async (req, res) => {
   try {
-    const { title, description, category_id, releaseYear, tags } = req.body;
-    
-    // Initialize urls as empty strings
+    const {
+      title,
+      description,
+      category_id,
+      video_type,
+      releaseYear,
+      channel_id,
+      tags,
+      language_id,
+      type_id // Vendor can provide this
+    } = req.body;
+
     let thumbnailUrl = '';
     let landscapeUrl = '';
 
-    // Helper function to handle file upload
-    // const uploadFile = async (field, folder) => {
-    //   if (req.files && req.files[field] && req.files[field][0]) {
-    //     const file = req.files[field][0];
-    //     const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-    //     return await uploadToCloudinary(base64, folder, file.mimetype);
-    //   }
-    //   return '';
-    // };
+    // Cloudinary uploader utility
     const uploadFile = async (field, folder) => {
-      if (req.files && req.files[field] && req.files[field][0]) {
-        const file = req.files[field][0];
-    
+      if (req.files && req.files[field]?.[0]) {
+        let file = req.files[field][0];
         let buffer = file.buffer;
         let mimetype = file.mimetype;
-    
+
+        // Optional HEIC conversion
         if (mimetype === 'image/heic' || mimetype === 'image/heif') {
           const outputBuffer = await heicConvert({
-            buffer: buffer, // the HEIC file buffer
+            buffer,
             format: 'JPEG',
             quality: 1
           });
           buffer = outputBuffer;
           mimetype = 'image/jpeg';
         }
-    
+
         const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
         return await uploadToCloudinary(base64, folder, mimetype);
       }
       return '';
     };
-    try {
-      // Upload thumbnail
-      thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
-      // Upload landscape
-      landscapeUrl = await uploadFile('landscape', 'series/landscapes');
-    } catch (uploadError) {
-      console.error('File upload error:', uploadError);
-      return res.status(400).json({ 
-        success: false, 
-        error: 'File upload failed',
-        details: uploadError.message 
-      });
-    }
 
-    // Validate required fields
+    // Upload media
+    thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
+    landscapeUrl = await uploadFile('landscape', 'series/landscapes');
+
     if (!title) {
-      return res.status(400).json({
-        success: false,
-        error: 'Title is required'
-      });
+      return res.status(400).json({ success: false, error: 'Title is required' });
     }
 
-    // ✅ Fetch default type_id for "web-series"
-    const webSeriesType = await Type.findOne({ name: 'web-series' });
-    if (!webSeriesType) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Default type "web-series" not found in Type collection' 
-      });
-    }
-    // Create new series
-    const series = new Series({
+    // let finalTypeId = type_id;
+    // if (!finalTypeId) {
+    //   const defaultType = await Type.findOne({ name: 'series' });
+    //   if (!defaultType) {
+    //     return res.status(400).json({ success: false, error: 'Default type "series" not found' });
+    //   }
+    //   finalTypeId = defaultType._id;
+    // }
+   // Find type based on video_type from request
+   const contentType = await Type.findOne({ name: video_type.toLowerCase() });
+   if (!contentType) {
+     return res.status(400).json({ 
+       success: false, 
+       error: `Content type "${video_type}" not found` 
+     });
+   }
+    const newSeries = new Series({
       title,
       description: description || '',
       vendor_id: req.vendor.id,
       category_id: category_id || null,
-      type_id: webSeriesType._id, // ✅ Set default type_id here
+      language_id,
+      releaseYear: releaseYear || new Date().getFullYear(),
       thumbnail: thumbnailUrl,
       landscape: landscapeUrl,
-      releaseYear: releaseYear || new Date().getFullYear(),
-      tags: tags ? tags.split(',').map(tag => tag.trim()) : []
+      type_id,
+      channel_id,
+      video_type: 'series', // ✅ Always "series", will be ignored if someone tries to change it due to immutable:true
+      tags: tags ? tags.split(',').map(t => t.trim()) : []
     });
 
-    await series.save();
+    await newSeries.save();
 
-    // Return success response
-    res.status(201).json({ 
-      success: true, 
+    return res.status(201).json({
+      success: true,
       message: 'Series created successfully',
-      series 
+      series: newSeries
     });
 
-  } catch (error) {
-    console.error('Series creation error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to create series',
-      details: error.message 
+  } catch (err) {
+    console.error('Error creating series:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      details: err.message
     });
   }
 });
+
 // // Get all series uploaded by the logged-in vendor
 // router.get('/series', isVendor, async (req, res) => {
 //   try {
@@ -3071,7 +3266,7 @@ router.post('/tvshows',
   ]),
   async (req, res) => {
     try {
-      const { title, description, category_id, releaseYear, totalSeasons, status, tags, channel_id } = req.body;
+      const { title, description, category_id, releaseYear, totalSeasons, status, tags, channel_id, video_type,language_id,type_id } = req.body;
 
       if (!title) {
         return res.status(400).json({ success: false, error: 'Title is required' });
@@ -3116,7 +3311,10 @@ router.post('/tvshows',
 
       const tvShow = new TVShow({
         title,
+        video_type,
         channel_id,
+        language_id,
+        type_id,
         description: description || '',
         vendor_id: req.vendor.id,
         category_id: category_id || null,
@@ -3308,7 +3506,6 @@ router.post(
       }
     }
   );
-  
 // POST /tvshows/:showId/seasons
 router.post('/tvshows/:showId/seasons', isVendor, async (req, res) => {
   try {
@@ -3396,7 +3593,6 @@ router.get('/tvshows/:showId/seasons', async (req, res) => {
     });
   }
 });
-
 // Add Episode to TV Show Season
 // router.post(
 //   '/tv-episodes',

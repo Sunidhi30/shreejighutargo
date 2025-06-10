@@ -2568,37 +2568,596 @@ router.get('/top10-movies', async (req, res) => {
   }
 });
 // GET /api/user/continue-watching
-router.post('/continue-watching', async (req, res) => {
-  const { userId, videoId, progress } = req.body;
-  console.log(req.body)
+
+
+// testing  for conitnue watching 
+// router.post('/continue-watching', isUser,async (req, res) => {
+//   const {videoId, progress, contentType } = req.body;
+//     const userId = req.user.id;
+//   if (!userId || !videoId || !contentType) {
+//     return res.status(400).json({ message: 'Missing required fields' });
+//   }
+
+//   try {
+//     const existing = await ContinueWatching.findOne({ userId, videoId, contentType });
+
+//     if (existing) {
+//       existing.progress = progress;
+//       existing.updatedAt = Date.now();
+//       await existing.save();
+//     } else {
+//       await ContinueWatching.create({ userId, videoId, contentType, progress });
+//     }
+
+//     res.json({ message: 'Progress saved' });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Failed to save progress', error: error.message });
+//   }
+// });
+// router.get('/continue-watching', isUser, async (req, res) => {
+//   const userId = req.user._id;
+
+//   try {
+//     const list = await ContinueWatching.find({ userId })
+//       .sort({ updatedAt: -1 })
+//       .populate({
+//         path: 'videoId',
+//         populate: {
+//           path: 'seasonId seriesId tvshowId', // Populate nested refs if needed
+//           select: 'title name'
+//         }
+//       });
+
+//     res.json({
+//       message: 'Continue Watching list fetched successfully',
+//       data: list
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: 'Failed to fetch list',
+//       error: error.message
+//     });
+//   }
+// });
+// Continue Watching Schema
+
+
+
+// POST API to save watching progress
+// router.post('/continue-watching', isUser, async (req, res) => {
+//   const { 
+//     contentId, 
+//     progress, 
+//     contentType,
+//     seriesId,
+//     seasonId,
+//     tvShowId,
+//     tvSeasonId 
+//   } = req.body;
+//   const userId = req.user._id;
+
+//   try {
+//     // Map content type to model name
+//     const contentModelMap = {
+//       'movie': 'Movie',
+//       'series': 'Series',
+//       'tvshow': 'TVShow',
+//       'episode': 'Episode',
+//       'tvepisode': 'TVEpisode'
+//     };
+
+//     const contentModel = contentModelMap[contentType?.toLowerCase()];
+//     if (!contentModel) {
+//       return res.status(400).json({
+//         message: 'Invalid content type. Supported types: movie, series, tvshow, episode, tvepisode'
+//       });
+//     }
+
+//     // Build update data
+//     const updateData = {
+//       progress,
+//       contentModel,
+//       lastWatchedAt: Date.now()
+//     };
+
+//     // Add parent references for episodes
+//     if (contentModel === 'Episode') {
+//       if (!seriesId || !seasonId) {
+//         return res.status(400).json({
+//           message: 'Series and season IDs are required for episodes'
+//         });
+//       }
+//       updateData.seriesId = seriesId;
+//       updateData.seasonId = seasonId;
+//     }
+
+//     if (contentModel === 'TVEpisode') {
+//       if (!tvShowId || !tvSeasonId) {
+//         return res.status(400).json({
+//           message: 'TV Show and TV season IDs are required for TV episodes'
+//         });
+//       }
+//       updateData.tvShowId = tvShowId;
+//       updateData.tvSeasonId = tvSeasonId;
+//     }
+
+//     // Update or create continue watching entry
+//     const updated = await ContinueWatching.findOneAndUpdate(
+//       { userId, contentId },
+//       updateData,
+//       {
+//         new: true,
+//         upsert: true
+//       }
+//     );
+
+//     res.json({
+//       message: 'Progress saved successfully',
+//       data: updated
+//     });
+
+//   } catch (error) {
+//     res.status(500).json({
+//       message: 'Failed to save progress',
+//       error: error.message
+//     });
+//   }
+// });
+
+// GET API to fetch continue watching list
+// Continue Watching Schema
+
+// POST API to save watching progress
+// Continue Watching Schema remains mostly the same
+
+// POST API to save watching progress
+// Continue Watching Schema
+
+
+// POST API to save watching progress
+router.post('/continue-watching', isUser, async (req, res) => {
+  const { contentId, video_type, progress } = req.body;
+  const userId = req.user._id;
+
   try {
-    const existing = await ContinueWatching.findOne({ userId, videoId });
-    console.log("existing videos", existing);
-    if (existing) {
-      existing.progress = progress;
-      existing.updatedAt = Date.now();
-      await existing.save();
-    } else {
-      await ContinueWatching.create({ userId, videoId, progress });
+    let content;
+    
+    // Find content based on video_type
+    switch(video_type) {
+      case 'movie':
+        content = await Video.findById(contentId);
+        break;
+      
+      case 'series':
+        // First check if it's an episode
+        content = await Episode.findById(contentId)
+          .populate('series_id')
+          .populate('season_id');
+        if (!content) {
+          // If not an episode, check if it's a series
+          content = await Series.findById(contentId);
+        }
+        break;
+      
+      case 'show':
+        // First check if it's a TV episode
+        content = await TVEpisode.findById(contentId)
+          .populate('tvshow_id')
+          .populate('tvseason_id');
+        if (!content) {
+          // If not an episode, check if it's a show
+          content = await TVShow.findById(contentId);
+        }
+        break;
+      
+      default:
+        return res.status(400).json({ message: 'Invalid video type' });
     }
-    res.json({ message: 'Progress saved' });
+
+    if (!content) {
+      return res.status(404).json({ message: 'Content not found' });
+    }
+
+    // Update or create continue watching entry
+    const updated = await ContinueWatching.findOneAndUpdate(
+      { userId, contentId },
+      {
+        video_type,
+        progress,
+        lastWatchedAt: Date.now()
+      },
+      { new: true, upsert: true }
+    );
+
+    res.json({
+      message: 'Progress saved successfully',
+      data: updated
+    });
+
   } catch (error) {
-    res.status(500).json({ message: 'Failed to save progress', error: error.message });
+    res.status(500).json({
+      message: 'Failed to save progress',
+      error: error.message
+    });
   }
 });
-router.get('/continue-watching',isUser, async (req, res) => {
-  const user_id = req.user._id;
-  console.log(user_id)
+
+// GET API to fetch continue watching list
+// GET API to fetch continue watching list
+// router.get('/continue-watching', isUser, async (req, res) => {
+//   const userId = req.user._id;
+// console.log("this is user id ",userId);
+//   try {
+//     const list = await ContinueWatching.find({ userId })
+//       .sort({ lastWatchedAt: -1 });
+//     console.log("this is list ",list);
+//     const formattedList = await Promise.all(list.map(async (item) => {
+//       let contentDetails = {
+//         title: '',
+//         thumbnail: '',
+//         duration: 0
+//       };
+
+//       try {
+//         // Get content details based on video_type
+//         switch(item.video_type) {
+//           case 'movie':
+//             const movie = await Video.findById(item.contentId);
+//             if (movie) {
+//               contentDetails = {
+//                 title: movie.title || '',
+//                 thumbnail: movie.thumbnail || '',
+//                 duration: movie.duration || 0
+//               };
+//             }
+//             break;
+
+//           case 'series':
+//             // First check if it's an episode
+//             const episode = await Episode.findById(item.contentId)
+//               .populate('series_id')
+//               .populate('season_id');
+
+//             if (episode && episode.series_id && episode.season_id) {
+//               contentDetails = {
+//                 title: episode.title || '',
+//                 thumbnail: episode.thumbnail || '',
+//                 duration: episode.duration || 0,
+//                 series: {
+//                   title: episode.series_id.title || '',
+//                   season: {
+//                     name: episode.season_id.name || '',
+//                     number: episode.season_id.number || 0
+//                   }
+//                 }
+//               };
+//             } else {
+//               // Check if it's a series
+//               const series = await Series.findById(item.contentId);
+//               if (series) {
+//                 contentDetails = {
+//                   title: series.title || '',
+//                   thumbnail: series.thumbnail || ''
+//                 };
+//               }
+//             }
+//             break;
+
+//           case 'show':
+//             // First check if it's a TV episode
+//             const tvEpisode = await TVEpisode.findById(item.contentId)
+//               .populate('tvshow_id')
+//               .populate('tvseason_id');
+
+//             if (tvEpisode && tvEpisode.tvshow_id && tvEpisode.tvseason_id) {
+//               contentDetails = {
+//                 title: tvEpisode.title || '',
+//                 thumbnail: tvEpisode.thumbnail || '',
+//                 duration: tvEpisode.duration || 0,
+//                 show: {
+//                   title: tvEpisode.tvshow_id.title || '',
+//                   season: {
+//                     name: tvEpisode.tvseason_id.name || '',
+//                     number: tvEpisode.tvseason_id.number || 0
+//                   }
+//                 }
+//               };
+//             } else {
+//               // Check if it's a show
+//               const show = await TVShow.findById(item.contentId);
+//               if (show) {
+//                 contentDetails = {
+//                   title: show.title || '',
+//                   thumbnail: show.thumbnail || ''
+//                 };
+//               }
+//             }
+//             break;
+//         }
+
+//         return {
+//           id: item._id,
+//           contentId: item.contentId,
+//           video_type: item.video_type,
+//           progress: item.progress,
+//           lastWatchedAt: item.lastWatchedAt,
+//           content: contentDetails
+//         };
+//       } catch (err) {
+//         console.error(`Error processing content ${item.contentId}:`, err);
+//         return null;
+//       }
+//     }));
+
+//     // Filter out any null entries and empty titles
+//     const validList = formattedList.filter(item => 
+//       item && item.content && item.content.title
+//     );
+
+//     res.json({
+//       message: 'Continue watching list fetched successfully',
+//       data: validList
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching continue watching list:', error);
+//     res.status(500).json({
+//       message: 'Failed to fetch continue watching list',
+//       error: error.message
+//     });
+//   }
+// });
+// router.get('/good-continue-watching', isUser, async (req, res) => {
+//   const userId = req.user._id;
+//   console.log("this is user id ", userId);
+
+//   try {
+//     const list = await ContinueWatching.find({ userId })
+//       .sort({ lastWatchedAt: -1 });
+//     console.log("this is list ", list);
+
+//     const formattedList = await Promise.all(list.map(async (item) => {
+//       try {
+//         // First, find the content regardless of type
+//         const content = await Promise.all([
+//           Video.findById(item.contentId),
+//           Series.findById(item.contentId),
+//           Episode.findById(item.contentId).populate('show_id season_id'),
+//           TVShow.findById(item.contentId),
+//           TVEpisode.findById(item.contentId).populate('tvshow_id tvseason_id')
+//         ]);
+
+//         // Find the first non-null result
+//         const foundContent = content.find(c => c !== null);
+//         console.log("Found content:", foundContent);
+
+//         if (!foundContent) {
+//           console.log("No content found for ID:", item.contentId);
+//           return null;
+//         }
+
+//         // Determine content type and format details based on the content structure
+//         let contentDetails = {
+//           title: '',
+//           thumbnail: '',
+//           duration: 0
+//         };
+
+//         // Check content structure to determine its type
+//         if (foundContent.show_id) {
+//           // It's a TV Episode
+//           contentDetails = {
+//             title: foundContent.title || '',
+//             thumbnail: foundContent.thumbnail || '',
+//             duration: foundContent.video_duration || 0,
+//             type: 'episode',
+//             show: {
+//               title: foundContent.show_id?.title || '',
+//               season: foundContent.season_id ? {
+//                 name: foundContent.season_id.name || '',
+//                 number: foundContent.season_id.number || 0
+//               } : null
+//             }
+//           };
+//         } else if (foundContent.tvshow_id) {
+//           // It's a TV Show Episode
+//           contentDetails = {
+//             title: foundContent.title || '',
+//             thumbnail: foundContent.thumbnail || '',
+//             duration: foundContent.duration || 0,
+//             type: 'tvepisode',
+//             show: {
+//               title: foundContent.tvshow_id?.title || '',
+//               season: foundContent.tvseason_id ? {
+//                 name: foundContent.tvseason_id.name || '',
+//                 number: foundContent.tvseason_id.number || 0
+//               } : null
+//             }
+//           };
+//         } else if (foundContent.seasons) {
+//           // It's a Series
+//           contentDetails = {
+//             title: foundContent.title || '',
+//             thumbnail: foundContent.thumbnail || '',
+//             type: 'series'
+//           };
+//         } else if (foundContent.episodes) {
+//           // It's a TV Show
+//           contentDetails = {
+//             title: foundContent.title || '',
+//             thumbnail: foundContent.thumbnail || '',
+//             type: 'show'
+//           };
+//         } else {
+//           // It's a Movie
+//           contentDetails = {
+//             title: foundContent.title || '',
+//             thumbnail: foundContent.thumbnail || '',
+//             duration: foundContent.video_duration || 0,
+//             type: 'movie'
+//           };
+//         }
+
+//         console.log("Formatted content details:", contentDetails);
+
+//         return {
+//           id: item._id,
+//           contentId: item.contentId,
+//           video_type: contentDetails.type,
+//           progress: item.progress,
+//           lastWatchedAt: item.lastWatchedAt,
+//           content: contentDetails
+//         };
+//       } catch (err) {
+//         console.error(`Error processing content ${item.contentId}:`, err);
+//         return null;
+//       }
+//     }));
+
+//     // Filter out any null entries and empty titles
+//     const validList = formattedList.filter(item => 
+//       item && item.content && item.content.title
+//     );
+
+//     console.log("Final valid list:", validList);
+
+//     res.json({
+//       message: 'Continue watching list fetched successfully',
+//       data: validList
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching continue watching list:', error);
+//     res.status(500).json({
+//       message: 'Failed to fetch continue watching list',
+//       error: error.message
+//     });
+//   }
+// });
+router.get('/continue-watching', isUser, async (req, res) => {
+  const userId = req.user._id;
+  console.log("this is user id ", userId);
+
   try {
-    const list = await ContinueWatching.find({  userId : user_id  })
-      .sort({ updatedAt: -1 })
-      .populate('videoId');
-    res.json({ message: 'Continue Watching list fetched successfully', data: list });
+    const list = await ContinueWatching.find({ userId })
+      .sort({ lastWatchedAt: -1 });
+    console.log("this is list ", list);
+
+    const formattedList = await Promise.all(list.map(async (item) => {
+      try {
+        // Use the video_type from the ContinueWatching document to determine which model to query
+        let foundContent;
+        const videoType = item.video_type || item.contentModel?.toLowerCase() || 'series'; // fallback to 'series' if undefined
+
+        console.log(`Searching for content with ID ${item.contentId} of type ${videoType}`);
+
+        switch(videoType) {
+          case 'series':
+            foundContent = await Series.findById(item.contentId)
+              .populate('category_id', 'name')
+              .populate('language_id', 'name')
+              .populate('vendor_id', 'name');
+            break;
+          case 'movie':
+            foundContent = await Video.findById(item.contentId)
+              .populate('category_id', 'name')
+              .populate('language_id', 'name')
+              .populate('vendor_id', 'name');
+            break;
+          case 'show':
+            foundContent = await mongoose.model('tvShowSchema').findById(item.contentId)
+              .populate('category_id', 'name')
+              .populate('language_id', 'name')
+              .populate('vendor_id', 'name');
+            break;
+          default:
+            console.log(`Unknown video type: ${videoType}`);
+            return null;
+        }
+
+        console.log("Found content:", foundContent);
+
+        if (!foundContent) {
+          console.log("No content found for ID:", item.contentId);
+          return null;
+        }
+
+        // Format content details based on what was found
+        const contentDetails = {
+          title: foundContent.title || '',
+          thumbnail: foundContent.thumbnail || '',
+          type: videoType,
+          duration: foundContent.video_duration || foundContent.duration || 0,
+          // Add additional fields if needed
+          category: foundContent.category_id?.name || '',
+          language: foundContent.language_id?.name || '',
+          vendor: foundContent.vendor_id?.name || ''
+        };
+
+        return {
+          id: item._id,
+          contentId: item.contentId,
+          video_type: videoType,
+          progress: item.progress,
+          lastWatchedAt: item.lastWatchedAt,
+          content: contentDetails
+        };
+      } catch (err) {
+        console.error(`Error processing content ${item.contentId}:`, err);
+        return null;
+      }
+    }));
+
+    // Filter out any null entries and empty titles
+    const validList = formattedList.filter(item => 
+      item && item.content && item.content.title
+    );
+
+    console.log("Final valid list:", validList);
+
+    res.json({
+      message: 'Continue watching list fetched successfully',
+      data: validList
+    });
+
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch list', error: error.message });
+    console.error('Error fetching continue watching list:', error);
+    res.status(500).json({
+      message: 'Failed to fetch continue watching list',
+      error: error.message
+    });
   }
 });
- // Endpoint to mark a video as favorite
+// DELETE API to remove from continue watching
+router.delete('/continue-watching/:id', isUser, async (req, res) => {
+  const userId = req.user._id;
+  const itemId = req.params.id;
+
+  try {
+    const deleted = await ContinueWatching.findOneAndDelete({
+      _id: itemId,
+      userId
+    });
+
+    if (!deleted) {
+      return res.status(404).json({
+        message: 'Continue watching item not found'
+      });
+    }
+
+    res.json({
+      message: 'Item removed from continue watching',
+      data: deleted
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: 'Failed to remove item',
+      error: error.message
+    });
+  }
+});
+// Endpoint to mark a video as favorite
 router.put('/user/favorites/:videoId',isUser, async (req, res) => {
   const userId = req.user._id; // Assuming user ID is available in the request (e.g., from a JWT)
   const videoId = req.params.videoId;
@@ -3023,12 +3582,12 @@ router.get('/contests/:id/videos', async (req, res) => {
     }
 
     // Check if contest is active or completed (allow viewing both)
-    if (!['active', 'completed'].includes(contest.status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Contest is not available for viewing' 
-      });
-    }
+    // if (!['active'].includes(contest.status)) {
+    //   return res.status(400).json({ 
+    //     success: false, 
+    //     message: 'Contest is not available for viewing' 
+    //   });
+    // }
 
     // Get contest type and model
     const contestType = contest.type_id.name;
@@ -3086,7 +3645,7 @@ router.get('/contests/:id/videos', async (req, res) => {
       .populate('cast_ids', 'name image')
       .populate('category_id', 'name')
       .populate('language_id', 'name')
-      .select('name thumbnail landscape description video_duration release_date total_view total_like averageRating ratingCount vendor_id cast_ids category_id language_id createdAt')
+      .select('name thumbnail landscape description video_duration  video_320  video_480   video_720  video_1080 release_date total_view total_like averageRating ratingCount vendor_id cast_ids category_id language_id createdAt')
       .sort(sortCriteria)
       .skip(sort === 'contest_views' ? 0 : skip)
       .limit(sort === 'contest_views' ? 0 : parseInt(limit));

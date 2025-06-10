@@ -2,7 +2,12 @@ const mongoose = require('mongoose');
 const  Type  = require("../models/Type")
 const videoSchema = new mongoose.Schema({
   type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Type' },
-  video_type: { type: String },
+  video_type: {
+    type: String,
+    default: 'movie',
+    immutable: true // Prevent updates
+  },
+  // video_type: { type: String },
   vendor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
   channel_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' }, // ✅ Updated
   producer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Producer' }, // ✅ Updated

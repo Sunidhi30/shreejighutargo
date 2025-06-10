@@ -167,6 +167,10 @@ app.listen(PORT,()=>{
   app.get("/users", (req, res) => {
     res.sendFile(__dirname + "/testinguser.html");
   })
+  app.get("/continuewatching", (req, res) => {
+    res.sendFile(__dirname + "/testingconitnueWatching.html");
+  })
+ 
   // Serve the test HTML file
   app.get("/testing", (req, res) => {
     res.sendFile(__dirname + "/testing.html");
