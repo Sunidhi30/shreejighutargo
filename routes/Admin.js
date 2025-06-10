@@ -2374,6 +2374,33 @@ router.post("/set-rental-limit", verifyAdmin, async (req, res) => {
     .status(201)
     .json({ success: true, message: "Rental limit set", data: limit });
 });
+// GET: /get-rental-limit
+router.get("/get-rental-limit", async (req, res) => {
+  try {
+    // Get the most recent limit (assuming you store each new limit as a new document)
+    const latestLimit = await RentalLimit.findOne().sort({ createdAt: -1 });
+
+    if (!latestLimit) {
+      return res.status(404).json({
+        success: false,
+        message: "No rental limit has been set",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: latestLimit,
+    });
+  } catch (error) {
+    console.error("Error fetching rental limit:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+});
+
 // approve the videos of the vendor
 router.put("/video-status/:videoId", verifyAdmin, async (req, res) => {
   const videoId = req.params.videoId;

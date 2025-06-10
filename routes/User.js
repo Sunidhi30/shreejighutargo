@@ -1182,7 +1182,6 @@ router.delete('/profiles/:userId/:profileId', async (req, res) => {
     });
   }
 });
-
 // Stop watching on a device
 router.post('/devices/stop-watching', async (req, res) => {
   try {
@@ -1219,7 +1218,6 @@ router.post('/devices/stop-watching', async (req, res) => {
     });
   }
 });
-
 // // Get all existing routes with minor enhancements
 // router.get('/api/user/:id/login-info', async (req, res) => {
 //   try {
@@ -1992,24 +1990,6 @@ router.get('/approved-movies', async (req, res) => {
     }
 });
 // GET /search-movies?title=someText
-// router.get('/search-movies', async (req, res) => {
-//   const { title } = req.query;
-
-//   try {
-//     if (!title) {
-//       return res.status(400).json({ message: 'Title query is required.' });
-//     }
-
-//     const movies = await Video.find({
-//       name: { $regex: title, $options: 'i' },
-//       isApproved: true // Only approved videos
-//     });
-
-//     res.json(movies);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Search failed', error: error.message });
-//   }
-// });
 router.get('/search-movies', async (req, res) => {
   const { title } = req.query;
 
@@ -2281,7 +2261,6 @@ router.get('/get_video_types', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error fetching video types' });
   }
 });
-
 // get language  
 router.get('/get_languages', async (req, res) => {
   try {
@@ -2568,153 +2547,6 @@ router.get('/top10-movies', async (req, res) => {
     res.status(500).json({ message: 'Server error while fetching Top 10 movies' });
   }
 });
-// GET /api/user/continue-watching
-
-
-// testing  for conitnue watching 
-// router.post('/continue-watching', isUser,async (req, res) => {
-//   const {videoId, progress, contentType } = req.body;
-//     const userId = req.user.id;
-//   if (!userId || !videoId || !contentType) {
-//     return res.status(400).json({ message: 'Missing required fields' });
-//   }
-
-//   try {
-//     const existing = await ContinueWatching.findOne({ userId, videoId, contentType });
-
-//     if (existing) {
-//       existing.progress = progress;
-//       existing.updatedAt = Date.now();
-//       await existing.save();
-//     } else {
-//       await ContinueWatching.create({ userId, videoId, contentType, progress });
-//     }
-
-//     res.json({ message: 'Progress saved' });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Failed to save progress', error: error.message });
-//   }
-// });
-// router.get('/continue-watching', isUser, async (req, res) => {
-//   const userId = req.user._id;
-
-//   try {
-//     const list = await ContinueWatching.find({ userId })
-//       .sort({ updatedAt: -1 })
-//       .populate({
-//         path: 'videoId',
-//         populate: {
-//           path: 'seasonId seriesId tvshowId', // Populate nested refs if needed
-//           select: 'title name'
-//         }
-//       });
-
-//     res.json({
-//       message: 'Continue Watching list fetched successfully',
-//       data: list
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: 'Failed to fetch list',
-//       error: error.message
-//     });
-//   }
-// });
-// Continue Watching Schema
-
-
-
-// POST API to save watching progress
-// router.post('/continue-watching', isUser, async (req, res) => {
-//   const { 
-//     contentId, 
-//     progress, 
-//     contentType,
-//     seriesId,
-//     seasonId,
-//     tvShowId,
-//     tvSeasonId 
-//   } = req.body;
-//   const userId = req.user._id;
-
-//   try {
-//     // Map content type to model name
-//     const contentModelMap = {
-//       'movie': 'Movie',
-//       'series': 'Series',
-//       'tvshow': 'TVShow',
-//       'episode': 'Episode',
-//       'tvepisode': 'TVEpisode'
-//     };
-
-//     const contentModel = contentModelMap[contentType?.toLowerCase()];
-//     if (!contentModel) {
-//       return res.status(400).json({
-//         message: 'Invalid content type. Supported types: movie, series, tvshow, episode, tvepisode'
-//       });
-//     }
-
-//     // Build update data
-//     const updateData = {
-//       progress,
-//       contentModel,
-//       lastWatchedAt: Date.now()
-//     };
-
-//     // Add parent references for episodes
-//     if (contentModel === 'Episode') {
-//       if (!seriesId || !seasonId) {
-//         return res.status(400).json({
-//           message: 'Series and season IDs are required for episodes'
-//         });
-//       }
-//       updateData.seriesId = seriesId;
-//       updateData.seasonId = seasonId;
-//     }
-
-//     if (contentModel === 'TVEpisode') {
-//       if (!tvShowId || !tvSeasonId) {
-//         return res.status(400).json({
-//           message: 'TV Show and TV season IDs are required for TV episodes'
-//         });
-//       }
-//       updateData.tvShowId = tvShowId;
-//       updateData.tvSeasonId = tvSeasonId;
-//     }
-
-//     // Update or create continue watching entry
-//     const updated = await ContinueWatching.findOneAndUpdate(
-//       { userId, contentId },
-//       updateData,
-//       {
-//         new: true,
-//         upsert: true
-//       }
-//     );
-
-//     res.json({
-//       message: 'Progress saved successfully',
-//       data: updated
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({
-//       message: 'Failed to save progress',
-//       error: error.message
-//     });
-//   }
-// });
-
-// GET API to fetch continue watching list
-// Continue Watching Schema
-
-// POST API to save watching progress
-// Continue Watching Schema remains mostly the same
-
-// POST API to save watching progress
-// Continue Watching Schema
-
-
 // POST API to save watching progress
 router.post('/continue-watching', isUser, async (req, res) => {
   const { contentId, video_type, progress } = req.body;
@@ -2782,8 +2614,6 @@ router.post('/continue-watching', isUser, async (req, res) => {
     });
   }
 });
-
-// GET API to fetch continue watching list
 // GET API to fetch continue watching list
 // router.get('/continue-watching', isUser, async (req, res) => {
 //   const userId = req.user._id;
@@ -4007,109 +3837,6 @@ router.get('/tv-shows/:id', async (req, res) => {
   }
 });
 // 1. NEW ENDPOINT: Get available plans (including upgrades)
-// router.get('/available-plans', isUser, async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-
-//     // 1. Get current active subscription
-//     const currentSubscription = await UserSubscription.findOne({
-//       user: userId,
-//       status: 'active',
-//       endDate: { $gt: new Date() }
-//     }).populate('plan');
-
-//     // 2. No active subscription → Show all plans
-//     if (!currentSubscription) {
-//       const allPlans = await SubscriptionPlan.find({ isActive: true });
-
-//       return res.status(200).json({
-//         success: true,
-//         hasActiveSubscription: false,
-//         message: 'No active subscription. All plans available.',
-//         availablePlans: allPlans.map(plan => ({
-//           id: plan._id,
-//           name: plan.name,
-//           price: plan.price,
-//           duration: plan.duration,
-//           maxDevices: plan.maxDevices,
-//           maxProfiles: plan.maxProfiles,
-//           description: plan.description,
-//           action: 'new_subscription',
-//           badge: 'Available'
-//         }))
-//       });
-//     }
-
-//     // 3. Active subscription → Fetch higher priced plans only
-//     const currentPlanId = currentSubscription.plan._id;
-//     const currentPlanPrice = Number(currentSubscription.plan.price);
-//     console.log("plan price ", currentPlanPrice);
-
-
-//     const upgradePlans = await SubscriptionPlan.find({
-//       isActive: true,
-//       _id: { $ne: currentPlanId },
-//       price: { $gt: currentPlanPrice }
-//     });
-
-//     const daysRemaining = Math.ceil(
-//       (currentSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24)
-//     );
-
-//     // ✅ Condition: Only respond with upgrades if they exist
-//     if (!upgradePlans.length) {
-//       return res.status(200).json({
-//         success: true,
-//         hasActiveSubscription: true,
-//         message: 'No higher-priced plans available for upgrade.',
-//         currentPlan: {
-//           id: currentPlanId,
-//           name: currentSubscription.plan.name,
-//           price: currentPlanPrice,
-//           daysRemaining,
-//           endDate: currentSubscription.endDate,
-//           status: currentSubscription.status
-//         },
-//         availablePlans: []
-//       });
-//     }
-
-//     // 4. Return available upgrades
-//     res.status(200).json({
-//       success: true,
-//       hasActiveSubscription: true,
-//       message: 'Current subscription found. Available upgrades:',
-//       currentPlan: {
-//         id: currentPlanId,
-//         name: currentSubscription.plan.name,
-//         price: currentPlanPrice,
-//         daysRemaining,
-//         endDate: currentSubscription.endDate,
-//         status: currentSubscription.status
-//       },
-//       availablePlans: upgradePlans.map(plan => ({
-//         id: plan._id,
-//         name: plan.name,
-//         price: plan.price,
-//         duration: plan.duration,
-//         maxDevices: plan.maxDevices,
-//         maxProfiles: plan.maxProfiles,
-//         description: plan.description,
-//         action: 'upgrade',
-//         badge: 'Upgrade',
-//         priceDifference: plan.price - currentPlanPrice
-//       }))
-//     });
-
-//   } catch (error) {
-//     console.error('Get available plans error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Error fetching available plans',
-//       error: error.message
-//     });
-//   }
-// });
 router.get('/available-plans', isUser, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -4461,225 +4188,6 @@ router.post('/initiate-subscription', isUser, async (req, res) => {
     });
   }
 });
-// router.post('/initiate-subscription', isUser, async (req, res) => {
-//   try {
-//     const { planId } = req.body;
-//     const userId = req.user.id;
-    
-//     // Validate plan exists and is active
-//     const plan = await SubscriptionPlan.findById(planId);
-//     if (!plan || !plan.isActive) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Subscription plan not found or inactive'
-//       });
-//     }
-    
-//     // Check for pending transactions first (prevent double transactions)
-//     const pendingTransaction = await Transaction.findOne({
-//       user: userId,
-//       status: 'pending',
-//       type: 'subscription'
-//     });
-    
-//     if (pendingTransaction) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'You have a pending payment transaction. Please complete or cancel it first.',
-//         data: {
-//           pendingTransactionId: pendingTransaction._id,
-//           amount: pendingTransaction.amount,
-//           createdAt: pendingTransaction.createdAt
-//         }
-//       });
-//     }
-    
-//     // Check for existing active subscriptions
-//     const existingActiveSubscription = await UserSubscription.findOne({
-//       user: userId,
-//       status: 'active',
-//       endDate: { $gt: new Date() }
-//     }).populate('plan');
-    
-//     // CASE 1: No active subscription - Allow any plan
-//     if (!existingActiveSubscription) {
-//       // Check for any previous subscription for the same plan
-//       const existingPlanSubscription = await UserSubscription.findOne({
-//         user: userId,
-//         plan: planId
-//       }).populate('plan');
-      
-//       if (existingPlanSubscription) {
-//         const subscriptionStatus = {
-//           planName: existingPlanSubscription.plan.name,
-//           startDate: existingPlanSubscription.startDate,
-//           endDate: existingPlanSubscription.endDate,
-//           status: existingPlanSubscription.status
-//         };
-        
-//         if (existingPlanSubscription.status === 'expired') {
-//           return res.status(200).json({
-//             success: true,
-//             message: 'Your previous subscription has expired. You can renew it.',
-//             data: {
-//               plan: {
-//                 id: plan._id,
-//                 name: plan.name,
-//                 price: plan.price,
-//                 duration: plan.duration,
-//                 maxDevices: plan.maxDevices,
-//                 maxProfiles: plan.maxProfiles,
-//                 description: plan.description
-//               },
-//               user: {
-//                 id: userId,
-//                 name: req.user.name,
-//                 email: req.user.email
-//               },
-//               previousSubscription: subscriptionStatus,
-//               action: 'renewal'
-//             }
-//           });
-//         } else if (existingPlanSubscription.status === 'canceled') {
-//           return res.status(200).json({
-//             success: true,
-//             message: 'You can reactivate your canceled subscription.',
-//             data: {
-//               plan: {
-//                 id: plan._id,
-//                 name: plan.name,
-//                 price: plan.price,
-//                 duration: plan.duration,
-//                 maxDevices: plan.maxDevices,
-//                 maxProfiles: plan.maxProfiles,
-//                 description: plan.description
-//               },
-//               user: {
-//                 id: userId,
-//                 name: req.user.name,
-//                 email: req.user.email
-//               },
-//               previousSubscription: subscriptionStatus,
-//               action: 'reactivation'
-//             }
-//           });
-//         }
-//       }
-      
-//       // No previous subscription or different plan - new subscription
-//       return res.status(200).json({
-//         success: true,
-//         message: 'Subscription can be initiated. You are eligible for this plan.',
-//         data: {
-//           plan: {
-//             id: plan._id,
-//             name: plan.name,
-//             price: plan.price,
-//             duration: plan.duration,
-//             maxDevices: plan.maxDevices,
-//             maxProfiles: plan.maxProfiles,
-//             description: plan.description
-//           },
-//           user: {
-//             id: userId,
-//             name: req.user.name,
-//             email: req.user.email
-//           },
-//           eligibility: {
-//             canSubscribe: true,
-//             hasActiveSubscription: false,
-//             hasPendingPayment: false
-//           },
-//           action: 'new_subscription'
-//         }
-//       });
-//     }
-    
-//     // CASE 2: Has active subscription
-//     // Check if requesting same plan
-//     if (planId === existingActiveSubscription.plan._id.toString()) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'You already have an active subscription for this plan.',
-//         data: {
-//           currentSubscription: {
-//             planName: existingActiveSubscription.plan.name,
-//             startDate: existingActiveSubscription.startDate,
-//             endDate: existingActiveSubscription.endDate,
-//             status: existingActiveSubscription.status,
-//             daysRemaining: Math.ceil((existingActiveSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
-//           },
-//           suggestedAction: 'already_subscribed'
-//         }
-//       });
-//     }
-    
-//     // CASE 3: Different plan - check if upgrade/downgrade
-//     const isUpgrade = plan.price > existingActiveSubscription.plan.price;
-//     const isDowngrade = plan.price < existingActiveSubscription.plan.price;
-    
-//     // If your business logic only allows upgrades, uncomment this:
-//     /*
-//     if (isDowngrade) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Plan downgrade is not allowed. Please select a higher-tier plan.',
-//         data: {
-//           currentPlan: {
-//             name: existingActiveSubscription.plan.name,
-//             price: existingActiveSubscription.plan.price
-//           },
-//           requestedPlan: {
-//             name: plan.name,
-//             price: plan.price
-//           }
-//         }
-//       });
-//     }
-//     */
-    
-//     // Allow plan change (upgrade/downgrade)
-//     return res.status(200).json({
-//       success: true,
-//       message: `Plan ${isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'change'} detected. You can proceed with payment.`,
-//       data: {
-//         currentPlan: {
-//           id: existingActiveSubscription.plan._id,
-//           name: existingActiveSubscription.plan.name,
-//           price: existingActiveSubscription.plan.price,
-//           daysRemaining: Math.ceil((existingActiveSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
-//         },
-//         newPlan: {
-//           id: plan._id,
-//           name: plan.name,
-//           price: plan.price,
-//           duration: plan.duration,
-//           maxDevices: plan.maxDevices,
-//           maxProfiles: plan.maxProfiles,
-//           description: plan.description
-//         },
-//         changeType: isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'change',
-//         priceDifference: plan.price - existingActiveSubscription.plan.price,
-//         action: 'plan_change',
-//         user: {
-//           id: userId,
-//           name: req.user.name,
-//           email: req.user.email
-//         }
-//       }
-//     });
-    
-//   } catch (error) {
-//     console.error('Subscription initiation error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Error checking subscription eligibility',
-//       error: error.message
-//     });
-//   }
-// });
-
-
 // 3. KEEP YOUR EXISTING create-order AS IS (no changes needed!)
 router.post('/create-order', isUser, async (req, res) => {
   try {
