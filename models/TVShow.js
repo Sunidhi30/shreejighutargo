@@ -14,7 +14,7 @@ const  tvShowSchema = new mongoose.Schema({
     default: 'show',
     immutable: true // Prevent updates
   },
-  type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Types' },
+  type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Type' },
   thumbnail: { type: String },
   landscape: { type: String },
   releaseYear: { type: Number },

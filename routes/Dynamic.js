@@ -403,4 +403,178 @@ router.get('/search-allvideos-bytype', async (req, res) => {
     });
   }
 });
+router.get('/search-allvideos-bytypeId', async (req, res) => {
+  try {
+    const { type, include_episodes = false, limit = 50, page = 1 } = req.query;
+
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Type ID is required as query parameter `type`',
+      });
+    }
+
+    let results = [];
+    let totalCount = 0;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // 👇 Updated to search by _id instead of name
+    const typeDoc = await Type.findOne({
+      _id: type,
+      status: 1,
+    });
+
+    if (!typeDoc) {
+      return res.status(404).json({
+        success: false,
+        message: `Type ID '${type}' not found in database`,
+      });
+    }
+
+    const baseQuery = {
+      $or: [
+        { status: 'approved' },
+        { approvalStatus: 'approved' },
+        { isApproved: true }
+      ]
+    };
+
+    const searchQuery = {
+      ...baseQuery,
+      type_id: typeDoc._id
+    };
+
+    const videoResults = await Video.find(searchQuery)
+      .populate('vendor_id', 'name')
+      .populate('category_id', 'name')
+      .populate('channel_id', 'name')
+      .populate('producer_id', 'name')
+      .populate('cast_ids', 'name')
+      .populate('language_id', 'name')
+      .lean()
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    results = videoResults.map(item => ({
+      ...item,
+      content_type: 'video',
+      category: 'movie'
+    }));
+
+    const seriesResults = await Series.find(searchQuery)
+      .populate('vendor_id', 'name')
+      .populate('category_id', 'name')
+      .lean()
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const seriesWithType = seriesResults.map(item => ({
+      ...item,
+      content_type: 'series',
+      category: 'web-series'
+    }));
+
+    results = [...results, ...seriesWithType];
+
+    const tvShowResults = await TvShow.find(searchQuery)
+      .populate('vendor_id', 'name')
+      .populate('category_id', 'name')
+      .populate('channel_id', 'name')
+      .lean()
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const tvShowWithType = tvShowResults.map(item => ({
+      ...item,
+      content_type: 'tv_show',
+      category: 'show'
+    }));
+
+    results = [...results, ...tvShowWithType];
+
+    if (include_episodes === 'true') {
+      const episodeResults = await Episode.find(searchQuery)
+        .populate('series_id', 'title')
+        .populate('season_id', 'season_number')
+        .populate('vendor_id', 'name')
+        .populate('category_id', 'name')
+        .lean()
+        .skip(skip)
+        .limit(parseInt(limit));
+
+      const episodesWithType = episodeResults.map(item => ({
+        ...item,
+        content_type: 'series_episode',
+        category: 'episode',
+        parent_title: item.series_id?.title
+      }));
+
+      const tvEpisodeResults = await TVEpisode.find(searchQuery)
+        .populate('show_id', 'title')
+        .populate('season_id', 'season_number')
+        .populate('vendor_id', 'name')
+        .populate('category_id', 'name')
+        .lean()
+        .skip(skip)
+        .limit(parseInt(limit));
+
+      const tvEpisodesWithType = tvEpisodeResults.map(item => ({
+        ...item,
+        content_type: 'tv_episode',
+        category: 'tv_episode',
+        parent_title: item.show_id?.title
+      }));
+
+      results = [...results, ...episodesWithType, ...tvEpisodesWithType];
+    }
+
+    const videoCount = await Video.countDocuments(searchQuery);
+    const seriesCount = await Series.countDocuments(searchQuery);
+    const tvShowCount = await TvShow.countDocuments(searchQuery);
+    
+    let episodeCount = 0;
+    if (include_episodes === 'true') {
+      const seriesEpisodeCount = await Episode.countDocuments(searchQuery);
+      const tvEpisodeCount = await TVEpisode.countDocuments(searchQuery);
+      episodeCount = seriesEpisodeCount + tvEpisodeCount;
+    }
+
+    totalCount = videoCount + seriesCount + tvShowCount + episodeCount;
+
+    results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return res.status(200).json({
+      success: true,
+      message: `Found content for type: ${typeDoc.name}`,
+      type_info: {
+        id: typeDoc._id,
+        name: typeDoc.name,
+        type: typeDoc.type
+      },
+      pagination: {
+        current_page: parseInt(page),
+        per_page: parseInt(limit),
+        total_items: totalCount,
+        total_pages: Math.ceil(totalCount / parseInt(limit))
+      },
+      breakdown: {
+        videos: videoCount,
+        series: seriesCount,
+        tv_shows: tvShowCount,
+        episodes: episodeCount
+      },
+      count: results.length,
+      results
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching videos',
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
