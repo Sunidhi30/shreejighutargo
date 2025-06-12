@@ -4127,7 +4127,23 @@ router.post('/create-homesection',verifyAdmin, async (req, res) => {
         type: videoType
       }));
     }
-     
+     // Enforce: Only one banner per type_id or globally
+if (isBanner) {
+  const existingBanner = await HomeSection.findOne({
+    isBanner: true,
+    ...(isCommon ? {} : { type_id })
+  });
+
+  if (existingBanner) {
+    return res.status(400).json({
+      success: false,
+      message: isCommon
+        ? 'A common banner already exists. Only one common banner is allowed.'
+        : 'A banner already exists for this type. Only one banner is allowed per type.'
+    });
+  }
+}
+
     // Create new home section
     const newSection = new HomeSection({
       title,
@@ -4159,7 +4175,7 @@ router.post('/create-homesection',verifyAdmin, async (req, res) => {
     });
   }
 });
- router.get('/good-test-home-sections', async (req, res) => {
+router.get('/good-test-home-sections', async (req, res) => {
   const { typeId, languageId } = req.query;
   try {
     // Optional TypeID Validation

@@ -2735,7 +2735,6 @@ router.post('/series', isVendor, upload.fields([
     });
   }
 });
-
 // // Get all series uploaded by the logged-in vendor
 // router.get('/series', isVendor, async (req, res) => {
 //   try {
