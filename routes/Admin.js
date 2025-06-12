@@ -4093,9 +4093,9 @@ router.post('/create-homesection',verifyAdmin, async (req, res) => {
           VideoModel = Video;
           videoType = 'movie';
           break;
-        case 'web_series':
+        case 'series':
           VideoModel = Series;
-          videoType = 'web_series';
+          videoType = 'series';
           break;
         case 'show':
           VideoModel = mongoose.model('tvShowSchema');
@@ -4159,7 +4159,7 @@ router.post('/create-homesection',verifyAdmin, async (req, res) => {
     });
   }
 });
-router.get('/good-test-home-sections', async (req, res) => {
+ router.get('/good-test-home-sections', async (req, res) => {
   const { typeId, languageId } = req.query;
   try {
     // Optional TypeID Validation
@@ -4199,7 +4199,7 @@ router.get('/good-test-home-sections', async (req, res) => {
           let Model;
           switch (typeKey) {
             case 'movie': Model = Video; break;
-            case 'web_series': Model = Series; break;
+            case 'series': Model = Series; break;
             case 'tv_show':
             case 'show': Model = TVShow; break;
             default: continue;
@@ -4222,42 +4222,26 @@ router.get('/good-test-home-sections', async (req, res) => {
           );
         }
 
-        // ✅ FIXED: Return section data regardless of video availability
+        if (combinedVideos.length === 0) return null;
+
         return {
-          _id: section._id,
-          title: section.title,
-          type_id: section.type_id,
-          order: section.order,
-          isHomeScreen: section.isHomeScreen,
-          isBanner: section.isBanner, // ✅ Always included now
-          isCommon: section.isCommon,
-          description: section.description,
-          status: section.status,
-          createdAt: section.createdAt,
-          updatedAt: section.updatedAt,
-          videos: combinedVideos // Could be empty array, but section info is preserved
+          ...section,
+          videos: combinedVideos,
+          isBanner: section.isBanner // ✅ Explicitly included
         };
 
       } catch (err) {
         console.error(`Error processing section "${section.title}":`, err.message);
-        // ✅ Even on error, return basic section info with isBanner
-        return {
-          _id: section._id,
-          title: section.title,
-          isBanner: section.isBanner,
-          videos: [],
-          error: err.message
-        };
+        return null;
       }
     }));
 
-    // ✅ Don't filter out sections, just return them all
-    const validSections = populatedSections.filter(Boolean);
+    const filteredSections = populatedSections.filter(Boolean);
 
     return res.status(200).json({
       success: true,
-      count: validSections.length,
-      sections: validSections
+      count: filteredSections.length,
+      sections: filteredSections
     });
 
   } catch (err) {
@@ -4268,152 +4252,8 @@ router.get('/good-test-home-sections', async (req, res) => {
     });
   }
 });
-// router.get('/good-test-home-sections', async (req, res) => {
-//   const { typeId, languageId } = req.query;
-//   try {
-//     // Optional TypeID Validation
-//     if (typeId && typeId.length !== 24) {
-//       return res.status(400).json({ success: false, message: "Invalid Type ID format" });
-//     }
 
-//     // Optional Type Lookup
-//     if (typeId) {
-//       const type = await Type.findById(typeId);
-//       if (!type) {
-//         return res.status(404).json({ success: false, message: "Type not found" });
-//       }
-//     }
 
-//     // Find all or filtered Home Sections
-//     const filter = {
-//       isHomeScreen: true,
-//       status: true,
-//       ...(typeId && { type_id: typeId }),
-//       ...(req.query.isBanner !== undefined && { isBanner: req.query.isBanner === 'true' })
-//     };
-
-//     const homeSections = await HomeSection.find(filter).sort({ order: 1 }).lean();
-
-//     const populatedSections = await Promise.all(homeSections.map(async section => {
-//       try {
-//         const videoMap = section.videos.reduce((acc, item) => {
-//           if (!acc[item.videoType]) acc[item.videoType] = [];
-//           acc[item.videoType].push(item.videoId);
-//           return acc;
-//         }, {});
-
-//         let combinedVideos = [];
-
-//         for (const [typeKey, ids] of Object.entries(videoMap)) {
-//           let Model;
-//           switch (typeKey) {
-//             case 'movie': Model = Video; break;
-//             case 'web_series': Model = Series; break;
-//             case 'tv_show':
-//             case 'show': Model = TVShow; break;
-//             default: continue;
-//           }
-
-//           const query = { _id: { $in: ids } };
-//           if (languageId && languageId.length === 24) {
-//             query.language_id = languageId;
-//           }
-
-//           const results = await Model.find(query)
-//             .select('title thumbnail description language_id')
-//             .lean();
-
-//           combinedVideos = combinedVideos.concat(
-//             results.map(video => ({
-//               ...video,
-//               videoType: typeKey
-//             }))
-//           );
-//         }
-
-//         if (combinedVideos.length === 0) return null;
-
-//         return {
-//           ...section,
-//           videos: combinedVideos,
-//           isBanner: section.isBanner // ✅ Explicitly included
-//         };
-
-//       } catch (err) {
-//         console.error(`Error processing section "${section.title}":`, err.message);
-//         return null;
-//       }
-//     }));
-
-//     const filteredSections = populatedSections.filter(Boolean);
-
-//     return res.status(200).json({
-//       success: true,
-//       count: filteredSections.length,
-//       sections: filteredSections
-//     });
-
-//   } catch (err) {
-//     console.error('Server Error:', err.message);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Server error occurred while fetching sections.'
-//     });
-//   }
-// });
-
-//     const { type } = req.params;
-
-//     // Validate type
-//     const validTypes = ['movie', 'web_series', 'tv_show', 'others'];
-//     if (!validTypes.includes(type)) {
-//       return res.status(400).json({ success: false, message: 'Invalid type parameter.' });
-//     }
-
-//     // Determine video model
-//     let VideoModel;
-//     switch (type) {
-//       case 'movie':
-//         VideoModel = Video;
-//         break;
-//       case 'web_series':
-//         VideoModel = Series;
-//         break;
-//       case 'tv_show':
-//         VideoModel = TvShow;
-//         break;
-//       case 'others':
-//         VideoModel = DynamicVideo;
-//         break;
-//     }
-
-//     // Get all sections of the given type
-//     const sections = await HomeSection.find({ status: true, type })
-//       .sort({ order: 1 })
-//       .lean();
-
-//     // Populate each section's videos from the correct model
-//     const populatedSections = await Promise.all(
-//       sections.map(async (section) => {
-//         const fullVideos = await VideoModel.find({ _id: { $in: section.videos } }).lean();
-//         return {
-//           ...section,
-//           videos: fullVideos
-//         };
-//       })
-//     );
-
-//     res.status(200).json({
-//       success: true,
-//       count: populatedSections.length,
-//       sections: populatedSections
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching home sections by type:', error);
-//     res.status(500).json({ success: false, message: 'Server error' });
-//   }
-// });
 
 // PUT /home-section/:id/order
 router.put('/:id/homesection-order', async (req, res) => {
