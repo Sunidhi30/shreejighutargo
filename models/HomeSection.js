@@ -11,6 +11,7 @@ const homeSectionSchema = new mongoose.Schema({
   }], // videos with their types
   isHomeScreen: { type: Boolean, default: false }, // Only shown on home screen if true
   type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Type', required: true },
+  isBanner: { type: Boolean, default: false },
 
   // type: { 
   //   type: String, 

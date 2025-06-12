@@ -4028,9 +4028,9 @@ router.get("/contests/:id/views-history", async (req, res) => {
   }
 });
 // CREATE HOME SECTION API
-router.post('/create-homesection', async (req, res) => {
+router.post('/create-homesection',verifyAdmin, async (req, res) => {
   try {
-    const { title, videos, type_id, order, isCommon, description, isHomeScreen } = req.body;
+    const { title, videos, type_id, order, isCommon, description, isHomeScreen,isBanner } = req.body;
 
     // Basic validation
     if (!title || !type_id || !videos || !Array.isArray(videos)) {
@@ -4138,6 +4138,7 @@ router.post('/create-homesection', async (req, res) => {
       isCommon: isCommon || false,
       isHomeScreen: isHomeScreen || false,
       description: description || '',
+      isBanner: isBanner || false, // ✅ New flag added here
       status: true
     });
 
@@ -4158,25 +4159,140 @@ router.post('/create-homesection', async (req, res) => {
     });
   }
 });
-// router.get('/test-home-sections/:typeId', async (req, res) => {
-//   const { typeId } = req.params;
-//   const { languageId } = req.query;
+router.get('/good-test-home-sections', async (req, res) => {
+  const { typeId, languageId } = req.query;
+  try {
+    // Optional TypeID Validation
+    if (typeId && typeId.length !== 24) {
+      return res.status(400).json({ success: false, message: "Invalid Type ID format" });
+    }
 
+    // Optional Type Lookup
+    if (typeId) {
+      const type = await Type.findById(typeId);
+      if (!type) {
+        return res.status(404).json({ success: false, message: "Type not found" });
+      }
+    }
+
+    // Find all or filtered Home Sections
+    const filter = {
+      isHomeScreen: true,
+      status: true,
+      ...(typeId && { type_id: typeId }),
+      ...(req.query.isBanner !== undefined && { isBanner: req.query.isBanner === 'true' })
+    };
+
+    const homeSections = await HomeSection.find(filter).sort({ order: 1 }).lean();
+
+    const populatedSections = await Promise.all(homeSections.map(async section => {
+      try {
+        const videoMap = section.videos.reduce((acc, item) => {
+          if (!acc[item.videoType]) acc[item.videoType] = [];
+          acc[item.videoType].push(item.videoId);
+          return acc;
+        }, {});
+
+        let combinedVideos = [];
+
+        for (const [typeKey, ids] of Object.entries(videoMap)) {
+          let Model;
+          switch (typeKey) {
+            case 'movie': Model = Video; break;
+            case 'web_series': Model = Series; break;
+            case 'tv_show':
+            case 'show': Model = TVShow; break;
+            default: continue;
+          }
+
+          const query = { _id: { $in: ids } };
+          if (languageId && languageId.length === 24) {
+            query.language_id = languageId;
+          }
+
+          const results = await Model.find(query)
+            .select('title thumbnail description language_id')
+            .lean();
+
+          combinedVideos = combinedVideos.concat(
+            results.map(video => ({
+              ...video,
+              videoType: typeKey
+            }))
+          );
+        }
+
+        // ✅ FIXED: Return section data regardless of video availability
+        return {
+          _id: section._id,
+          title: section.title,
+          type_id: section.type_id,
+          order: section.order,
+          isHomeScreen: section.isHomeScreen,
+          isBanner: section.isBanner, // ✅ Always included now
+          isCommon: section.isCommon,
+          description: section.description,
+          status: section.status,
+          createdAt: section.createdAt,
+          updatedAt: section.updatedAt,
+          videos: combinedVideos // Could be empty array, but section info is preserved
+        };
+
+      } catch (err) {
+        console.error(`Error processing section "${section.title}":`, err.message);
+        // ✅ Even on error, return basic section info with isBanner
+        return {
+          _id: section._id,
+          title: section.title,
+          isBanner: section.isBanner,
+          videos: [],
+          error: err.message
+        };
+      }
+    }));
+
+    // ✅ Don't filter out sections, just return them all
+    const validSections = populatedSections.filter(Boolean);
+
+    return res.status(200).json({
+      success: true,
+      count: validSections.length,
+      sections: validSections
+    });
+
+  } catch (err) {
+    console.error('Server Error:', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error occurred while fetching sections.'
+    });
+  }
+});
+// router.get('/good-test-home-sections', async (req, res) => {
+//   const { typeId, languageId } = req.query;
 //   try {
-//     if (!typeId || typeId.length !== 24) {
+//     // Optional TypeID Validation
+//     if (typeId && typeId.length !== 24) {
 //       return res.status(400).json({ success: false, message: "Invalid Type ID format" });
 //     }
 
-//     const type = await Type.findById(typeId);
-//     if (!type) {
-//       return res.status(404).json({ success: false, message: "Type not found" });
+//     // Optional Type Lookup
+//     if (typeId) {
+//       const type = await Type.findById(typeId);
+//       if (!type) {
+//         return res.status(404).json({ success: false, message: "Type not found" });
+//       }
 //     }
 
-//     const homeSections = await HomeSection.find({
-//       type_id: typeId,
+//     // Find all or filtered Home Sections
+//     const filter = {
 //       isHomeScreen: true,
-//       status: true
-//     }).sort({ order: 1 }).lean();
+//       status: true,
+//       ...(typeId && { type_id: typeId }),
+//       ...(req.query.isBanner !== undefined && { isBanner: req.query.isBanner === 'true' })
+//     };
+
+//     const homeSections = await HomeSection.find(filter).sort({ order: 1 }).lean();
 
 //     const populatedSections = await Promise.all(homeSections.map(async section => {
 //       try {
@@ -4219,7 +4335,8 @@ router.post('/create-homesection', async (req, res) => {
 
 //         return {
 //           ...section,
-//           videos: combinedVideos
+//           videos: combinedVideos,
+//           isBanner: section.isBanner // ✅ Explicitly included
 //         };
 
 //       } catch (err) {
@@ -4244,240 +4361,7 @@ router.post('/create-homesection', async (req, res) => {
 //     });
 //   }
 // });
-router.get('/good-test-home-sections', async (req, res) => {
-  const { typeId, languageId } = req.query;
 
-  try {
-    // Optional TypeID Validation
-    if (typeId && typeId.length !== 24) {
-      return res.status(400).json({ success: false, message: "Invalid Type ID format" });
-    }
-
-    // Optional Type Lookup
-    if (typeId) {
-      const type = await Type.findById(typeId);
-      if (!type) {
-        return res.status(404).json({ success: false, message: "Type not found" });
-      }
-    }
-
-    // Find all or filtered Home Sections
-    const filter = {
-      isHomeScreen: true,
-      status: true,
-      ...(typeId && { type_id: typeId })
-    };
-
-    const homeSections = await HomeSection.find(filter).sort({ order: 1 }).lean();
-
-    const populatedSections = await Promise.all(homeSections.map(async section => {
-      try {
-        const videoMap = section.videos.reduce((acc, item) => {
-          if (!acc[item.videoType]) acc[item.videoType] = [];
-          acc[item.videoType].push(item.videoId);
-          return acc;
-        }, {});
-
-        let combinedVideos = [];
-
-        for (const [typeKey, ids] of Object.entries(videoMap)) {
-          let Model;
-          switch (typeKey) {
-            case 'movie': Model = Video; break;
-            case 'web_series': Model = Series; break;
-            case 'tv_show':
-            case 'show': Model = TVShow; break;
-            default: continue;
-          }
-
-          const query = { _id: { $in: ids } };
-          if (languageId && languageId.length === 24) {
-            query.language_id = languageId;
-          }
-
-          const results = await Model.find(query)
-            .select('title thumbnail description language_id')
-            .lean();
-
-          combinedVideos = combinedVideos.concat(
-            results.map(video => ({
-              ...video,
-              videoType: typeKey
-            }))
-          );
-        }
-
-        if (combinedVideos.length === 0) return null;
-
-        return {
-          ...section,
-          videos: combinedVideos
-        };
-
-      } catch (err) {
-        console.error(`Error processing section "${section.title}":`, err.message);
-        return null;
-      }
-    }));
-
-    const filteredSections = populatedSections.filter(Boolean);
-
-    return res.status(200).json({
-      success: true,
-      count: filteredSections.length,
-      sections: filteredSections
-    });
-
-  } catch (err) {
-    console.error('Server Error:', err.message);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error occurred while fetching sections.'
-    });
-  }
-});
-
-// Route for getting home screen sections (no type specified)
-router.get('/test-home-sections/type', async (req, res) => {
-  try {
-    const homeSections = await HomeSection.find({
-      isHomeScreen: true,
-      status: true
-    }).sort({ order: 1 }).lean();
-
-    const populatedSections = await Promise.all(
-      homeSections.map(async (section) => {
-        try {
-          const grouped = section.videos.reduce((acc, item) => {
-            const type = item.videoType;
-            if (!acc[type]) acc[type] = [];
-            acc[type].push(item.videoId);
-            return acc;
-          }, {});
-
-          let fullVideos = [];
-
-          for (const [type, ids] of Object.entries(grouped)) {
-            const Model = {
-              movie: Video,
-              web_series: Series,
-              tv_show: TVShow,
-              show: TVShow,
-              others: DynamicVideo
-            }[type];
-
-            if (!Model) continue;
-
-            const videos = await Model.find({ _id: { $in: ids } }).lean();
-            fullVideos = fullVideos.concat(videos);
-          }
-
-          return {
-            ...section,
-            videos: fullVideos
-          };
-
-        } catch (err) {
-          console.error(`Error populating section ${section.title}:`, err);
-          return { ...section, videos: [] };
-        }
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      count: populatedSections.length,
-      sections: populatedSections
-    });
-
-  } catch (error) {
-    console.error('Error fetching home screen sections:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
-});
-
-router.get('/home-sections/type/:typeId', async (req, res) => {
-  try {
-    const typeId = req.params.typeId;
-
-    // Validate if typeId is a valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(typeId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid type ID format'
-      });
-    }
-
-    // First fetch the type to ensure it exists
-    const typeDoc = await Type.findById(typeId);
-    if (!typeDoc) {
-      return res.status(400).json({
-        success: false,
-        message: 'Type not found'
-      });
-    }
-
-    // Fetch sections for this type
-    const sections = await HomeSection.find({
-      status: true,
-      type_id: typeId,
-    }).sort({ order: 1 });
-
-    const populatedSections = await Promise.all(
-      sections.map(async (section) => {
-        const grouped = section.videos.reduce((acc, entry) => {
-          if (entry.videoId && entry.videoType) {
-            if (!acc[entry.videoType]) acc[entry.videoType] = [];
-            acc[entry.videoType].push(entry.videoId);
-          }
-          return acc;
-        }, {});
-
-        let fullVideos = [];
-
-        for (const [videoType, ids] of Object.entries(grouped)) {
-          const Model = {
-            movie: Video,
-            web_series: Series,
-            tv_show: TVShow,
-            others: DynamicVideo,
-          }[videoType];
-
-          if (!Model) continue;
-
-          const found = await Model.find({ 
-            _id: { $in: ids },
-            type_id: typeId  // Additional filter to ensure videos match the type
-          });
-          fullVideos = fullVideos.concat(found);
-        }
-
-        return {
-          ...section.toObject(),
-          videos: fullVideos
-        };
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      count: populatedSections.length,
-      sections: populatedSections
-    });
-
-  } catch (error) {
-    console.error('Error fetching home sections by type:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
-});
-
-//   try {
 //     const { type } = req.params;
 
 //     // Validate type
@@ -4637,7 +4521,6 @@ router.get('/web-series', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 // GET /api/tvshows  => get all tv shows
 router.get('/all-tvshows', async (req, res) => {
   try {
