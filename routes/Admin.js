@@ -4407,7 +4407,7 @@ router.post('/create-homesection', async (req, res) => {
     });
   }
 });
-router.get('/home-sections/:typeId', async (req, res) => {
+router.get('/test-home-sections/:typeId', async (req, res) => {
   const { typeId } = req.params;
   const { languageId } = req.query;
 
@@ -4574,7 +4574,7 @@ router.get('/home-sections/:typeId', async (req, res) => {
 //   }
 // });
 // Route for getting home screen sections (no type specified)
-router.get('/home-sections/type', async (req, res) => {
+router.get('/test-home-sections/type', async (req, res) => {
   try {
     const homeSections = await HomeSection.find({
       isHomeScreen: true,
