@@ -4268,9 +4268,6 @@ router.get('/good-test-home-sections', async (req, res) => {
     });
   }
 });
-
-
-
 // PUT /home-section/:id/order
 router.put('/:id/homesection-order', async (req, res) => {
   try {
@@ -4449,7 +4446,6 @@ router.get('/tvshows', async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-
 router.get("/all-video", async (req, res) => {
   try {
     const videos = await Video.find()
@@ -4519,9 +4515,6 @@ router.get('/admin-earnings', verifyAdmin, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-
-
-
 // history of transactions /////////// transactions functionality /////////////
 router.post('/:adminId/bank-details', PaymentController.addOrUpdateBankDetails);
 

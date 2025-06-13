@@ -4598,5 +4598,42 @@ router.get('/user/transactions', isUser, async (req, res) => {
   }
 });
 router.get('/language/:languageId', contentController.getContentByLanguage);
+// GET /get-video-by-type?video_type=movie&id=12345
+router.get('/testing-get-video-by-type', async (req, res) => {
+  const { video_type, id } = req.query;
+    // console.log("video type is "+video_type);
+  if (!video_type || !id) {
+    return res.status(400).json({ success: false, message: 'Missing video_type or id' });
+  }
 
+  try {
+    let Model;
+
+    switch (video_type) {
+      case 'movie':
+        Model = Video;
+        break;
+      case 'series':
+        Model = Series;
+        break;
+      case 'show':
+        Model = TVShow;
+        break;
+      default:
+        return res.status(400).json({ success: false, message: 'Invalid video_type provided' });
+    }
+
+    const video = await Model.findById(id);
+
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video not found' });
+    }
+
+    res.status(200).json({ success: true, data: video });
+
+  } catch (error) {
+    console.error('Error fetching video:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 module.exports = router;
