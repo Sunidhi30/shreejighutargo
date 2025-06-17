@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const Contest = require("../models/Contest")
 const TVSeason = require("../models/TVShow")
 const TVShow= require("../models/TVShow")
+const  UpcomingContent = require("../models/UpcomingContent")
 const Series = require("../models/Series")
 const Dynamic = require("../models/DynamicVideo")
 const dotenv = require('dotenv');
@@ -3157,21 +3158,22 @@ router.get('/search', async (req, res) => {
   }
 });
 // GET /api/trailers/coming-soon
-router.get('/coming-soon', async (req, res) => {
-  try {
-    const trailers = await Video.find({ 
-      isComingSoon: true, 
-      isApproved: true 
-    }).select('name thumbnail trailer_url release_date description')
-      .sort({ release_date: 1 }); // optional sorting by date
+// router.get('/coming-soon', async (req, res) => {
+//   try {
+//     const trailers = await Video.find({ 
+//       isComingSoon: true, 
+//       isApproved: true 
+//     }).select('name thumbnail trailer_url release_date description')
+//       .sort({ release_date: 1 }); // optional sorting by date
 
-    res.status(200).json({ success: true, data: trailers });
-  } catch (error) {
-    console.error('Error fetching coming soon trailers:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+//     res.status(200).json({ success: true, data: trailers });
+//   } catch (error) {
+//     console.error('Error fetching coming soon trailers:', error);
+//     res.status(500).json({ success: false, message: 'Server error' });
+//   }
 
-});
+// });
+
 // video progress
 router.post('/track-video-progress', isUser, async (req, res) => {
   try {
@@ -4636,4 +4638,27 @@ router.get('/testing-get-video-by-type', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+// GET all approved upcoming videos
+router.get('/coming-soon', async (req, res) => {
+  try {
+    const approvedUpcomingVideos = await UpcomingContent.find({ status: 'approved' })
+      .populate('category')
+      .populate('type')
+      .populate('language')
+      .populate('cast')
+      .populate('uploadedBy');
+
+    res.status(200).json({
+      success: true,
+      data: approvedUpcomingVideos
+    });
+  } catch (error) {
+    console.error('Error fetching approved upcoming videos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching upcoming videos'
+    });
+  }
+});
+
 module.exports = router;

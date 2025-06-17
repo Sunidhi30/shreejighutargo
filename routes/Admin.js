@@ -3293,7 +3293,6 @@ router.get('/stats-users/:type', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-
 router.get("/videos/type/:typeId", async (req, res) => {
   const { typeId } = req.params;
 
@@ -3335,7 +3334,6 @@ router.get("/videos/type/:typeId", async (req, res) => {
       });
   }
 });
-
 // GET /videos/category/:categoryId
 router.get("/videos/category/:categoryId", async (req, res) => {
   const { categoryId } = req.params;
@@ -3431,7 +3429,6 @@ router.get("/withdrawals", verifyAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
-
 router.post(
   "/withdrawals/:requestId/process",
   verifyAdmin,
@@ -4027,7 +4024,7 @@ router.get("/contests/:id/views-history", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-// CREATE HOME SECTION API
+//CREATE HOME SECTION API
 router.post('/create-homesection',verifyAdmin, async (req, res) => {
   try {
     const { title, videos, type_id, order, isCommon, description, isHomeScreen,isBanner } = req.body;
@@ -4515,9 +4512,67 @@ router.get('/admin-earnings', verifyAdmin, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
 // history of transactions /////////// transactions functionality /////////////
 router.post('/:adminId/bank-details', PaymentController.addOrUpdateBankDetails);
 
 router.post('/withdrawal/:adminId', verifyAdmin, PaymentController.processWithdrawal);
 
+router.get('/upcoming-banners', async (req, res) => {
+  try {
+    const rawStatus = req.query.status;
+    const status = rawStatus ? rawStatus.trim().toLowerCase() : null;
+    const validStatuses = ['pending', 'approved', 'rejected'];
+
+    const filter = validStatuses.includes(status)
+      ? { status: new RegExp(`^${status}$`, 'i') } // Case-insensitive match
+      : {};
+
+    const banners = await UpcomingContent.find(filter)
+      .populate('category', 'name')
+      .populate('type', 'name')
+      .populate('language', 'name')
+      .populate('cast', 'name')
+      .populate('uploadedBy', 'name email');
+
+    res.status(200).json({
+      success: true,
+      message: `Upcoming banners fetched${status ? ' for status: ' + status : ''}`,
+      data: banners
+    });
+  } catch (err) {
+    console.error('❌ Error fetching upcoming banners:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// PUT: Admin approves or rejects upcoming content
+router.put('/upcoming-status-update/:id', verifyAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body; // 'approved' or 'rejected'
+
+  // Validate status value
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status value' });
+  }
+
+  try {
+    const content = await UpcomingContent.findById(id);
+    if (!content) {
+      return res.status(404).json({ success: false, message: 'Upcoming content not found' });
+    }
+
+    content.status = status;
+    await content.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Upcoming content ${status} successfully`,
+      data: content
+    });
+  } catch (error) {
+    console.error('Error updating content status:', error);
+    res.status(500).json({ success: false, message: 'Server error while updating status' });
+  }
+});
 module.exports = router;
