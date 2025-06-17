@@ -5111,7 +5111,7 @@ router.post('/upcoming-banners', isVendor, upload.fields([
 
   try {
     const {
-      title, description, category, type, duration,
+      title, description, category, type, duration,video_type,
       language, releaseDate, cast
     } = req.body;
 
@@ -5151,6 +5151,7 @@ router.post('/upcoming-banners', isVendor, upload.fields([
       language: languageDoc._id,
       releaseDate: new Date(releaseDate),
       cast: castIds,
+      video_type,
       bannerUrl,
       trailerUrl,
       uploadedBy
@@ -5175,6 +5176,7 @@ router.get('/upcoming-banners', async (req, res) => {
       .populate('type', 'name')     // Populates type with only name field
       .populate('language', 'name') // Populates language with only name field
       .populate('cast', 'name')     // Populates cast with only name field
+      .populate('video_type')
       .populate('uploadedBy', 'name email'); // Populates vendor details
 
     res.status(200).json({

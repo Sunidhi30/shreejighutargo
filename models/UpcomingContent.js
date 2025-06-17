@@ -12,6 +12,7 @@ const upcomingContentSchema = new mongoose.Schema({
   type: { type: mongoose.Schema.Types.ObjectId, ref: 'Type' }, // Must be 'upcoming'
   duration: String,
   language: { type: mongoose.Schema.Types.ObjectId, ref: 'Language' },
+  video_type:String,
   releaseDate: Date,
   bannerUrl: String, // This is specific to upcoming
   cast: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cast' }],
