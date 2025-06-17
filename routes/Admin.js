@@ -4576,5 +4576,90 @@ router.put('/upcoming-status-update/:id', verifyAdmin, async (req, res) => {
   }
 });
 
+// GET: Get count of all categories (you can filter by status if needed)
+router.get('/category-count', async (req, res) => {
+  try {
+    // Count only active categories (status: 1), remove the filter if not needed
+    const count = await Category.countDocuments({ status: 1 });
 
+    res.status(200).json({
+      success: true,
+      count,
+    });
+  } catch (err) {
+    console.error('Error fetching category count:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+    });
+  }
+});
+// GET: Contest count (optionally by status)
+router.get('/contest-count', async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    // Build filter condition
+    const condition = status ? { status } : {};
+
+    // Get count
+    const count = await Contest.countDocuments(condition);
+
+    res.status(200).json({
+      success: true,
+      status: status || 'all',
+      count,
+    });
+  } catch (err) {
+    console.error('Error fetching contest count:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+    });
+  }
+});
+// GET: Get channel count (optional status filter)
+router.get('/channel-count', async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const filter = status !== undefined ? { status: Number(status) } : {};
+
+    const count = await Channel.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      status: status !== undefined ? Number(status) : 'all',
+      count,
+    });
+  } catch (err) {
+    console.error('Error fetching channel count:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+    });
+  }
+});
+// GET: Count of subscription plans (optional isActive filter)
+router.get('/subscription-plan-count', async (req, res) => {
+  try {
+    const { isActive } = req.query;
+
+    const filter = isActive !== undefined ? { isActive: isActive === 'true' } : {};
+
+    const count = await SubscriptionPlan.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      isActive: isActive !== undefined ? isActive === 'true' : 'all',
+      count,
+    });
+  } catch (error) {
+    console.error('Error fetching subscription plan count:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+    });
+  }
+});
 module.exports = router;

@@ -4428,6 +4428,7 @@ router.get('/coming-soon', async (req, res) => {
       .populate('type')
       .populate('language')
       .populate('cast')
+      .populate("video_type")
       .populate('uploadedBy');
 
     res.status(200).json({
