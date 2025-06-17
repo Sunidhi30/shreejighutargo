@@ -16,6 +16,7 @@ const videoSchema = new mongoose.Schema({
   // cast_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Cast' },
   cast_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cast' }], // Changed from single cast_id to array of cast_ids
   name: { type: String },
+  title: { type: String },
   thumbnail: { type: String },
   landscape: { type: String },
   description: { type: String },

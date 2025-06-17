@@ -1053,7 +1053,7 @@ router.post('/create-video', isVendor, upload.fields([
       language_id, cast_ids, name, description, video_upload_type, video_extension,
       video_duration, trailer_type, subtitle_type, subtitle_lang_1, subtitle_1,
       subtitle_lang_2, subtitle_2, subtitle_lang_3, subtitle_3, release_date, is_premium,
-      is_title, is_download, is_like, is_comment, total_like, total_view, is_rent
+      is_title, is_download, is_like, is_comment, total_like, total_view, is_rent,title
     } = req.body;
 
     // ✅ Enforce video_type to be 'movie' only
@@ -1200,6 +1200,7 @@ router.post('/create-video', isVendor, upload.fields([
 
     // Create new video object
     const newVideo = new Video({
+      title: name,
       video_type: 'movie', // ✅ forcefully set
       vendor_id: new mongoose.Types.ObjectId(vendorId),
       channel_id: channel_id ? new mongoose.Types.ObjectId(channel_id) : null,

@@ -4061,7 +4061,7 @@ router.post('/create-homesection',verifyAdmin, async (req, res) => {
 
         let videoType;
         if (movieVideo) videoType = 'movie';
-        else if (seriesVideo) videoType = 'web_series';
+        else if (seriesVideo) videoType = 'series';
         else if (tvShowVideo) videoType = 'show';
         else {
           return res.status(400).json({
