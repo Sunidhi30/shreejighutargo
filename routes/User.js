@@ -4639,9 +4639,40 @@ router.get('/testing-get-video-by-type', async (req, res) => {
   }
 });
 // GET all approved upcoming videos
+// router.get('/coming-soon', async (req, res) => {
+//   try {
+//     const approvedUpcomingVideos = await UpcomingContent.find({ status: 'approved' })
+//       .populate('category')
+//       .populate('type')
+//       .populate('language')
+//       .populate('cast')
+//       .populate('uploadedBy');
+
+//     res.status(200).json({
+//       success: true,
+//       data: approvedUpcomingVideos
+//     });
+//   } catch (error) {
+//     console.error('Error fetching approved upcoming videos:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Server error while fetching upcoming videos'
+//     });
+//   }
+// });
 router.get('/coming-soon', async (req, res) => {
   try {
-    const approvedUpcomingVideos = await UpcomingContent.find({ status: 'approved' })
+    const { type } = req.query;
+
+    // Base filter
+    const filter = { status: 'approved' };
+
+    // If type is provided, add it to the filter
+    if (type) {
+      filter.type = type;
+    }
+
+    const approvedUpcomingVideos = await UpcomingContent.find(filter)
       .populate('category')
       .populate('type')
       .populate('language')
