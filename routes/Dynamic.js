@@ -277,8 +277,8 @@ router.get('/search-allvideos-bytype', async (req, res) => {
 
     results = videoResults.map(item => ({
       ...item,
-      content_type: 'video',
-      category: 'movie' // or determine based on type
+      video_type: 'movie',
+   
     }));
 
     // Search in Series collection
@@ -291,8 +291,8 @@ router.get('/search-allvideos-bytype', async (req, res) => {
 
     const seriesWithType = seriesResults.map(item => ({
       ...item,
-      content_type: 'series',
-      category: 'web-series'
+      video_type: 'series',
+
     }));
 
     results = [...results, ...seriesWithType];
@@ -308,8 +308,8 @@ router.get('/search-allvideos-bytype', async (req, res) => {
 
     const tvShowWithType = tvShowResults.map(item => ({
       ...item,
-      content_type: 'tv_show',
-      category: 'show'
+      video_type: 'show',
+   
     }));
 
     results = [...results, ...tvShowWithType];
@@ -328,8 +328,7 @@ router.get('/search-allvideos-bytype', async (req, res) => {
 
       const episodesWithType = episodeResults.map(item => ({
         ...item,
-        content_type: 'series_episode',
-        category: 'episode',
+      
         parent_title: item.series_id?.title
       }));
 
@@ -345,8 +344,7 @@ router.get('/search-allvideos-bytype', async (req, res) => {
 
       const tvEpisodesWithType = tvEpisodeResults.map(item => ({
         ...item,
-        content_type: 'tv_episode',
-        category: 'tv_episode',
+      
         parent_title: item.show_id?.title
       }));
 
@@ -403,6 +401,8 @@ router.get('/search-allvideos-bytype', async (req, res) => {
     });
   }
 });
+
+
 router.get('/search-allvideos-bytypeId', async (req, res) => {
   try {
     const { type, include_episodes = false, limit = 50, page = 1 } = req.query;
