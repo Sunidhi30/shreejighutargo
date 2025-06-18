@@ -3,6 +3,7 @@ const Admin = require("../models/Admin");
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
+// const  Ad = require("../models/Ads")
 const  Ad = require("../models/Ad")
 const path = require('path');
 const Category = require("../models/Category")
@@ -1323,7 +1324,205 @@ router.post('/create-video', isVendor, upload.fields([
     });
   }
 });
+// ads on movies 
+router.post('/videos/:videoId/ads', isVendor, async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const { title, adUrl, position, type, duration, skipAfter } = req.body;
 
+    // Validate video ownership and package type
+    const video = await Video.findOne({
+      _id: videoId,
+      vendor_id: req.vendor.id,
+      // packageType: 'ad'
+    });
+
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found or not eligible for ads'
+      });
+    }
+
+    // Validate URL
+    try {
+      new URL(adUrl);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid ad URL'
+      });
+    }
+
+    // Create new ad
+    const newAd = new Ad({
+      video_id: videoId,
+      title,
+      adUrl,
+      position: Number(position),
+      type,
+      duration: Number(duration),
+      skipAfter: Number(skipAfter) || 5
+    });
+
+    await newAd.save();
+
+    // Update video
+    video.hasAds = true;
+    video.ads.push(newAd._id);
+    video.adBreaks.push({
+      position: Number(position),
+      duration: Number(duration),
+      type
+    });
+
+    await video.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Ad added successfully',
+      ad: newAd
+    });
+
+  } catch (error) {
+    console.error('Error adding ad:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add ad',
+      error: error.message
+    });
+  }
+});
+// Get all ads for a video
+router.get('/videos/:videoId/ads', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    
+    const ads = await Ad.find({
+      video_id: videoId,
+      isActive: true
+    }).sort({ position: 1 });
+
+    res.json({
+      success: true,
+      ads
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch ads',
+      error: error.message
+    });
+  }
+});
+
+// Update ad
+router.put('/ads/:adId', isVendor, async (req, res) => {
+  try {
+    const { adId } = req.params;
+    const updateData = req.body;
+
+    const ad = await Ad.findOneAndUpdate(
+      { _id: adId },
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ad not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Ad updated successfully',
+      ad
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update ad',
+      error: error.message
+    });
+  }
+});
+// Delete ad
+router.delete('/ads/:adId', isVendor, async (req, res) => {
+  try {
+    const { adId } = req.params;
+
+    const ad = await Ad.findById(adId);
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ad not found'
+      });
+    }
+
+    // Remove ad from video
+    await Video.updateOne(
+      { _id: ad.video_id },
+      { 
+        $pull: { 
+          ads: adId,
+          adBreaks: { position: ad.position }
+        }
+      }
+    );
+
+    await Ad.deleteOne({ _id: adId });
+
+    res.json({
+      success: true,
+      message: 'Ad deleted successfully'
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete ad',
+      error: error.message
+    });
+  }
+});
+// Track ad view
+router.post('/ads/:adId/view', async (req, res) => {
+  try {
+    const { adId } = req.params;
+
+    // Find and update the ad's view count
+    const ad = await Ad.findByIdAndUpdate(
+      adId,
+      { $inc: { views: 1 } }, // Increment views by 1
+      { new: true }
+    );
+
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ad not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Ad view recorded',
+      views: ad.views
+    });
+
+  } catch (error) {
+    console.error('Error tracking ad view:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record ad view',
+      error: error.message
+    });
+  }
+});
 // update the videos 
 router.put(
   '/update-video/:videoId', 
@@ -5169,6 +5368,31 @@ router.post('/upcoming-banners', isVendor, upload.fields([
     res.status(500).json({ message: 'Server error' });
   }
 });
+router.get('/upcoming-banners-type', async (req, res) => {
+  const { type_id } = req.query;
+
+  try {
+    const filter = { status: 'pending' };
+    if (type_id) filter.type = type_id;
+
+    const banners = await UpcomingContent.find(filter)
+      .populate('category', 'name')
+      .populate('type', 'name')
+      .populate('language', 'name')
+      .populate('cast', 'name')
+      .populate('video_type')
+      .populate('uploadedBy', 'name email');
+
+    res.status(200).json({
+      message: 'Upcoming banners fetched successfully',
+      data: banners
+    });
+  } catch (err) {
+    console.error('Error fetching upcoming banners:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/upcoming-banners
 router.get('/upcoming-banners', async (req, res) => {
   try {
@@ -5189,7 +5413,6 @@ router.get('/upcoming-banners', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 router.get("/query-videos", async (req, res) => {
   try {
     const type = req.query.type?.toLowerCase(); // Convert to lowercase

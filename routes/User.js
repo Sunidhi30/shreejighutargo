@@ -4443,5 +4443,27 @@ router.get('/coming-soon', async (req, res) => {
     });
   }
 });
+// GET: Fetch all banner home sections
+router.get('/home-banners', async (req, res) => {
+  try {
+    const banners = await HomeSection.find({ isBanner: true,isHomeScreen:true, status: true })
+      .sort({ order: 1 })
+      .populate('type_id')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      message: 'Banners fetched successfully',
+      data: banners
+    });
+  } catch (error) {
+    console.error('Error fetching banners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

@@ -193,6 +193,10 @@ app.get('/session', (req, res) => {
  app.get("/testingpay", (req, res) => {
   res.sendFile(__dirname + "/testingVideos.html");
 })
+//adtesting
+app.get("/testingADS", (req, res) => {
+  res.sendFile(__dirname + "/adtesting.html");
+})
 // Render reset-password.html
 app.get('/reset-password/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'reset-password.html'));

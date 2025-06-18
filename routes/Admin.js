@@ -4517,16 +4517,25 @@ router.get('/admin-earnings', verifyAdmin, async (req, res) => {
 router.post('/:adminId/bank-details', PaymentController.addOrUpdateBankDetails);
 
 router.post('/withdrawal/:adminId', verifyAdmin, PaymentController.processWithdrawal);
-
 router.get('/upcoming-banners', async (req, res) => {
   try {
     const rawStatus = req.query.status;
+    const id = req.query.id;
+
     const status = rawStatus ? rawStatus.trim().toLowerCase() : null;
     const validStatuses = ['pending', 'approved', 'rejected'];
 
-    const filter = validStatuses.includes(status)
-      ? { status: new RegExp(`^${status}$`, 'i') } // Case-insensitive match
-      : {};
+    let filter = {};
+
+    // If valid status provided
+    if (validStatuses.includes(status)) {
+      filter.status = new RegExp(`^${status}$`, 'i'); // case-insensitive match
+    }
+
+    // If ID is provided, override filter to fetch by ID
+    if (id) {
+      filter = { _id: id };
+    }
 
     const banners = await UpcomingContent.find(filter)
       .populate('category', 'name')
@@ -4535,9 +4544,13 @@ router.get('/upcoming-banners', async (req, res) => {
       .populate('cast', 'name')
       .populate('uploadedBy', 'name email');
 
+    if (!banners || banners.length === 0) {
+      return res.status(404).json({ success: false, message: 'No banners found.' });
+    }
+
     res.status(200).json({
       success: true,
-      message: `Upcoming banners fetched${status ? ' for status: ' + status : ''}`,
+      message: `Upcoming banner${id ? ' with specific ID' : (status ? 's for status: ' + status : 's')} fetched successfully`,
       data: banners
     });
   } catch (err) {
@@ -4545,6 +4558,34 @@ router.get('/upcoming-banners', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
+// router.get('/upcoming-banners', async (req, res) => {
+//   try {
+//     const rawStatus = req.query.status;
+//     const status = rawStatus ? rawStatus.trim().toLowerCase() : null;
+//     const validStatuses = ['pending', 'approved', 'rejected'];
+
+//     const filter = validStatuses.includes(status)
+//       ? { status: new RegExp(`^${status}$`, 'i') } // Case-insensitive match
+//       : {};
+
+//     const banners = await UpcomingContent.find(filter)
+//       .populate('category', 'name')
+//       .populate('type', 'name')
+//       .populate('language', 'name')
+//       .populate('cast', 'name')
+//       .populate('uploadedBy', 'name email');
+
+//     res.status(200).json({
+//       success: true,
+//       message: `Upcoming banners fetched${status ? ' for status: ' + status : ''}`,
+//       data: banners
+//     });
+//   } catch (err) {
+//     console.error('❌ Error fetching upcoming banners:', err);
+//     res.status(500).json({ success: false, message: 'Server error' });
+//   }
+// });
 
 // PUT: Admin approves or rejects upcoming content
 router.put('/upcoming-status-update/:id', verifyAdmin, async (req, res) => {

@@ -82,6 +82,14 @@ ratings: [
     value: { type: Number, min: 1, max: 5 },
   }
 ],
+
+  hasAds: { type: Boolean, default: false },
+  adBreaks: [{
+    position: { type: Number }, // timestamp in seconds
+    duration: { type: Number }, // duration in seconds
+    type: { type: String, enum: ['pre-roll', 'mid-roll', 'post-roll'] }
+  }],
+  ads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Ad' }],
 averageRating: { type: Number, default: 0 },
 ratingCount: { type: Number, default: 0 },
 isSeries: { type: Boolean, default: false },

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Ad Management Testing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .response-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .video-player {
+            width: 100%;
+            display: block;
+        }
+        .ad-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+        }
+        .ad-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .ad-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        .skip-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.8);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Video Ad Management</h1>
+        
+        <!-- Token Input -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Enter Token</h5>
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="tokenInput" placeholder="Enter your token">
+                    <button onclick="setToken()" class="btn btn-primary mt-2">Set Token</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Player Section -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Video Player with Ads</h5>
+                <div class="video-container">
+                    <!-- Main Video -->
+                    <video id="mainVideo" class="video-player" controls>
+                        Your browser does not support the video tag.
+                    </video>
+                    <!-- Ad Overlay -->
+                    <div id="adOverlay" class="ad-overlay">
+                        <video id="adVideo" class="ad-video">
+                            Your browser does not support the video tag.
+                        </video>
+                        <div id="adInfo" class="ad-info"></div>
+                        <button id="skipButton" class="skip-button" style="display: none;">Skip Ad</button>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button onclick="loadAndPlayVideo()" class="btn btn-primary">Play Video with Ads</button>
+                </div>
+                <div id="videoInfo" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Add Ad Form -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add New Ad</h5>
+                <form id="addAdForm">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="videoId" placeholder="Video ID" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="adTitle" placeholder="Ad Title" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="url" class="form-control" id="adUrl" placeholder="Ad Video URL" required>
+                    </div>
+                    <div class="mb-3">
+                        <select class="form-control" id="adType" required>
+                            <option value="pre-roll">Pre-roll</option>
+                            <option value="mid-roll">Mid-roll</option>
+                            <option value="post-roll">Post-roll</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <input type="number" class="form-control" id="position" placeholder="Position (seconds)" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="number" class="form-control" id="duration" placeholder="Duration (seconds)" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="number" class="form-control" id="skipAfter" placeholder="Skip After (seconds)" value="5">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Ad</button>
+                </form>
+                <div id="addAdResponse" class="response-box d-none"></div>
+            </div>
+        </div>
+
+        <!-- Get Ads -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Get Video Ads</h5>
+                <form id="getAdsForm">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="getVideoId" placeholder="Video ID" required>
+                    </div>
+                    <button type="submit" class="btn btn-success">Get Ads</button>
+                </form>
+                <div id="getAdsResponse" class="response-box d-none"></div>
+            </div>
+        </div>
+
+        <!-- Update Ad -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Update Ad</h5>
+                <form id="updateAdForm">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="updateAdId" placeholder="Ad ID" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="updateTitle" placeholder="New Title">
+                    </div>
+                    <div class="mb-3">
+                        <input type="url" class="form-control" id="updateUrl" placeholder="New URL">
+                    </div>
+                    <button type="submit" class="btn btn-warning">Update Ad</button>
+                </form>
+                <div id="updateAdResponse" class="response-box d-none"></div>
+            </div>
+        </div>
+
+        <!-- Delete Ad -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Delete Ad</h5>
+                <form id="deleteAdForm">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="deleteAdId" placeholder="Ad ID" required>
+                    </div>
+                    <button type="submit" class="btn btn-danger">Delete Ad</button>
+                </form>
+                <div id="deleteAdResponse" class="response-box d-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:9000/api/vendors';
+        let vendorToken = localStorage.getItem('Token') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZW5kb3JJZCI6IjY3ZjhjOGUyMGFhYzQ5NzRjZjRlNzNmNCIsInJvbGUiOiJ2ZW5kb3IiLCJpYXQiOjE3NTAyMzUxMzIsImV4cCI6MTc1MDgzOTkzMn0.Klthh_Od8E2VWAg6FiAQFvy97epeTSL_qTVrirhYEC0';
+
+        let currentVideo = null;
+        let adBreaks = [];
+        let isAdPlaying = false;
+
+        const mainVideo = document.getElementById('mainVideo');
+        const adOverlay = document.getElementById('adOverlay');
+        const adVideo = document.getElementById('adVideo');
+        const skipButton = document.getElementById('skipButton');
+        const adInfo = document.getElementById('adInfo');
+
+        // Helper Functions
+        function setToken() {
+            const token = document.getElementById('tokenInput').value;
+            if (token) {
+                vendorToken = token;
+                localStorage.setItem('Token', token);
+                alert('Token set successfully!');
+            } else {
+                alert('Please enter a token!');
+            }
+        }
+
+        function showResponse(elementId, response) {
+            const responseElement = document.getElementById(elementId);
+            responseElement.textContent = JSON.stringify(response, null, 2);
+            responseElement.classList.remove('d-none');
+        }
+
+        // Video Player Functions
+        async function loadAndPlayVideo() {
+            const videoId = document.getElementById('videoId').value || document.getElementById('getVideoId').value;
+            if (!videoId) {
+                alert('Please enter a Video ID');
+                return;
+            }
+
+            try {
+                // Fetch video details
+                const videoResponse = await fetch(`${API_BASE_URL}/videos/${videoId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${vendorToken}`
+                    }
+                });
+                currentVideo = await videoResponse.json();
+
+                // Fetch ad breaks
+                const adsResponse = await fetch(`${API_BASE_URL}/videos/${videoId}/ads`, {
+                    headers: {
+                        'Authorization': `Bearer ${vendorToken}`
+                    }
+                });
+                const adsData = await adsResponse.json();
+                adBreaks = adsData.ads || [];
+
+                // Set up main video
+                mainVideo.src = currentVideo.video_url || currentVideo.video_720 || currentVideo.video_480 || currentVideo.video_320;
+                displayVideoInfo();
+                setupVideoEvents();
+                mainVideo.play();
+            } catch (error) {
+                console.error('Error loading video:', error);
+                alert('Error loading video: ' + error.message);
+            }
+        }
+
+        function displayVideoInfo() {
+            const videoInfo = document.getElementById('videoInfo');
+            videoInfo.innerHTML = `
+                <div class="alert alert-info">
+                    <h6>Video Information:</h6>
+                    <p>Title: ${currentVideo.title || currentVideo.name}</p>
+                    <p>Number of ads: ${adBreaks.length}</p>
+                </div>
+            `;
+        }
+
+        function setupVideoEvents() {
+            mainVideo.addEventListener('timeupdate', checkForAds);
+            mainVideo.addEventListener('play', handlePreRollAd);
+            mainVideo.addEventListener('ended', handlePostRollAd);
+            skipButton.addEventListener('click', skipAd);
+        }
+
+        function checkForAds() {
+            if (isAdPlaying) return;
+
+            const currentTime = mainVideo.currentTime;
+            const midRollAd = adBreaks.find(ad => 
+                ad.type === 'mid-roll' && 
+                Math.abs(ad.position - currentTime) < 0.5 && 
+                !ad.played
+            );
+
+            if (midRollAd) {
+                playAd(midRollAd);
+            }
+        }
+
+        async function handlePreRollAd() {
+            const preRollAd = adBreaks.find(ad => ad.type === 'pre-roll' && !ad.played);
+            if (preRollAd) {
+                mainVideo.pause();
+                await playAd(preRollAd);
+            }
+        }
+
+        async function handlePostRollAd() {
+            const postRollAd = adBreaks.find(ad => ad.type === 'post-roll' && !ad.played);
+            if (postRollAd) {
+                await playAd(postRollAd);
+            }
+        }
+
+        async function playAd(ad) {
+            isAdPlaying = true;
+            mainVideo.pause();
+            
+            adOverlay.style.display = 'block';
+            adVideo.src = ad.adUrl;
+            adInfo.textContent = `Ad: ${ad.title}`;
+
+            let skipTimer = ad.skipAfter;
+            if (skipTimer > 0) {
+                skipButton.style.display = 'block';
+                skipButton.disabled = true;
+                skipButton.textContent = `Skip in ${skipTimer}s`;
+
+                const skipInterval = setInterval(() => {
+                    skipTimer--;
+                    skipButton.textContent = `Skip in ${skipTimer}s`;
+                    if (skipTimer <= 0) {
+                        skipButton.disabled = false;
+                        skipButton.textContent = 'Skip Ad';
+                        clearInterval(skipInterval);
+                    }
+                }, 1000);
+            }
+
+            try {
+                await adVideo.play();
+                
+                // Track ad view
+                await fetch(`${API_BASE_URL}/ads/${ad._id}/view`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${vendorToken}`
+                    }
+                });
+
+                ad.played = true;
+            } catch (error) {
+                console.error('Error playing ad:', error);
+                endAd();
+            }
+
+            adVideo.onended = endAd;
+        }
+
+        function skipAd() {
+            if (!skipButton.disabled) {
+                endAd();
+            }
+        }
+
+        function endAd() {
+            isAdPlaying = false;
+            adOverlay.style.display = 'none';
+            skipButton.style.display = 'none';
+            adVideo.src = '';
+            mainVideo.play();
+        }
+
+        // Form Handlers
+        document.getElementById('addAdForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const videoId = document.getElementById('videoId').value;
+                const response = await fetch(`${API_BASE_URL}/videos/${videoId}/ads`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${vendorToken}`
+                    },
+                    body: JSON.stringify({
+                        title: document.getElementById('adTitle').value,
+                        adUrl: document.getElementById('adUrl').value,
+                        type: document.getElementById('adType').value,
+                        position: document.getElementById('position').value,
+                        duration: document.getElementById('duration').value,
+                        skipAfter: document.getElementById('skipAfter').value
+                    })
+                });
+                const data = await response.json();
+                showResponse('addAdResponse', data);
+            } catch (error) {
+                showResponse('addAdResponse', { error: error.message });
+            }
+        });
+
+        document.getElementById('getAdsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const videoId = document.getElementById('getVideoId').value;
+                const response = await fetch(`${API_BASE_URL}/videos/${videoId}/ads`, {
+                    headers: {
+                        'Authorization': `Bearer ${vendorToken}`
+                    }
+                });
+                const data = await response.json();
+                showResponse('getAdsResponse', data);
+            } catch (error) {
+                showResponse('getAdsResponse', { error: error.message });
+            }
+        });
+
+        document.getElementById('updateAdForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const adId = document.getElementById('updateAdId').value;
+                const response = await fetch(`${API_BASE_URL}/ads/${adId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${vendorToken}`
+                    },
+                    body: JSON.stringify({
+                        title: document.getElementById('updateTitle').value,
+                        adUrl: document.getElementById('updateUrl').value
+                    })
+                });
+                const data = await response.json();
+                showResponse('updateAdResponse', data);
+            } catch (error) {
+                showResponse('updateAdResponse', { error: error.message });
+            }
+        });
+
+        document.getElementById('deleteAdForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const adId = document.getElementById('deleteAdId').value;
+                const response = await fetch(`${API_BASE_URL}/ads/${adId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${vendorToken}`
+                    }
+                });
+                const data = await response.json();
+                showResponse('deleteAdResponse', data);
+            } catch (error) {
+                showResponse('deleteAdResponse', { error: error.message });
+            }
+        });
+
+        // Initialize token input on page load
+        window.onload = () => {
+            if (vendorToken) {
+                document.getElementById('tokenInput').value = vendorToken;
+            }
+        };
+    </script>
+</body>
+</html>
