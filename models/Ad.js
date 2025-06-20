@@ -1,20 +1,31 @@
+// models/Ad.js
 const mongoose = require('mongoose');
-
 const adSchema = new mongoose.Schema({
-  video_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Video' },
-  title: { type: String, required: true },
-  adUrl: { type: String, required: true }, // URL to the ad video
-  position: { type: Number, required: true }, // timestamp in seconds
-  duration: { type: Number, required: true }, // duration in seconds
+  name: { type: String, required: true },
   type: { 
     type: String, 
-    enum: ['pre-roll', 'mid-roll', 'post-roll'], 
+    enum: ['banner', 'interstitial', 'rewarded', 'native'],
     required: true 
   },
-  isActive: { type: Boolean, default: true },
-  skipAfter: { type: Number, default: 5 }, // seconds after which ad can be skipped
-  views: { type: Number, default: 0 },
-  clicks: { type: Number, default: 0 }
+  platform: { 
+    type: String,
+    enum: ['admob', 'facebook', 'custom'],
+    default: 'admob'
+  },
+  adUnitId: { type: String, required: true },  
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'deleted'],
+    default: 'active'
+  },
+  frequency: { type: Number, default: 1 }, 
+  displayTimes: [{ type: Number }], 
+  priority: { type: Number, default: 1 },
+  metrics: {
+    impressions: { type: Number, default: 0 },
+    clicks: { type: Number, default: 0 },
+    revenue: { type: Number, default: 0 }
+  }
 }, {
   timestamps: true
 });

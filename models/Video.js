@@ -7,13 +7,11 @@ const videoSchema = new mongoose.Schema({
     default: 'movie',
     immutable: true // Prevent updates
   },
-  // video_type: { type: String },
   vendor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
   channel_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' }, // ✅ Updated
   producer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Producer' }, // ✅ Updated
   category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
   language_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Language' },
-  // cast_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Cast' },
   cast_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cast' }], // Changed from single cast_id to array of cast_ids
   name: { type: String },
   title: { type: String },

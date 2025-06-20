@@ -10,7 +10,7 @@ const Contest = require("../models/Contest");
 const userTransaction= require("../models/transactionSchema")
 const ContestRules = require("../models/ContestRules");
 const mongoose = require("mongoose");
-
+const adController = require('../controllers/adController');
 // const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const RentalLimit = require("../models/RentalLimit");
@@ -4616,7 +4616,6 @@ router.put('/upcoming-status-update/:id', verifyAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error while updating status' });
   }
 });
-
 // GET: Get count of all categories (you can filter by status if needed)
 router.get('/category-count', async (req, res) => {
   try {
@@ -4703,4 +4702,8 @@ router.get('/subscription-plan-count', async (req, res) => {
     });
   }
 });
+router.post('/ads', adController.createAd);
+router.post('/schedule', adController.scheduleAd);
+router.get('/schedule/:videoId', adController.getVideoAdSchedule);
+router.post('/track', adController.trackAdDisplay);
 module.exports = router;
