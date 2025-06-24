@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player with Ads</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .video-selector {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        select {
+            padding: 12px 20px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            min-width: 300px;
+            transition: all 0.3s ease;
+        }
+
+        select:hover {
+            border-color: #667eea;
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .main-video {
+            width: 100%;
+            height: 500px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .ad-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .ad-content {
+            text-align: center;
+            color: white;
+            max-width: 80%;
+        }
+
+        .ad-video {
+            width: 100%;
+            max-width: 600px;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .ad-image {
+            max-width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .ad-info {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+        }
+
+        .ad-title {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+
+        .ad-provider {
+            color: #ccc;
+            margin-bottom: 15px;
+        }
+
+        .ad-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-skip {
+            background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+            color: white;
+        }
+
+        .btn-skip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255,107,107,0.4);
+        }
+
+        .btn-click {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+
+        .btn-click:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(78,205,196,0.4);
+        }
+
+        .ad-timer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .skip-countdown {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .video-info {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .ad-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .controls button {
+            margin: 0 10px;
+        }
+
+        .banner-ad {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            max-width: 90%;
+            z-index: 5;
+            display: none;
+        }
+
+        .banner-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .banner-image {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 5px;
+        }
+
+        .banner-text h3 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .banner-close {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .main-video {
+                height: 300px;
+            }
+            
+            .ad-video {
+                height: 200px;
+            }
+            
+            .ad-controls {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Video Player with Ads</h1>
+        
+        <div class="video-selector">
+            <select id="videoSelect">
+                <option value="">Select a video to play</option>
+            </select>
+        </div>
+
+        <div class="video-container">
+            <video id="mainVideo" class="main-video" controls>
+                <source id="videoSource" src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+
+            <!-- Ad Overlay -->
+            <div id="adOverlay" class="ad-overlay">
+                <div class="ad-timer" id="adTimer">Ad: 15s</div>
+                <div class="skip-countdown" id="skipCountdown" style="display: none;">Skip in: 5s</div>
+                
+                <div class="ad-content">
+                    <video id="adVideo" class="ad-video" style="display: none;" muted autoplay>
+                        <source id="adVideoSource" src="" type="video/mp4">
+                    </video>
+                    
+                    <img id="adImage" class="ad-image" style="display: none;" src="" alt="Ad">
+                    
+                    <div class="ad-info">
+                        <div class="ad-title" id="adTitle">Advertisement</div>
+                        <div class="ad-provider" id="adProvider">Sponsored Content</div>
+                    </div>
+                    
+                    <div class="ad-controls">
+                        <button class="btn btn-skip" id="skipBtn" style="display: none;">Skip Ad</button>
+                        <a class="btn btn-click" id="clickBtn" href="#" target="_blank">Learn More</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banner Ad -->
+            <div id="bannerAd" class="banner-ad">
+                <button class="banner-close" id="bannerClose">&times;</button>
+                <div class="banner-content">
+                    <img id="bannerImage" class="banner-image" src="" alt="Banner Ad">
+                    <div class="banner-text">
+                        <h3 id="bannerTitle">Advertisement</h3>
+                        <p id="bannerProvider">Sponsored</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-skip" onclick="simulatePreRoll()">▶️ Test Pre-Roll Ad</button>
+            <button class="btn btn-click" onclick="simulateMidRoll()">⏯️ Test Mid-Roll Ad</button>
+            <button class="btn btn-skip" onclick="simulatePostRoll()">⏹️ Test Post-Roll Ad</button>
+            <button class="btn btn-click" onclick="simulateBanner()">📱 Test Banner Ad</button>
+        </div>
+
+        <div class="video-info" id="videoInfo" style="display: none;">
+            <h3>Video Information</h3>
+            <p><strong>Title:</strong> <span id="videoTitle"></span></p>
+            <p><strong>Duration:</strong> <span id="videoDuration"></span></p>
+            <p><strong>Views:</strong> <span id="videoViews"></span></p>
+        </div>
+
+        <div class="ad-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalAds">0</div>
+                <div>Total Ads</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="adViews">0</div>
+                <div>Ad Views</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="adClicks">0</div>
+                <div>Ad Clicks</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Update these URLs to match your API endpoints
+        const API_BASE_URL = 'http://localhost:9000/api/admin'; // Change to your API URL
+        
+        let currentVideo = null;
+        let currentAds = null;
+        let adViewCount = 0;
+        let adClickCount = 0;
+        let adTimer = null;
+        let skipTimer = null;
+
+        // Demo data for testing (remove when connecting to real API)
+        const demoVideos = [
+            {
+                _id: '1',
+                title: 'Sample Video 1',
+                name: 'sample1.mp4',
+                thumbnail: 'https://via.placeholder.com/300x200/667eea/white?text=Video+1',
+                video_duration: 120,
+                total_view: 1500,
+                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+            },
+            {
+                _id: '2',
+                title: 'Sample Video 2',
+                name: 'sample2.mp4',
+                thumbnail: 'https://via.placeholder.com/300x200/764ba2/white?text=Video+2',
+                video_duration: 180,
+                total_view: 2300,
+                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4'
+            }
+        ];
+
+        const demoAds = {
+            'pre-roll': [
+                {
+                    ad: {
+                        _id: 'ad1',
+                        ad_name: 'Google Pixel Advertisement',
+                        ad_provider: 'Google',
+                        ad_url: 'https://www.google.com/pixel',
+                        ad_image: 'https://via.placeholder.com/600x400/4285f4/white?text=Google+Pixel+Ad',
+                        ad_video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+                        ad_type: 'video'
+                    },
+                    duration: 15,
+                    skip_after: 5,
+                    position: 0
+                }
+            ],
+            'mid-roll': [
+                {
+                    ad: {
+                        _id: 'ad2',
+                        ad_name: 'YouTube Premium',
+                        ad_provider: 'YouTube',
+                        ad_url: 'https://www.youtube.com/premium',
+                        ad_image: 'https://via.placeholder.com/600x400/ff0000/white?text=YouTube+Premium',
+                        ad_type: 'image'
+                    },
+                    duration: 10,
+                    skip_after: 0,
+                    position: 60
+                }
+            ],
+            'post-roll': [
+                {
+                    ad: {
+                        _id: 'ad3',
+                        ad_name: 'Chrome Browser',
+                        ad_provider: 'Google',
+                        ad_url: 'https://www.google.com/chrome',
+                        ad_image: 'https://via.placeholder.com/600x400/34a853/white?text=Chrome+Browser',
+                        ad_type: 'image'
+                    },
+                    duration: 12,
+                    skip_after: 3,
+                    position: 0
+                }
+            ],
+            'banner-overlay': [
+                {
+                    ad: {
+                        _id: 'ad4',
+                        ad_name: 'Google Drive',
+                        ad_provider: 'Google',
+                        ad_url: 'https://drive.google.com',
+                        ad_image: 'https://via.placeholder.com/300x200/fbbc04/white?text=Google+Drive',
+                        ad_type: 'image'
+                    },
+                    duration: 30,
+                    position: 20
+                }
+            ]
+        };
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadVideos();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            const videoSelect = document.getElementById('videoSelect');
+            const mainVideo = document.getElementById('mainVideo');
+            const skipBtn = document.getElementById('skipBtn');
+            const clickBtn = document.getElementById('clickBtn');
+            const bannerClose = document.getElementById('bannerClose');
+
+            videoSelect.addEventListener('change', loadSelectedVideo);
+            mainVideo.addEventListener('loadedmetadata', onVideoLoaded);
+            mainVideo.addEventListener('timeupdate', onVideoTimeUpdate);
+            mainVideo.addEventListener('ended', onVideoEnded);
+            skipBtn.addEventListener('click', skipAd);
+            clickBtn.addEventListener('click', onAdClick);
+            bannerClose.addEventListener('click', closeBannerAd);
+        }
+
+        async function loadVideos() {
+            try {
+                // For demo purposes, using static data
+                // Replace with actual API call: const response = await fetch(`${API_BASE_URL}/videos`);
+                const videos = demoVideos;
+                
+                const videoSelect = document.getElementById('videoSelect');
+                videoSelect.innerHTML = '<option value="">Select a video to play</option>';
+                
+                videos.forEach(video => {
+                    const option = document.createElement('option');
+                    option.value = video._id;
+                    option.textContent = video.title;
+                    videoSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading videos:', error);
+            }
+        }
+
+        async function loadSelectedVideo() {
+            const videoSelect = document.getElementById('videoSelect');
+            const videoId = videoSelect.value;
+            
+            if (!videoId) return;
+
+            try {
+                // Load video data
+                currentVideo = demoVideos.find(v => v._id === videoId);
+                
+                // Load video ads
+                // Replace with actual API call: const adsResponse = await fetch(`${API_BASE_URL}/video-ads/${videoId}`);
+                currentAds = demoAds;
+                
+                if (currentVideo) {
+                    const mainVideo = document.getElementById('mainVideo');
+                    const videoSource = document.getElementById('videoSource');
+                    
+                    videoSource.src = currentVideo.url;
+                    mainVideo.load();
+                    
+                    updateVideoInfo();
+                    updateAdStats();
+                }
+            } catch (error) {
+                console.error('Error loading video:', error);
+            }
+        }
+
+        function updateVideoInfo() {
+            if (!currentVideo) return;
+            
+            document.getElementById('videoTitle').textContent = currentVideo.title;
+            document.getElementById('videoDuration').textContent = formatDuration(currentVideo.video_duration);
+            document.getElementById('videoViews').textContent = currentVideo.total_view.toLocaleString();
+            document.getElementById('videoInfo').style.display = 'block';
+        }
+
+        function updateAdStats() {
+            if (!currentAds) return;
+            
+            const totalAds = Object.values(currentAds).reduce((sum, ads) => sum + ads.length, 0);
+            document.getElementById('totalAds').textContent = totalAds;
+            document.getElementById('adViews').textContent = adViewCount;
+            document.getElementById('adClicks').textContent = adClickCount;
+        }
+
+        function onVideoLoaded() {
+            // Check for pre-roll ads
+            if (currentAds && currentAds['pre-roll'] && currentAds['pre-roll'].length > 0) {
+                showAd(currentAds['pre-roll'][0], 'pre-roll');
+            }
+        }
+
+        function onVideoTimeUpdate() {
+            if (!currentVideo || !currentAds) return;
+            
+            const currentTime = document.getElementById('mainVideo').currentTime;
+            
+            // Check for mid-roll ads
+            if (currentAds['mid-roll']) {
+                currentAds['mid-roll'].forEach(adData => {
+                    if (Math.abs(currentTime - adData.position) < 1) {
+                        showAd(adData, 'mid-roll');
+                    }
+                });
+            }
+            
+            // Check for banner ads
+            if (currentAds['banner-overlay']) {
+                currentAds['banner-overlay'].forEach(adData => {
+                    if (Math.abs(currentTime - adData.position) < 1) {
+                        showBannerAd(adData);
+                    }
+                });
+            }
+        }
+
+        function onVideoEnded() {
+            // Check for post-roll ads
+            if (currentAds && currentAds['post-roll'] && currentAds['post-roll'].length > 0) {
+                showAd(currentAds['post-roll'][0], 'post-roll');
+            }
+        }
+
+        function showAd(adData, placementType) {
+            const ad = adData.ad;
+            const overlay = document.getElementById('adOverlay');
+            const mainVideo = document.getElementById('mainVideo');
+            
+            // Pause main video
+            mainVideo.pause();
+            
+            // Setup ad content
+            document.getElementById('adTitle').textContent = ad.ad_name;
+            document.getElementById('adProvider').textContent = `by ${ad.ad_provider}`;
+            document.getElementById('clickBtn').href = ad.ad_url;
+            
+            // Show appropriate ad media
+            const adVideo = document.getElementById('adVideo');
+            const adImage = document.getElementById('adImage');
+            
+            if (ad.ad_type === 'video' && ad.ad_video) {
+                adVideo.src = ad.ad_video;
+                adVideo.style.display = 'block';
+                adImage.style.display = 'none';
+            } else if (ad.ad_image) {
+                adImage.src = ad.ad_image;
+                adImage.style.display = 'block';
+                adVideo.style.display = 'none';
+            }
+            
+            // Show overlay
+            overlay.style.display = 'flex';
+            
+            // Start ad timer
+            startAdTimer(adData.duration, adData.skip_after);
+            
+            // Track ad view
+            trackAdInteraction(adData.videoAd_id, 'view');
+            adViewCount++;
+            updateAdStats();
+        }
+
+        function startAdTimer(duration, skipAfter) {
+            let timeLeft = duration;
+            const timerElement = document.getElementById('adTimer');
+            const skipCountdown = document.getElementById('skipCountdown');
+            const skipBtn = document.getElementById('skipBtn');
+            
+            // Update timer display
+            timerElement.textContent = `Ad: ${timeLeft}s`;
+            
+            // Handle skip countdown
+            if (skipAfter > 0) {
+                let skipTimeLeft = skipAfter;
+                skipCountdown.textContent = `Skip in: ${skipTimeLeft}s`;
+                skipCountdown.style.display = 'block';
+                skipBtn.style.display = 'none';
+                
+                skipTimer = setInterval(() => {
+                    skipTimeLeft--;
+                    if (skipTimeLeft > 0) {
+                        skipCountdown.textContent = `Skip in: ${skipTimeLeft}s`;
+                    } else {
+                        skipCountdown.style.display = 'none';
+                        skipBtn.style.display = 'block';
+                        clearInterval(skipTimer);
+                    }
+                }, 1000);
+            } else {
+                skipBtn.style.display = 'block';
+                skipCountdown.style.display = 'none';
+            }
+            
+            // Main ad timer
+            adTimer = setInterval(() => {
+                timeLeft--;
+                timerElement.textContent = `Ad: ${timeLeft}s`;
+                
+                if (timeLeft <= 0) {
+                    skipAd();
+                }
+            }, 1000);
+        }
+
+        function skipAd() {
+            // Clear timers
+            if (adTimer) clearInterval(adTimer);
+            if (skipTimer) clearInterval(skipTimer);
+            
+            // Hide ad overlay
+            document.getElementById('adOverlay').style.display = 'none';
+            
+            // Resume main video
+            document.getElementById('mainVideo').play();
+            
+            // Reset skip button
+            document.getElementById('skipBtn').style.display = 'none';
+            document.getElementById('skipCountdown').style.display = 'none';
+        }
+
+        function showBannerAd(adData) {
+            const ad = adData.ad;
+            const banner = document.getElementById('bannerAd');
+            
+            document.getElementById('bannerImage').src = ad.ad_image;
+            document.getElementById('bannerTitle').textContent = ad.ad_name;
+            document.getElementById('bannerProvider').textContent = `by ${ad.ad_provider}`;
+            
+            banner.style.display = 'block';
+            
+            // Auto-hide after duration
+            setTimeout(() => {
+                banner.style.display = 'none';
+            }, adData.duration * 1000);
+        }
+
+        function closeBannerAd() {
+            document.getElementById('bannerAd').style.display = 'none';
+        }
+
+        function onAdClick() {
+            adClickCount++;
+            updateAdStats();
+            // Track click interaction would go here
+        }
+
+        async function trackAdInteraction(videoAdId, interactionType) {
+            try {
+                // Replace with actual API call
+                console.log(`Tracking ${interactionType} for ad ${videoAdId}`);
+                // await fetch(`${API_BASE_URL}/track-ad-interaction`, {
+                //     method: 'POST',
+                //     headers: { 'Content-Type': 'application/json' },
+                //     body: JSON.stringify({ videoAd_id: videoAdId, interaction_type: interactionType })
+                // });
+            } catch (error) {
+                console.error('Error tracking interaction:', error);
+            }
+        }
+
+        function formatDuration(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        // Demo functions for testing
+        function simulatePreRoll() {
+            if (demoAds['pre-roll'] && demoAds['pre-roll'].length > 0) {
+                showAd(demoAds['pre-roll'][0], 'pre-roll');
+            }
+        }
+
+        function simulateMidRoll() {
+            if (demoAds['mid-roll'] && demoAds['mid-roll'].length > 0) {
+                showAd(demoAds['mid-roll'][0], 'mid-roll');
+            }
+        }
+
+        function simulatePostRoll() {
+            if (demoAds['post-roll'] && demoAds['post-roll'].length > 0) {
+                showAd(demoAds['post-roll'][0], 'post-roll');
+            }
+        }
+
+        function simulateBanner() {
+            if (demoAds['banner-overlay'] && demoAds['banner-overlay'].length > 0) {
+                showBannerAd(demoAds['banner-overlay'][0]);
+            }
+        }
+    </script>
+</body>
+</html>

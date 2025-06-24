@@ -1,33 +1,61 @@
-// models/Ad.js
 const mongoose = require('mongoose');
 const adSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  type: { 
-    type: String, 
-    enum: ['banner', 'interstitial', 'rewarded', 'native'],
-    required: true 
-  },
-  platform: { 
+  ad_id: {
     type: String,
-    enum: ['admob', 'facebook', 'custom'],
-    default: 'admob'
+    required: true,
+    unique: true,
+    trim: true
   },
-  adUnitId: { type: String, required: true },  
-  status: {
+  ad_name: {
     type: String,
-    enum: ['active', 'inactive', 'deleted'],
-    default: 'active'
+    required: true,
+    trim: true
   },
-  frequency: { type: Number, default: 1 }, 
-  displayTimes: [{ type: Number }], 
-  priority: { type: Number, default: 1 },
-  metrics: {
-    impressions: { type: Number, default: 0 },
-    clicks: { type: Number, default: 0 },
-    revenue: { type: Number, default: 0 }
+  ad_type: {
+    type: String,
+    enum: ['banner', 'video', 'interstitial', 'rewarded'],
+    default: 'banner'
+  },
+  ad_provider: {
+    type: String,
+    enum: ['admob', 'facebook', 'unity', 'custom'],
+    default: 'admob' 
+  },
+  ad_url: {
+    type: String,
+    trim: true
+  },
+  ad_image: {
+    type: String, // For banner ads
+    trim: true
+  },
+  ad_video: {
+    type: String, // For video ads
+    trim: true
+  },
+  duration: {
+    type: Number, // Duration in seconds for video ads
+    default: 0
+  },
+  is_active: {
+    type: Boolean,
+    default: true
+  },
+  created_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    required: true
+  },
+  click_count: {
+    type: Number,
+    default: 0
+  },
+  impression_count: {
+    type: Number,
+    default: 0
   }
 }, {
+  collection: 'tbl_ads',
   timestamps: true
 });
-
 module.exports = mongoose.model('Ad', adSchema);

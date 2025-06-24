@@ -10,7 +10,8 @@ const Contest = require("../models/Contest");
 const userTransaction= require("../models/transactionSchema")
 const ContestRules = require("../models/ContestRules");
 const mongoose = require("mongoose");
-const adController = require('../controllers/adController');
+// const adController = require('../controllers/adController');
+const AdController = require("../controllers/adController")
 // const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const RentalLimit = require("../models/RentalLimit");
@@ -18,7 +19,7 @@ const HomeSection = require("../models/HomeSection");
 const Series = require("../models/Series");
 const User = require("../models/User");
 const WithdrawalRequest = require("../models/WithdrawalRequest");
-const VendorsWithdrawalRequest = require("../models/VendorWithdrawalRequest");
+const VendorsWithdrawalRequest = require("../models/VendorWithdrawalRequest"); 
 const ExcelJS = require("exceljs");
 const Package = require("../models/Package");
 const Setting = require("../models/LikesSetting");
@@ -658,7 +659,7 @@ router.get("/get_types", async (req, res) => {
     console.error("Error fetching types:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
-});
+}); 
 // add language
 router.post(
   "/add_category",
@@ -3773,6 +3774,32 @@ router.get("/contests", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+// DELETE /api/admin/delete-contest/:id
+router.delete("/delete-contest/:id", verifyAdmin, async (req, res) => {
+  try {
+    const contestId = req.params.id;
+
+    const deletedContest = await Contest.findByIdAndDelete(contestId);
+
+    if (!deletedContest) {
+      return res.status(404).json({
+        success: false,
+        message: "Contest not found.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Contest deleted successfully.",
+      data: deletedContest,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error: " + error.message,
+    });
+  }
+});
 // 3. GET CONTEST BY ID
 router.get("/contests/:id", async (req, res) => {
   try {
@@ -3867,7 +3894,7 @@ router.get('/contests/:id/leaderboard', async (req, res) => {
   }
 });
 // 4. UPDATE CONTEST (Admin only)
-router.put("/contests/:id", async (req, res) => {
+router.put("/contests/:id", verifyAdmin, async (req, res) => {
   try {
     const contest = await Contest.findById(req.params.id);
     if (!contest) {
@@ -4702,8 +4729,31 @@ router.get('/subscription-plan-count', async (req, res) => {
     });
   }
 });
-router.post('/ads', adController.createAd);
-router.post('/schedule', adController.scheduleAd);
-router.get('/schedule/:videoId', adController.getVideoAdSchedule);
-router.post('/track', adController.trackAdDisplay);
+// router.post('/ads', adController.createAd);
+// router.post('/schedule', adController.scheduleAd);
+// router.get('/schedule/:videoId', adController.getVideoAdSchedule);
+// router.post('/track', adController.trackAdDisplay);
+// Create new ad
+router.post('/ads',verifyAdmin, AdController.createAd);
+
+// Get all ads
+router.get('/ads',verifyAdmin, AdController.getAllAds);
+
+// Assign ad to video
+router.post('/ads/video-ads', verifyAdmin, AdController.assignAdToVideo);
+
+// Get ads for specific video (for video player)
+router.get('/ads/videos/:video_id/ads', AdController.getVideoAds);
+
+// Get all videos with their ads (for admin panel)
+router.get('/ads/videos-with-ads',verifyAdmin, AdController.getVideosWithAds);
+
+// Update video ad assignment
+router.put('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.updateVideoAd);
+
+// Remove ad from video
+router.delete('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.removeAdFromVideo);
+
+// Track ad interaction (view/click)
+router.post('/ads/track-ad', AdController.trackAdInteraction);
 module.exports = router;

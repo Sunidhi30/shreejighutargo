@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ad Management Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, button, select, textarea { display: block; margin: 10px 0; width: 100%; padding: 8px; }
+    section { border: 1px solid #ccc; padding: 20px; margin-bottom: 30px; }
+    pre { background: #f4f4f4; padding: 15px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Ad API Test Panel</h1>
+
+  <section>
+    <h2>Create Ad</h2>
+    <input id="ad_id" placeholder="Ad ID" />
+    <input id="ad_name" placeholder="Ad Name" />
+    <input id="ad_type" placeholder="Ad Type (video/banner)" />
+    <input id="ad_provider" placeholder="Ad Provider" />
+    <input id="ad_url" placeholder="Ad URL" />
+    <input id="ad_image" placeholder="Ad Image URL" />
+    <input id="ad_video" placeholder="Ad Video URL" />
+    <input id="duration" type="number" placeholder="Duration in seconds" />
+    <button onclick="createAd()">Create Ad</button>
+  </section>
+
+  <section>
+    <h2>Assign Ad to Video</h2>
+    <input id="video_id" placeholder="Video ID" />
+    <input id="ad_assign_id" placeholder="Ad ID" />
+    <input id="placement_type" placeholder="Placement Type (pre-roll, etc)" />
+    <input id="position" type="number" placeholder="Position" />
+    <input id="skip_after" type="number" placeholder="Skip After (s)" />
+    <input id="priority" type="number" placeholder="Priority" />
+    <input id="frequency" type="number" placeholder="Frequency" />
+    <input id="start_date" type="date" />
+    <input id="end_date" type="date" />
+    <button onclick="assignAd()">Assign Ad</button>
+  </section>
+
+  <section>
+    <h2>Get Ads for a Video</h2>
+    <input id="video_id_ads" placeholder="Video ID" />
+    <button onclick="getVideoAds()">Fetch Video Ads</button>
+  </section>
+
+  <section>
+    <h2>Track Ad Interaction</h2>
+    <input id="videoAd_id" placeholder="VideoAd ID" />
+    <select id="interaction_type">
+      <option value="view">View</option>
+      <option value="click">Click</option>
+    </select>
+    <button onclick="trackInteraction()">Track</button>
+  </section>
+
+  <section>
+    <h2>Get All Ads</h2>
+    <button onclick="getAllAds()">Fetch All Ads</button>
+  </section>
+
+  <section>
+    <h2>Get All Videos with Ads</h2>
+    <button onclick="getVideosWithAds()">Fetch</button>
+  </section>
+
+  <section>
+    <h2>Remove Ad from Video</h2>
+    <input id="remove_videoAd_id" placeholder="VideoAd ID" />
+    <button onclick="removeAd()">Remove</button>
+  </section>
+
+  <section>
+    <h2>Update Video Ad Assignment</h2>
+    <input id="update_videoAd_id" placeholder="VideoAd ID" />
+    <textarea id="update_payload" rows="5" placeholder='{"skip_after": 5, "priority": 2}'></textarea>
+    <button onclick="updateVideoAd()">Update</button>
+  </section>
+
+  <h2>Output</h2>
+  <pre id="output"></pre>
+
+  <script>
+    const BASE_URL = "http://localhost:9000/api/admin/ads";
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZjhjMGM3YjkzOTI1ZWJlZjU2YzBjMSIsImVtYWlsIjoic3VuaWRoaXJhdHJhMjFAZ21haWwuY29tIiwiaWF0IjoxNzUwNDE0NjkzLCJleHAiOjE3NTEwMTk0OTN9.YZbnqC3ZuYju5JCx116WifPRYqjhph-8IFefVq6C6xY"
+    const headers = { headers: { Authorization: `Bearer ${token}` } };
+
+    function showOutput(data) {
+      document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function createAd() {
+      const body = {
+        ad_id: ad_id.value,
+        ad_name: ad_name.value,
+        ad_type: ad_type.value,
+        ad_provider: ad_provider.value,
+        ad_url: ad_url.value,
+        ad_image: ad_image.value,
+        ad_video: ad_video.value,
+        duration: parseInt(duration.value)
+      };
+      try {
+        const res = await axios.post(BASE_URL, body, headers);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+
+    async function assignAd() {
+      const body = {
+        video_id: video_id.value,
+        ad_id: ad_assign_id.value,
+        placement_type: placement_type.value,
+        position: parseInt(position.value),
+        duration: 15,
+        skip_after: parseInt(skip_after.value),
+        priority: parseInt(priority.value),
+        frequency: parseInt(frequency.value),
+        start_date: start_date.value,
+        end_date: end_date.value
+      };
+      try {
+        const res = await axios.post(`${BASE_URL}/video-ads`, body, headers);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+
+    async function getVideoAds() {
+      try {
+        const res = await axios.get(`${BASE_URL}/videos/${video_id_ads.value}/ads`);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+
+    async function trackInteraction() {
+      const body = {
+        videoAd_id: videoAd_id.value,
+        interaction_type: interaction_type.value
+      };
+      try {
+        const res = await axios.post(`${BASE_URL}/track-ad`, body);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+
+    async function getAllAds() {
+      try {
+        const res = await axios.get(BASE_URL, headers);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+
+    async function getVideosWithAds() {
+      try {
+        const res = await axios.get(`${BASE_URL}/videos-with-ads`, headers);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+
+    async function removeAd() {
+      try {
+        const res = await axios.delete(`${BASE_URL}/video-ads/${remove_videoAd_id.value}`, headers);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+
+    async function updateVideoAd() {
+      try {
+        const body = JSON.parse(update_payload.value);
+        const res = await axios.put(`${BASE_URL}/video-ads/${update_videoAd_id.value}`, body, headers);
+        showOutput(res.data);
+      } catch (e) {
+        showOutput(e.response.data);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,100 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Ad Scheduler Test</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ad Controller Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <style>
-    video {
-      width: 640px;
-      height: 360px;
+    body { font-family: Arial; padding: 20px; }
+    h2 { margin-top: 40px; }
+    input, select, button, textarea {
+      width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ccc;
     }
-    #ad-container {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      background-color: rgba(0, 0, 0, 0.85);
-      color: #fff;
-      padding: 15px;
-      display: none;
-      z-index: 10;
-      border-radius: 8px;
-    }
+    .section { border: 1px solid #aaa; padding: 20px; margin-bottom: 20px; }
+    pre { white-space: pre-wrap; background: #f5f5f5; padding: 10px; border: 1px solid #ddd; }
   </style>
 </head>
 <body>
-  <h2>🎬 Ad Scheduler Testing</h2>
+  <h1>Ad API Testing</h1>
+  <div class="section">
+    <h2>Create Ad</h2>
+    <input id="ad_id" placeholder="Ad ID" />
+    <input id="ad_name" placeholder="Ad Name" />
+    <input id="ad_type" placeholder="Ad Type (video/banner)" />
+    <input id="ad_provider" placeholder="Ad Provider" />
+    <input id="ad_url" placeholder="Ad URL" />
+    <input id="ad_image" placeholder="Ad Image URL" />
+    <input id="ad_video" placeholder="Ad Video URL" />
+    <input id="ad_duration" placeholder="Duration in seconds" type="number" />
+    <button onclick="createAd()">Create Ad</button>
+  </div>
 
-  <div style="position: relative;">
-    <video id="main-video" controls>
-      <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-    <div id="ad-container"></div>
+  <div class="section">
+    <h2>Assign Ad to Video</h2>
+    <input id="video_id" placeholder="Video ID" />
+    <input id="ad_assign_id" placeholder="Ad ID" />
+    <input id="placement_type" placeholder="Placement Type (pre-roll, mid-roll, etc)" />
+    <input id="position" placeholder="Position (0, 10, etc)" type="number" />
+    <input id="skip_after" placeholder="Skip After (seconds)" type="number" />
+    <input id="priority" placeholder="Priority" type="number" />
+    <input id="frequency" placeholder="Frequency" type="number" />
+    <input id="start_date" placeholder="Start Date (yyyy-mm-dd)" />
+    <input id="end_date" placeholder="End Date (yyyy-mm-dd)" />
+    <button onclick="assignAdToVideo()">Assign</button>
+  </div>
+
+  <div class="section">
+    <h2>Get Ads for Video</h2>
+    <input id="video_id_ads" placeholder="Video ID" />
+    <button onclick="getAdsForVideo()">Get Video Ads</button>
+  </div>
+
+  <div class="section">
+    <h2>Get All Ads</h2>
+    <button onclick="getAllAds()">Fetch All Ads</button>
+  </div>
+
+  <div class="section">
+    <h2>Track Ad Interaction</h2>
+    <input id="videoAd_id_interaction" placeholder="VideoAd ID" />
+    <select id="interaction_type">
+      <option value="view">View</option>
+      <option value="click">Click</option>
+    </select>
+    <button onclick="trackInteraction()">Track</button>
+  </div>
+
+  <div class="section">
+    <h2>Get Videos with Ads</h2>
+    <button onclick="getVideosWithAds()">Fetch</button>
+  </div>
+
+  <div class="section">
+    <h2>Remove Ad From Video</h2>
+    <input id="videoAd_id_remove" placeholder="VideoAd ID" />
+    <button onclick="removeAdFromVideo()">Remove</button>
+  </div>
+
+  <div class="section">
+    <h2>Update Video Ad</h2>
+    <input id="videoAd_id_update" placeholder="VideoAd ID" />
+    <textarea id="update_json" placeholder='{"priority": 2, "skip_after": 5}'></textarea>
+    <button onclick="updateVideoAd()">Update</button>
+  </div>
+
+  <div class="section">
+    <h2>Response Output</h2>
+    <pre id="output"></pre>
   </div>
 
   <script>
-    const videoId = '68513a21dc09d599c1815ad3'; // 👈 Replace with real video MongoDB ID
-    const BASE_URL = 'http://localhost:9000/api/admin';
-    const video = document.getElementById('main-video');
-    const adContainer = document.getElementById('ad-container');
+    const base = 'http://localhost:9000/api/admin/ads';
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZjhjMGM3YjkzOTI1ZWJlZjU2YzBjMSIsImVtYWlsIjoic3VuaWRoaXJhdHJhMjFAZ21haWwuY29tIiwiaWF0IjoxNzUwNDE0NjkzLCJleHAiOjE3NTEwMTk0OTN9.YZbnqC3ZuYju5JCx116WifPRYqjhph-8IFefVq6C6xY';
+    const headers = { headers: { Authorization: `Bearer ${token}` } };
 
-    let scheduledAds = [];
+    const showOutput = res => document.getElementById('output').textContent = JSON.stringify(res.data, null, 2);
+    const showError = err => document.getElementById('output').textContent = JSON.stringify(err?.response?.data || err, null, 2);
 
-    async function fetchAdSchedule() {
+    async function createAd() {
+      const body = {
+        ad_id: ad_id.value,
+        ad_name: ad_name.value,
+        ad_type: ad_type.value,
+        ad_provider: ad_provider.value,
+        ad_url: ad_url.value,
+        ad_image: ad_image.value,
+        ad_video: ad_video.value,
+        duration: parseInt(ad_duration.value)
+      };
+      try { showOutput(await axios.post(base, body, headers)); } catch (e) { showError(e); }
+    }
+
+    async function assignAdToVideo() {
+      const body = {
+        video_id: video_id.value,
+        ad_id: ad_assign_id.value,
+        placement_type: placement_type.value,
+        position: parseInt(position.value) || 0,
+        skip_after: parseInt(skip_after.value) || 0,
+        priority: parseInt(priority.value) || 1,
+        frequency: parseInt(frequency.value) || 1,
+        start_date: start_date.value || null,
+        end_date: end_date.value || null
+      };
+      try { showOutput(await axios.post(`${base}/video-ads`, body, headers)); } catch (e) { showError(e); }
+    }
+
+    async function getAdsForVideo() {
       try {
-        const response = await fetch(`${BASE_URL}/schedule/${videoId}`);
-        const data = await response.json();
-        scheduledAds = data;
-      } catch (err) {
-        console.error('Error fetching ad schedule:', err);
-      }
+        const res = await axios.get(`${base}/videos/${video_id_ads.value}/ads`);
+        showOutput(res);
+      } catch (e) { showError(e); }
     }
 
-    function displayAd(ad, timestamp, scheduleId) {
-      const content = ad.mediaUrl.endsWith('.mp4')
-        ? `<video width="320" autoplay muted>
-             <source src="${ad.mediaUrl}" type="video/mp4">
-           </video>`
-        : `<img src="${ad.mediaUrl}" width="320" alt="Ad">`;
-
-      adContainer.innerHTML = `
-        <strong>${ad.title || 'Advertisement'}</strong><br/>
-        ${content}
-      `;
-      adContainer.style.display = 'block';
-
-      // Track ad display
-      fetch(`${BASE_URL}/track`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scheduleId,
-          timestamp,
-          success: true
-        })
-      }).catch(err => console.error('Tracking failed:', err));
-
-      setTimeout(() => {
-        adContainer.style.display = 'none';
-      }, 5000); // Hide after 5 seconds
+    async function getAllAds() {
+      try { showOutput(await axios.get(base, headers)); } catch (e) { showError(e); }
     }
 
-    video.addEventListener('timeupdate', () => {
-      const currentTime = Math.floor(video.currentTime);
+    async function trackInteraction() {
+      const body = {
+        videoAd_id: videoAd_id_interaction.value,
+        interaction_type: interaction_type.value
+      };
+      try { showOutput(await axios.post(`${base}/track-ad`, body)); } catch (e) { showError(e); }
+    }
 
-      scheduledAds.forEach(schedule => {
-        if (schedule.scheduleType === 'time-based') {
-          schedule.timePositions.forEach(pos => {
-            if (pos.timestamp === currentTime && !pos.displayed) {
-              displayAd(schedule.ad_id, pos.timestamp, schedule._id);
-              pos.displayed = true; // Prevent re-showing
-            }
-          });
-        }
-      });
-    });
+    async function getVideosWithAds() {
+      try { showOutput(await axios.get(`${base}/videos-with-ads`, headers)); } catch (e) { showError(e); }
+    }
 
-    fetchAdSchedule();
+    async function removeAdFromVideo() {
+      try {
+        showOutput(await axios.delete(`${base}/video-ads/${videoAd_id_remove.value}`, headers));
+      } catch (e) { showError(e); }
+    }
+
+    async function updateVideoAd() {
+      try {
+        const body = JSON.parse(update_json.value);
+        showOutput(await axios.put(`${base}/video-ads/${videoAd_id_update.value}`, body, headers));
+      } catch (e) { showError(e); }
+    }
   </script>
 </body>
 </html>
