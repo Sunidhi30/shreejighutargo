@@ -570,10 +570,10 @@ async function getUserSubscriptionDetails(userId) {
   
   return subscription;
 }
-router.post('/profiles', async (req, res) => {
+router.post('/profiles',isUser, async (req, res) => {
   try {
-    const { userId, name, avatar, isKid = false, pin = null, deviceId } = req.body;
-
+    const {name, avatar, isKid = false, pin = null, deviceId } = req.body;
+    const userId = req.user.id; 
     if (!userId || !name) {
       return res.status(400).json({ 
         success: false, 
@@ -739,6 +739,12 @@ router.get('/profiles/:userId', async (req, res) => {
     });
   }
 });
+
+
+
+
+
+// not tested yet 
 // Start watching on a device (with screen limit check)
 router.post('/devices/start-watching', async (req, res) => {
   try {
@@ -1235,6 +1241,89 @@ router.get('/user-locations', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch user locations', error: err.message });
   }
 });
+router.post('/track-video-progress', async (req, res) => {
+  try {
+    const { 
+      userId,
+      profileId,
+      contentId,
+      contentType, // 'movie', 'series', 'show'
+      progress,
+      duration,
+      deviceId
+    } = req.body;
+
+    // Verify active session first
+    const activeSession = await DeviceWatching.findOne({
+      user_id: userId,
+      device_id: deviceId,
+      profileId: profileId,
+      status: 1
+    });
+
+    if (!activeSession) {
+      return res.status(403).json({
+        success: false,
+        message: 'No active watching session found'
+      });
+    }
+
+    // Determine content model based on type
+    let contentModel;
+    switch(contentType) {
+      case 'movie':
+        contentModel = 'Video';
+        break;
+      case 'series':
+        contentModel = 'Episode';
+        break;
+      case 'show':
+        contentModel = 'TVEpisode';
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid content type'
+        });
+    }
+
+    // Calculate percentage watched
+    const watchedPercentage = (progress / duration) * 100;
+
+    // Update or create progress record
+    await ContinueWatching.findOneAndUpdate(
+      {
+        userId,
+        profileId,
+        contentId
+      },
+      {
+        contentModel,
+        video_type: contentType,
+        progress,
+        duration,
+        lastWatchedAt: new Date(),
+        completed: watchedPercentage >= 90
+      },
+      { upsert: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Progress updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Track progress error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+
+
 
 // // get the login information places 
 // router.get('/api/user/:id/login-info', async (req, res) => {
@@ -1758,88 +1847,6 @@ router.get('/sessions/:userId', async (req, res) => {
     });
   }
 });
-//connect-tv
-// router.post('/connect_tv', async (req, res) => {
-//   const { code, user_id, device_id } = req.body;
-//   try {
-//     const tvLogin = await TvLogin.findOne({ unique_code: code, user_id });
-
-//     if (!tvLogin) {
-//       return res.status(400).json({ success: false, message: 'Invalid code or user ID' });
-//     }
-
-//     // If device_token not provided, generate it
-//     const deviceToken = crypto.randomBytes(16).toString('hex');
-
-//     const newDevice = new DeviceSync({
-//       user_id,
-//       device_name: 'TV Device',
-//       device_id,
-//       device_type: 3,
-//       device_token: deviceToken,
-//       tv_login_id: tvLogin._id
-//     });
-
-//     await newDevice.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: 'TV connected successfully',
-//       device_token: deviceToken // <-- send it back
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     return res.status(500).json({ success: false, message: 'Failed to connect TV' });
-//   }
-// });
-// POST /connect_tv
-// router.post('/connect_tv', async (req, res) => {
-//   const { code, user_id, device_id, device_token } = req.body;
-
-//   try {
-//     const tvLogin = await TvLogin.findOne({ unique_code: code, user_id });
-
-//     if (!tvLogin) {
-//       return res.status(400).json({ success: false, message: 'Invalid code or user ID' });
-//     }
-
-//     // Sync TV device
-//     const deviceToken = crypto.randomBytes(16).toString('hex');
-//     const newDevice = new DeviceSync({
-//       user_id,
-//       device_name: 'TV Device',
-//       device_id,
-//       device_type: 3, // 3 = TV
-//       device_token: deviceToken,
-//       tv_login_id: tvLogin._id
-//     });
-
-//     await newDevice.save();
-
-//     return res.status(200).json({ success: true, message: 'TV connected successfully' , device_token: deviceToken });
-//   } catch (err) {
-//     console.error(err);
-//     return res.status(500).json({ success: false, message: 'Failed to connect TV' });
-//   }
-// });
-// // 2. Check status from TV (polling)
-// router.get('/status/:code', async (req, res) => {
-//   try {
-//     const tvLogin = await TvLogin.findOne({ unique_code: req.params.code, status: 1 }).populate('user_id');
-//     if (!tvLogin) return res.json({ success: true, linked: false });
-
-//     if (tvLogin.user_id) {
-//       // User linked account from web/mobile
-//       const token = jwt.sign({ id: tvLogin.user_id._id }, process.env.JWT_SECRET);
-//       return res.json({ success: true, linked: true, token, user: tvLogin.user_id });
-//     }
-
-//     res.json({ success: true, linked: false });
-//   } catch (err) {
-//     res.status(500).json({ success: false });
-//   }
-// });
-
 
 // Update User Profile Image API
 router.put('/upload-profile-image', isUser, upload.single('profileImage'), async (req, res) => {
@@ -1902,32 +1909,32 @@ router.get('/profile', isUser, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-// approved videos
-router.get('/approved-movies', async (req, res) => {
-    try {
-      const movies = await Video.find({ isApproved: true });
-      res.json(movies);
-    } catch (error) {
-      res.status(500).json({  message: ' failed', error: error.message  });
-    }
-});
+// // approved videos
+// router.get('/approved-movies', async (req, res) => {
+//     try {
+//       const movies = await Video.find({ isApproved: true });
+//       res.json(movies);
+//     } catch (error) {
+//       res.status(500).json({  message: ' failed', error: error.message  });
+//     }
+// });
 // GET /search-movies?title=someText
-router.get('/search-movies', async (req, res) => {
-  const { title } = req.query;
+// router.get('/search-movies', async (req, res) => {
+//   const { title } = req.query;
 
-  try {
-    // Build the query
-    const query = {
-      isApproved: true,
-      ...(title && { name: { $regex: title, $options: 'i' } }) // Only add name filter if title exists
-    };
+//   try {
+//     // Build the query
+//     const query = {
+//       isApproved: true,
+//       ...(title && { name: { $regex: title, $options: 'i' } }) // Only add name filter if title exists
+//     };
 
-    const movies = await Video.find(query);
-    res.json(movies);
-  } catch (error) {
-    res.status(500).json({ message: 'Search failed', error: error.message });
-  }
-});
+//     const movies = await Video.find(query);
+//     res.json(movies);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Search failed', error: error.message });
+//   }
+// });
 
 // parent control check password
 router.post('/parent_control_check_password', async (req, res) => {
@@ -2107,18 +2114,18 @@ router.get('/get_avatar', async (req, res) => {
   }
 });
 // GET /get_all_types movies , show ?
-router.get('/get_all_types', async (req, res) => {
-  try {
-    const types = await Type.find();
-    return res.status(200).json({
-      message: 'All types fetched successfully',
-      data: types
-    });
-  } catch (error) {
-    console.error('Error fetching types:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-});
+// router.get('/get_all_types', async (req, res) => {
+//   try {
+//     const types = await Type.find();
+//     return res.status(200).json({
+//       message: 'All types fetched successfully',
+//       data: types
+//     });
+//   } catch (error) {
+//     console.error('Error fetching types:', error);
+//     return res.status(500).json({ message: 'Internal server error' });
+//   }
+// });
 //get types  same as above
 router.get('/get_types', async (req, res) => {
   try {
@@ -2133,32 +2140,32 @@ router.get('/get_types', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
-router.get('/get_videos_by_type', async (req, res) => {
-  try {
-    const videos = await Video.find({ isApproved: true })
-      .populate('type_id', 'name') // populate type name
-      .sort({ createdAt: -1 }); // optional: latest first
+// router.get('/get_videos_by_type', async (req, res) => {
+//   try {
+//     const videos = await Video.find({ isApproved: true })
+//       .populate('type_id', 'name') // populate type name
+//       .sort({ createdAt: -1 }); // optional: latest first
 
-    // Group videos by type
-    const groupedVideos = {};
+//     // Group videos by type
+//     const groupedVideos = {};
 
-    videos.forEach(video => {
-      const typeName = video.type_id?.name || 'Unknown';
-      if (!groupedVideos[typeName]) {
-        groupedVideos[typeName] = [];
-      }
-      groupedVideos[typeName].push(video);
-    });
+//     videos.forEach(video => {
+//       const typeName = video.type_id?.name || 'Unknown';
+//       if (!groupedVideos[typeName]) {
+//         groupedVideos[typeName] = [];
+//       }
+//       groupedVideos[typeName].push(video);
+//     });
 
-    return res.status(200).json({
-      message: 'Videos grouped by type fetched successfully',
-      data: groupedVideos
-    });
-  } catch (error) {
-    console.error('Error fetching videos by type:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-});
+//     return res.status(200).json({
+//       message: 'Videos grouped by type fetched successfully',
+//       data: groupedVideos
+//     });
+//   } catch (error) {
+//     console.error('Error fetching videos by type:', error);
+//     return res.status(500).json({ message: 'Internal server error' });
+//   }
+// });
 // get category action , romance 
 router.get('/get_categories', async (req, res) => {
   try {
@@ -2171,16 +2178,6 @@ router.get('/get_categories', async (req, res) => {
   } catch (error) {
     console.error('Error fetching categories:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
-// GET /api/users/get_video_types
-router.get('/get_video_types', async (req, res) => {
-  try {
-    const types = await Type.find({ status: 1 }); // Fetch only active types
-    res.status(200).json({ success: true, data: types });
-  } catch (error) {
-    console.error('Error fetching video types:', error);
-    res.status(500).json({ success: false, message: 'Server error fetching video types' });
   }
 });
 // get language  
@@ -2214,44 +2211,6 @@ router.get('/get_languages', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-//this is with query langauge 
-router.get('/withquery-get_languages', async (req, res) => {
-  try {
-    const { name } = req.query;
-
-    // let query = {};
-    // if (name) {
-    //   // Case-insensitive search for language name
-    //   query.name = { $regex: new RegExp(name, 'i') };
-    // }
-
-    const languages = await Language.find({name}).sort({ name: 1 });
-
-    const results = await Promise.all(
-      languages.map(async (language) => {
-        const videos = await Video.find({ language_id: language._id, isApproved: true })
-                                  .select('name thumbnail video_720 status');
-        return {
-          _id: language._id,
-          name: language.name,
-          image: language.image,
-          status: language.status,
-          videos
-        };
-      })
-    );
-
-    return res.status(200).json({
-      success:200,
-      message: 'Languages with videos fetched successfully',
-      data: results
-    });
-
-  } catch (error) {
-    console.error('Error fetching languages with videos:', error);
-    return res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
 //get cast
 router.get('/get_cast', async (req, res) => {
   try {
@@ -2266,49 +2225,6 @@ router.get('/get_cast', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-// router.post('/invest-plan', async (req, res) => {
-//   const { userId, packageId } = req.body;
-
-//   try {
-//     // Find user and package
-//     const user = await User.findById(userId);
-//     const selectedPackage = await SubscriptionPlan.findById(packageId);
-
-//     if (!user || !selectedPackage) {
-//       return res.status(404).json({ message: 'User or Package not found' });
-//     }
-
-//     // Create a transaction for the investment
-//     const transaction = new Transaction({
-//       unique_id: `txn_${Date.now()}`,
-//       user_id: userId,
-//       package_id: packageId,
-//       transaction_id: `txn_${Date.now()}`,
-//       price: selectedPackage.price.toString(),
-//       status: 1,  // Successful status
-//       amount: selectedPackage.price,
-//       payment_status: 'completed'
-//     });
-
-//     await transaction.save();
-
-//     // Add the transaction to user's profile
-//     user.transactions.push(transaction._id);
-//     await user.save();
-
-//     // Update admin's wallet (add investment amount)
-//     const admin = await Admin.findOne();
-//     if (admin) {
-//       admin.wallet += selectedPackage.price;
-//       await admin.save();
-//     }
-
-//     res.status(200).json({ message: 'Investment successful', transaction });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// });
 // Get all active subscription plans (for users to view)
 router.get('/plans', async (req, res) => {
   try {
@@ -2350,89 +2266,392 @@ router.get('/plans/:planId', async (req, res) => {
     });
   }
 });
-//Like a video
-router.patch('/:videoId/like', async (req, res) => {
+const modelsToCheck = [
+  { model: Video, name: 'Video' },
+  { model: TVEpisode, name: 'TVEpisode' },
+  { model: Series, name: 'Series' },
+  { model: TVSeason, name: 'TVSeason' },
+  { model: Season, name: 'Season' },
+  { model: Episode, name: 'Episode' },
+  { model: TVShow, name: 'TVShow' }
+];
+// likes a videos
+router.patch('/likes/:contentId', isUser, async (req, res) => {
+  const { contentId } = req.params;
+  const userId = req.user._id;
+
   try {
-    const { videoId } = req.params;
+    let item = null;
+    let foundIn = null;
 
-    const video = await Video.findByIdAndUpdate(
-      videoId,
-      { $inc: { total_like: 1 } },
-      { new: true }
-    );
-     // Increment the like count
-     video.total_like += 1;
+    for (const { model, name } of modelsToCheck) {
+      item = await model.findById(contentId);
+      if (item) {
+        foundIn = name;
+        break;
+      }
+    }
 
-     // Optionally, you can calculate the engagement rate after updating like count
-     video.engagementRate = calculateEngagementRate(video); // Implement this function as needed
-     await video.save();
+    if (!item) {
+      return res.status(404).json({ message: 'Content not found in any schema' });
+    }
 
+    // Ensure 'likes' field exists and is an array
+    if (!Array.isArray(item.likes)) {
+      item.likes = [];
+    }
 
-    if (!video) return res.status(404).json({ message: 'Video not found' });
+    // Check if user already liked
+    if (item.likes.includes(userId.toString())) {
+      return res.status(400).json({ message: 'You have already liked this content' });
+    }
 
-    res.json({ message: 'Video liked', total_like: video.total_like });
+    // Add user ID to likes array and increment total_like
+    item.likes.push(userId);
+    item.total_like = (item.total_like || 0) + 1;
+
+    // Optional: update engagement rate
+    if (typeof calculateEngagementRate === 'function') {
+      item.engagementRate = calculateEngagementRate(item);
+    }
+
+    await item.save();
+
+    return res.status(200).json({
+      message: `Liked successfully in ${foundIn}`,
+      total_like: item.total_like
+    });
+
   } catch (err) {
-    res.status(500).json({ error: 'Something went wrong while liking the video.' });
+    console.error('Error in like API:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
-// Add comment using token
-router.post('/:videoId/comment', isUser, async (req, res) => {
+//comment on the videos
+router.post('/:contentId/comment', isUser, async (req, res) => {
   try {
     const { comment } = req.body;
-    const { videoId } = req.params;
+    const { contentId } = req.params;
     const user_id = req.user._id;
+
     if (!comment) {
       return res.status(400).json({ message: 'Comment is required' });
     }
+
+    let content = null;
+    let contentModelName = null;
+
+    // Try to find content in all collections
+    for (const { model, name } of modelsToCheck) {
+      content = await model.findById(contentId);
+      if (content) {
+        contentModelName = name;
+        break;
+      }
+    }
+
+    if (!content) {
+      return res.status(404).json({ message: 'Content not found in any schema' });
+    }
+
+    // Create new comment
     const newComment = new Comment({
-      video_id: videoId,
+      video_id: contentId,
       user_id,
       comment,
+      // you can optionally add video_type: contentModelName
     });
-    
+
     await newComment.save();
-  
 
-    // / Find the video and increment the total comments count
-    const video = await Video.findById(videoId);
-    if (!video) {
-      return res.status(404).json({ message: 'Video not found' });
+    // Update content document
+    if (typeof content.total_comment === 'number') {
+      content.total_comment += 1;
+    } else {
+      content.total_comment = 1;
     }
-    video.comments.push(newComment._id);
-    video.total_comment += 1;
-    // Optionally, recalculate the engagement rate
-    video.engagementRate = calculateEngagementRate(video);
 
-    await video.save();
+    if (Array.isArray(content.comments)) {
+      content.comments.push(newComment._id);
+    } else {
+      content.comments = [newComment._id];
+    }
 
-    res.status(201).json({ message: 'Comment added successfully', comment: newComment });
+    await content.save();
+
+    res.status(201).json({
+      message: 'Comment added successfully',
+      comment: newComment
+    });
+
   } catch (err) {
     console.error('Error adding comment:', err);
-    res.status(500).json({ error: 'Failed to add comment', details: err.message });
+    res.status(500).json({
+      error: 'Failed to add comment',
+      details: err.message
+    });
   }
 });
-router.post('/:videoId/view', async (req, res) => {
+// Start video playback
+router.post('/start-playback/:contentId', isUser, async (req, res) => {
   try {
-    const { videoId } = req.params;
-    const video = await Video.findById(videoId);
+    const { contentId } = req.params;
+    const { device_id, profile_id } = req.body;
+    const user_id = req.user._id;
 
-    if (!video) {
-      return res.status(404).json({ message: 'Video not found' });
+    // 1. Check active devices and screen limit
+    const user = await User.findById(user_id).populate('UserSubscription');
+    const activeDevices = await DeviceWatching.find({
+      user_id,
+      status: 1,
+      sessionEndTime: null
+    });
+
+    // Check if this device is already watching
+    const existingSession = activeDevices.find(d => d.device_id === device_id);
+    if (existingSession) {
+      return res.status(200).json({
+        success: true,
+        message: 'Device already has an active session'
+      });
     }
 
-    // Increment the view count
-    video.total_view += 1;
+    // Check screen limit
+    if (activeDevices.length >= user.subscription.max_screens && !existingSession) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum screen limit reached'
+      });
+    }
 
-    // Optionally, you can calculate engagement rate based on views, likes, and comments here.
-    video.engagementRate = calculateEngagementRate(video); // Implement this function as needed
+    // 2. Find content in appropriate schema
+    let content;
+    let content_type;
+    let contentModel;
 
-    await video.save();
-    res.status(200).json({ message: 'Video view recorded', totalView: video.total_view });
+    content = await Video.findById(contentId);
+    if (content) {
+      content_type = 'video';
+      contentModel = Video;
+    }
+
+    if (!content) {
+      content = await TVEpisode.findById(contentId);
+      if (content) {
+        content_type = 'tv-episode';
+        contentModel = TVEpisode;
+      }
+    }
+
+    if (!content) {
+      content = await Episode.findById(contentId);
+      if (content) {
+        content_type = 'series-episode';
+        contentModel = Episode;
+      }
+    }
+
+    if (!content) {
+      return res.status(404).json({
+        success: false,
+        message: 'Content not found'
+      });
+    }
+
+    // 3. Create new device watching session
+    const deviceSession = new DeviceWatching({
+      user_id,
+      device_id,
+      profileId: profile_id,
+      sessionStartTime: new Date(),
+      status: 1,
+      content_id: contentId,
+      content_type,
+      duration: content.video_duration || 0
+    });
+
+    await deviceSession.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Playback session started',
+      content_type,
+      duration: content.video_duration || 0,
+      session_id: deviceSession._id
+    });
+
   } catch (error) {
-    console.error('Error tracking view:', error);
-    res.status(500).json({ message: 'Failed to track view' });
+    console.error('Error starting playback:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
   }
 });
+
+// End video playback
+router.post('/end-playback/:contentId', isUser, async (req, res) => {
+  try {
+    const { contentId } = req.params;
+    const { device_id, watch_duration, session_id } = req.body;
+    const user_id = req.user._id;
+
+    // 1. Find and validate session
+    const session = await DeviceWatching.findOne({
+      _id: session_id,
+      user_id,
+      device_id,
+      status: 1,
+      sessionEndTime: null
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active session found'
+      });
+    }
+
+    // 2. Find content
+    let content;
+    let ModelToUpdate;
+
+    content = await Video.findById(contentId);
+    if (content) ModelToUpdate = Video;
+
+    if (!content) {
+      content = await TVEpisode.findById(contentId);
+      if (content) ModelToUpdate = TVEpisode;
+    }
+
+    if (!content) {
+      content = await Episode.findById(contentId);
+      if (content) ModelToUpdate = Episode;
+    }
+
+    if (!content) {
+      return res.status(404).json({
+        success: false,
+        message: 'Content not found'
+      });
+    }
+
+    // 3. Calculate watch percentage and update view count
+    const totalDuration = content.video_duration || session.duration;
+    const watchPercentage = (watch_duration / totalDuration) * 100;
+
+    // Update session
+    session.sessionEndTime = new Date();
+    session.status = 0;
+    session.watch_duration = watch_duration;
+    session.watch_percentage = watchPercentage;
+    await session.save();
+
+    // 4. Update view count if threshold met (30%)
+    if (watchPercentage >= 30) {
+      // Check if user has already viewed this content
+      const previousComplete = await DeviceWatching.findOne({
+        user_id,
+        content_id: contentId,
+        watch_percentage: { $gte: 30 },
+        _id: { $ne: session._id }
+      });
+
+      // Only increment view count if this is the first time user watches >30%
+      if (!previousComplete) {
+        const updateData = {
+          $inc: { 
+            total_view: 1,
+            viewCount: 1
+          }
+        };
+
+        // Update view count in content document
+        await ModelToUpdate.findByIdAndUpdate(contentId, updateData);
+
+        // If content has vendor_id, update vendor earnings
+        if (content.vendor_id && content.finalPackage_id) {
+          const package = await FinalPackage.findById(content.finalPackage_id);
+          if (package && package.pricePerView) {
+            await Vendor.findByIdAndUpdate(content.vendor_id, {
+              $inc: {
+                wallet: package.pricePerView,
+                totalEarnings: package.pricePerView
+              }
+            });
+          }
+        }
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Playback session ended successfully',
+      watch_percentage: watchPercentage,
+      view_counted: watchPercentage >= 30
+    });
+
+  } catch (error) {
+    console.error('Error ending playback:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Get active devices for a user
+router.get('/active-devices', isUser, async (req, res) => {
+  try {
+    const activeDevices = await DeviceWatching.find({
+      user_id: req.user._id,
+      status: 1,
+      sessionEndTime: null
+    }).populate('profileId');
+
+    res.status(200).json({
+      success: true,
+      active_devices: activeDevices.map(device => ({
+        device_id: device.device_id,
+        profile_name: device.profileId?.name,
+        started_at: device.sessionStartTime,
+        content_type: device.content_type,
+        content_id: device.content_id
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching active devices:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+
+// router.post('/:videoId/view', async (req, res) => {
+//   try {
+//     const { videoId } = req.params;
+//     const video = await Video.findById(videoId);
+
+//     if (!video) {
+//       return res.status(404).json({ message: 'Video not found' });
+//     }
+
+//     // Increment the view count
+//     video.total_view += 1;
+
+//     // Optionally, you can calculate engagement rate based on views, likes, and comments here.
+//     video.engagementRate = calculateEngagementRate(video); // Implement this function as needed
+
+//     await video.save();
+//     res.status(200).json({ message: 'Video view recorded', totalView: video.total_view });
+//   } catch (error) {
+//     console.error('Error tracking view:', error);
+//     res.status(500).json({ message: 'Failed to track view' });
+//   }
+// });
 // get analytics
 router.get('/:videoId/analytics', async (req, res) => {
   try {
@@ -2453,22 +2672,7 @@ router.get('/:videoId/analytics', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch video analytics' });
   }
 });
-// Get all Top 10 movies
-router.get('/top10-movies', async (req, res) => {
-  try {
-    const top10Movies = await Video.find({ isTop10: true, isApproved: true })
-      .sort({ approvalDate: -1 }) // Optional: Latest approved movies first
-      .limit(10); // Just a safety limit
 
-    res.status(200).json({
-      message: 'Top 10 movies fetched successfully',
-      movies: top10Movies
-    });
-  } catch (err) {
-    console.error('Error fetching Top 10 movies:', err);
-    res.status(500).json({ message: 'Server error while fetching Top 10 movies' });
-  }
-});
 // POST API to save watching progress
 router.post('/continue-watching', isUser, async (req, res) => {
   const { contentId, video_type, progress } = req.body;
@@ -2847,116 +3051,116 @@ router.get('/search', async (req, res) => {
 // });
 
 // video progress
-router.post('/track-video-progress', isUser, async (req, res) => {
-  try {
-    const { videoId, currentTime, duration } = req.body;
-    const userId = req.user.id;
+//router.post('/track-video-progress', isUser, async (req, res) => {
+//   try {
+//     const { videoId, currentTime, duration } = req.body;
+//     const userId = req.user.id;
 
-    if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid input data' });
-    }
+//     if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
+//       return res.status(400).json({ success: false, message: 'Invalid input data' });
+//     }
 
-    const watchedPercentage = (currentTime / duration) * 100;
-    console.log(`User ${userId} watching video ${videoId}`);
-    console.log(`Current Time: ${currentTime}, Duration: ${duration}, Watched: ${watchedPercentage.toFixed(2)}%`);
+//     const watchedPercentage = (currentTime / duration) * 100;
+//     console.log(`User ${userId} watching video ${videoId}`);
+//     console.log(`Current Time: ${currentTime}, Duration: ${duration}, Watched: ${watchedPercentage.toFixed(2)}%`);
 
-    let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
+//     let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
 
-    if (!videoView) {
-      console.log("Creating new video view record");
-      videoView = new VideoView({
-        video_id: videoId,
-        user_id: userId,
-        watchedPercentage
-      });
-    } else {
-      console.log("Existing video view found:", videoView);
-      if (watchedPercentage > videoView.watchedPercentage) {
-        videoView.watchedPercentage = watchedPercentage;
-        console.log("Updated watchedPercentage to:", watchedPercentage.toFixed(2));
-      } else {
-        console.log("Watched percentage not higher, not updating.");
-      }
-    }
+//     if (!videoView) {
+//       console.log("Creating new video view record");
+//       videoView = new VideoView({
+//         video_id: videoId,
+//         user_id: userId,
+//         watchedPercentage
+//       });
+//     } else {
+//       console.log("Existing video view found:", videoView);
+//       if (watchedPercentage > videoView.watchedPercentage) {
+//         videoView.watchedPercentage = watchedPercentage;
+//         console.log("Updated watchedPercentage to:", watchedPercentage.toFixed(2));
+//       } else {
+//         console.log("Watched percentage not higher, not updating.");
+//       }
+//     }
 
-    // if (watchedPercentage >= 30) {
-    //   videoView.isCompleted = true;
-    //   console.log("Marking video as completed and updating view count");
+//     // if (watchedPercentage >= 30) {
+//     //   videoView.isCompleted = true;
+//     //   console.log("Marking video as completed and updating view count");
 
-    //   await Video.findByIdAndUpdate(videoId, {
-    //     $inc: { viewCount: 1}
-    //   });
-    //   await PlatformStats.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
+//     //   await Video.findByIdAndUpdate(videoId, {
+//     //     $inc: { viewCount: 1}
+//     //   });
+//     //   await PlatformStats.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
 
-    //   const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
-    //   const vendor = await Vendor.findById(videoWithPackage.vendor_id);
+//     //   const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
+//     //   const vendor = await Vendor.findById(videoWithPackage.vendor_id);
 
-    //   if (videoWithPackage?.finalPackage_id) {
-    //     const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
+//     //   if (videoWithPackage?.finalPackage_id) {
+//     //     const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
 
-    //     await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
-    //       $inc: {
-    //         wallet: earnings,
-    //         lockedBalance: earnings
-    //       }
-    //     });
+//     //     await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
+//     //       $inc: {
+//     //         wallet: earnings,
+//     //         lockedBalance: earnings
+//     //       }
+//     //     });
 
-    //     await Video.findByIdAndUpdate(videoId, {
-    //       $inc: { totalEarnings: earnings }
-    //     });
+//     //     await Video.findByIdAndUpdate(videoId, {
+//     //       $inc: { totalEarnings: earnings }
+//     //     });
 
-    //     console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
-    //   }
-    // } else if (videoView.isCompleted) {
-    //   console.log("Video already marked as completed, skipping view/earnings update.");
-    // }
+//     //     console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
+//     //   }
+//     // } else if (videoView.isCompleted) {
+//     //   console.log("Video already marked as completed, skipping view/earnings update.");
+//     // }
 
     
-    if (watchedPercentage >= 30 && !videoView.isCompleted) {
-      videoView.isCompleted = true;
-      console.log("Marking video as completed and updating view count");
+//     if (watchedPercentage >= 30 && !videoView.isCompleted) {
+//       videoView.isCompleted = true;
+//       console.log("Marking video as completed and updating view count");
     
-      await Video.findByIdAndUpdate(videoId, {
-        $inc: { viewCount: 1 }
-      });
+//       await Video.findByIdAndUpdate(videoId, {
+//         $inc: { viewCount: 1 }
+//       });
     
-      await Vendor.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
+//       await Vendor.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
     
-      const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
-      const vendor = await Vendor.findById(videoWithPackage.vendor_id);
+//       const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
+//       const vendor = await Vendor.findById(videoWithPackage.vendor_id);
     
-      if (videoWithPackage?.finalPackage_id) {
-        const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
+//       if (videoWithPackage?.finalPackage_id) {
+//         const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
     
-        await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
-          $inc: {
-            wallet: earnings,
-            lockedBalance: earnings
-          }
-        });
+//         await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
+//           $inc: {
+//             wallet: earnings,
+//             lockedBalance: earnings
+//           }
+//         });
     
-        await Video.findByIdAndUpdate(videoId, {
-          $inc: { totalEarnings: earnings }
-        });
+//         await Video.findByIdAndUpdate(videoId, {
+//           $inc: { totalEarnings: earnings }
+//         });
     
-        console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
-      }
-    } else if (videoView.isCompleted) {
-      console.log("Video already marked as completed, skipping view/earnings update.");
-    }
+//         console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
+//       }
+//     } else if (videoView.isCompleted) {
+//       console.log("Video already marked as completed, skipping view/earnings update.");
+//     }
     
-    await videoView.save();
+//     await videoView.save();
 
-    res.json({
-      success: true,
-      message: 'Video progress tracked successfully',
-      watchedPercentage: watchedPercentage.toFixed(2)
-    });
-  } catch (error) {
-    console.error("Error tracking video progress:", error);
-    res.status(500).json({ success: false, message: 'Error tracking video progress' });
-  }
-});
+//     res.json({
+//       success: true,
+//       message: 'Video progress tracked successfully',
+//       watchedPercentage: watchedPercentage.toFixed(2)
+//     });
+//   } catch (error) {
+//     console.error("Error tracking video progress:", error);
+//     res.status(500).json({ success: false, message: 'Error tracking video progress' });
+//   }
+// });
 // video-url with id 
 router.get('/video-url/:id', async (req, res) => {
   try {

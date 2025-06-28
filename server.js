@@ -177,6 +177,9 @@ app.listen(PORT,()=>{
   app.get("/testing", (req, res) => {
     res.sendFile(__dirname + "/testing.html");
   })
+  app.get("/testingscreens", (req, res) => {
+    res.sendFile(__dirname + "/testingscreens.html");
+  })
     // Serve the test HTML file
     app.get("/testingDevice", (req, res) => {
       res.sendFile(__dirname + "/api-tester.html");

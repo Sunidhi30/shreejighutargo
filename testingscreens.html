@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Progress Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+        }
+        #response {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+        }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h2>Video Progress Tracking Test</h2>
+    
+    <div class="form-group">
+        <label>User ID (pre-filled):</label>
+        <input type="text" id="userId" value="683d4cb90cc541ab0570aa12" readonly>
+    </div>
+
+    <div class="form-group">
+        <label>Profile ID (pre-filled):</label>
+        <input type="text" id="profileId" value="683d4cb90cc541ab0570aa13" readonly>
+    </div>
+
+    <div class="form-group">
+        <label>Content ID (pre-filled):</label>
+        <input type="text" id="contentId" value="68513a21dc09d599c1815ad3" readonly>
+    </div>
+
+    <div class="form-group">
+        <label>Content Type:</label>
+        <select id="contentType">
+            <option value="movie">Movie</option>
+            <option value="series">Series</option>
+            <option value="show">Show</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>Device ID:</label>
+        <input type="text" id="deviceId" placeholder="Enter your device ID">
+    </div>
+
+    <div class="form-group">
+        <label>Progress (seconds):</label>
+        <input type="number" id="progress" value="0" min="0">
+    </div>
+
+    <div class="form-group">
+        <label>Duration (seconds):</label>
+        <input type="number" id="duration" value="3600" min="1">
+    </div>
+
+    <button onclick="trackProgress()">Update Progress</button>
+    <button onclick="simulateProgress()" style="background-color: #2196F3;">Simulate Progress</button>
+
+    <div id="response"></div>
+
+    <script>
+        // Main function to track progress
+        async function trackProgress() {
+            const responseDiv = document.getElementById('response');
+            
+            const data = {
+                userId: document.getElementById('userId').value,
+                profileId: document.getElementById('profileId').value,
+                contentId: document.getElementById('contentId').value,
+                contentType: document.getElementById('contentType').value,
+                progress: parseInt(document.getElementById('progress').value),
+                duration: parseInt(document.getElementById('duration').value),
+                deviceId: document.getElementById('deviceId').value
+            };
+
+            if (!data.deviceId) {
+                responseDiv.innerHTML = '<span class="error">Please enter a device ID</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:9000/api/users/track-video-progress', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                responseDiv.innerHTML = `
+                    <strong>Status:</strong> ${response.status}
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                responseDiv.className = response.ok ? 'success' : 'error';
+
+            } catch (error) {
+                responseDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+            }
+        }
+
+        // Simulation function
+        let simulationInterval;
+        function simulateProgress() {
+            const progressInput = document.getElementById('progress');
+            const duration = parseInt(document.getElementById('duration').value);
+            
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                return;
+            }
+
+            let currentProgress = parseInt(progressInput.value);
+            simulationInterval = setInterval(() => {
+                currentProgress += 10; // Increment by 10 seconds
+                if (currentProgress >= duration) {
+                    clearInterval(simulationInterval);
+                    simulationInterval = null;
+                }
+                progressInput.value = currentProgress;
+                trackProgress();
+            }, 10000); // Update every 10 seconds
+        }
+
+        // Set a default device ID using timestamp
+        document.getElementById('deviceId').value = 'device_' + Date.now();
+    </script>
+</body>
+</html>

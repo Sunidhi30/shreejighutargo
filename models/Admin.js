@@ -16,8 +16,6 @@ const adminSchema = new mongoose.Schema({
 
   wallet: { type: Number, default: 0 } , // Admin's wallet balance
 
-  // defaultWalletLockDays: { type: Number, default: 90 }, // Default lock period
-  // 🆕 Bank Account Details for Admin Transactions
   bankDetails: {
     accountNumber: { type: String },
     ifscCode: { type: String },

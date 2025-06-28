@@ -46,7 +46,9 @@ const seasonSchema = new mongoose.Schema({
     title: { type: String, required: true },
     description: { type: String },
     releaseDate: { type: Date },
+    total_like: { type: Number, default: 0 },
     totalEpisodes: { type: Number, default: 0 }
+
   }, {
     timestamps: true
   });

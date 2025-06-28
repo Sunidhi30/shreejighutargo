@@ -27,12 +27,14 @@ const  tvShowSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
+  total_like: { type: Number, default: 0 },
   approvalNotes: { type: String, default: '' },
   rating: { type: Number, default: 0 },
   tags: [String]
 }, {
   timestamps: true
 });
+
 tvShowSchema.pre('save', async function (next) {
   if (!this.type_id) {
     const webSeriesType = await mongoose.model('Type').findOne({ name: 'show' });

@@ -38,6 +38,7 @@ const seasonSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  total_like: { type: Number, default: 0 },
   status: {
     type: Number,
     default: 1 // 1 = active, 0 = inactive (optional interpretation)

@@ -75,6 +75,7 @@ const seriesSchema = new mongoose.Schema({
     default: 'pending'
   },
   adminNotes: { type: String, default: '' },
+  total_like: { type: Number, default: 0 },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
   rating: { type: Number, default: 0 },
   tags: [String]
