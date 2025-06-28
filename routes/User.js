@@ -723,6 +723,7 @@ router.get('/profiles/:userId', async (req, res) => {
       planName: subscription.plan.name,
       maxProfiles: subscription.plan.maxProfiles || 1,
       maxScreens: subscription.plan.maxScreens || 1,
+      maxDevices: subscription.plan.maxDevices || 1,
       profilesUsed: user.profiles ? user.profiles.length : 0
     } : null;
 
@@ -2408,87 +2409,57 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
     const { device_id, profile_id } = req.body;
     const user_id = req.user._id;
 
-    // 1. Check active devices and screen limit
+    // Step 1: Get User & Subscription
     const user = await User.findById(user_id)
       .populate({
         path: 'subscriptions',
-        populate: {
-          path: 'plan'
-        }
+        populate: { path: 'plan' }
       });
-      const activeSubscription = user.subscriptions?.find(sub => 
-        sub.status === 'active' && new Date(sub.endDate) > new Date()
-      );
-      
-      if (!activeSubscription) {
-        return res.status(403).json({
-          success: false,
-          message: 'No active subscription found'
-        });
-      }
-      
-      const maxScreens = activeSubscription.plan?.maxDevices || 1;
 
+    const activeSubscription = user.subscriptions?.find(sub =>
+      sub.status === 'active' && new Date(sub.endDate) > new Date()
+    );
 
+    if (!activeSubscription) {
+      return res.status(403).json({
+        success: false,
+        message: 'No active subscription found'
+      });
+    }
 
-    // // Find active subscription
-    // const activeSubscription = user.subscriptions?.find(sub => 
-    //   sub.status === 'active' && new Date(sub.endDate) > new Date()
-    // );
-
- 
-
+    const maxScreens = activeSubscription.plan?.maxDevices || 1;
+    console.log("this is max screens", maxScreens);
+    // Step 2: Check active sessions
     const activeDevices = await DeviceWatching.find({
       user_id,
       status: 1,
       sessionEndTime: null
     });
 
-    // Get max screens from subscription plan
-    // const maxScreens = activeSubscription.plan?.max_screens || 1;
-
-    // Check if this device is already watching
+    // If this device is already active, allow it
     const existingSession = activeDevices.find(d => d.device_id === device_id);
-    if (existingSession) {
-      return res.status(200).json({
-        success: true,
-        message: 'Device already has an active session'
-      });
+    if (!existingSession) {
+      if (activeDevices.length >= maxScreens) {
+        return res.status(400).json({
+          success: false,
+          message: `Maximum screen limit (${maxScreens}) reached`
+        });
+      }
     }
 
-    // Check screen limit
-    if (activeDevices.length >= maxScreens && !existingSession) {
-      return res.status(400).json({
-        success: false,
-        message: 'Maximum screen limit reached'
-      });
-    }
-
-    // 2. Find content in appropriate schema
-    let content;
-    let content_type;
-    let contentModel;
-
+    // Step 3: Find content
+    let content, content_type;
     content = await Video.findById(contentId);
-    if (content) {
-      content_type = 'video';
-      contentModel = Video;
-    }
+    if (content) content_type = 'video';
 
     if (!content) {
       content = await TVEpisode.findById(contentId);
-      if (content) {
-        content_type = 'tv-episode';
-        contentModel = TVEpisode;
-      }
+      if (content) content_type = 'tv-episode';
     }
 
     if (!content) {
       content = await Episode.findById(contentId);
-      if (content) {
-        content_type = 'series-episode';
-        contentModel = Episode;
-      }
+      if (content) content_type = 'series-episode';
     }
 
     if (!content) {
@@ -2498,7 +2469,7 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
       });
     }
 
-    // Verify profile belongs to user
+    // Step 4: Check if profile is valid
     const userProfile = user.profiles.id(profile_id);
     if (!userProfile) {
       return res.status(404).json({
@@ -2507,7 +2478,7 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
       });
     }
 
-    // 3. Create new device watching session
+    // Step 5: Create playback session
     const deviceSession = new DeviceWatching({
       user_id,
       device_id,
@@ -2521,7 +2492,7 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
 
     await deviceSession.save();
 
-    // 4. Update user's watch history in profile
+    // Step 6: Update user's watch history
     userProfile.watchHistory.push({
       contentId: content._id,
       watchedAt: new Date(),
@@ -2529,7 +2500,7 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
     });
     await user.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Playback session started',
       content_type,
@@ -2539,12 +2510,13 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
 
   } catch (error) {
     console.error('Error starting playback:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Internal server error'
     });
   }
 });
+
 
 
 // End video playback
@@ -2659,23 +2631,31 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
 });
 
 // Get active devices for a user
+// Get active devices for a user
 router.get('/active-devices', isUser, async (req, res) => {
   try {
     const activeDevices = await DeviceWatching.find({
       user_id: req.user._id,
       status: 1,
       sessionEndTime: null
-    }).populate('profileId');
+    });
 
-    res.status(200).json({
-      success: true,
-      active_devices: activeDevices.map(device => ({
+    const user = await User.findById(req.user._id); // Get user's profiles
+
+    const response = activeDevices.map(device => {
+      const profile = user.profiles.id(device.profileId); // 🔍 Get embedded profile by ObjectId
+      return {
         device_id: device.device_id,
-        profile_name: device.profileId?.name,
+        profile_name: profile?.name || 'Unknown Profile',
         started_at: device.sessionStartTime,
         content_type: device.content_type,
         content_id: device.content_id
-      }))
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      active_devices: response
     });
 
   } catch (error) {
@@ -2686,6 +2666,7 @@ router.get('/active-devices', isUser, async (req, res) => {
     });
   }
 });
+
 
 
 
