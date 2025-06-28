@@ -38,6 +38,14 @@ const seasonSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  ratings: [
+    {
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      value: { type: Number, min: 1, max: 5 },
+    }
+  ],
+  averageRating: { type: Number, default: 0 },
+  ratingCount: { type: Number, default: 0 },
   total_like: { type: Number, default: 0 },
   status: {
     type: Number,

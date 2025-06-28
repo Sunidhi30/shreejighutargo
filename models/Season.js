@@ -47,8 +47,15 @@ const seasonSchema = new mongoose.Schema({
     description: { type: String },
     releaseDate: { type: Date },
     total_like: { type: Number, default: 0 },
-    totalEpisodes: { type: Number, default: 0 }
-
+    totalEpisodes: { type: Number, default: 0 },
+    ratings: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        value: { type: Number, min: 1, max: 5 },
+      }
+    ],
+    averageRating: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 }
   }, {
     timestamps: true
   });

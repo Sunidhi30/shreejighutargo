@@ -2392,6 +2392,14 @@ router.post('/:contentId/comment', isUser, async (req, res) => {
     });
   }
 });
+
+
+
+
+
+
+//testing left 
+
 // Start video playback
 router.post('/start-playback/:contentId', isUser, async (req, res) => {
   try {
@@ -2400,12 +2408,44 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
     const user_id = req.user._id;
 
     // 1. Check active devices and screen limit
-    const user = await User.findById(user_id).populate('UserSubscription');
+    const user = await User.findById(user_id)
+      .populate({
+        path: 'subscriptions',
+        populate: {
+          path: 'plan'
+        }
+      });
+      if (!user.subscription || 
+        user.subscription.status !== 'active' || 
+        new Date(user.subscription.endDate) <= new Date()) {
+      return res.status(403).json({
+        success: false,
+        message: 'No active subscription found'
+      });
+    }
+    const maxScreens = user.subscription.maxDevices || 1;
+
+
+    // Find active subscription
+    const activeSubscription = user.subscriptions?.find(sub => 
+      sub.status === 'active' && new Date(sub.endDate) > new Date()
+    );
+
+    if (!activeSubscription) {
+      return res.status(403).json({
+        success: false,
+        message: 'No active subscription found'
+      });
+    }
+
     const activeDevices = await DeviceWatching.find({
       user_id,
       status: 1,
       sessionEndTime: null
     });
+
+    // Get max screens from subscription plan
+    // const maxScreens = activeSubscription.plan?.max_screens || 1;
 
     // Check if this device is already watching
     const existingSession = activeDevices.find(d => d.device_id === device_id);
@@ -2417,7 +2457,7 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
     }
 
     // Check screen limit
-    if (activeDevices.length >= user.subscription.max_screens && !existingSession) {
+    if (activeDevices.length >= maxScreens && !existingSession) {
       return res.status(400).json({
         success: false,
         message: 'Maximum screen limit reached'
@@ -2458,6 +2498,15 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
       });
     }
 
+    // Verify profile belongs to user
+    const userProfile = user.profiles.id(profile_id);
+    if (!userProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
     // 3. Create new device watching session
     const deviceSession = new DeviceWatching({
       user_id,
@@ -2471,6 +2520,14 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
     });
 
     await deviceSession.save();
+
+    // 4. Update user's watch history in profile
+    userProfile.watchHistory.push({
+      contentId: content._id,
+      watchedAt: new Date(),
+      progress: 0
+    });
+    await user.save();
 
     res.status(200).json({
       success: true,
@@ -2488,6 +2545,7 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
     });
   }
 });
+
 
 // End video playback
 router.post('/end-playback/:contentId', isUser, async (req, res) => {
@@ -2630,7 +2688,7 @@ router.get('/active-devices', isUser, async (req, res) => {
 });
 
 
-// router.post('/:videoId/view', async (req, res) => {
+
 //   try {
 //     const { videoId } = req.params;
 //     const video = await Video.findById(videoId);
@@ -2913,32 +2971,95 @@ router.get('/user/favorites',isUser, async (req, res) => {
   }
 });
 // POST /videos/:videoId/rate — Rate or update rating for a video
-router.post('/rate-video', isUser,async (req, res) => {
-  try {
-    const { videoId, rating } = req.body;
-    const user_id = req.user._id;
-    const video = await Video.findById(videoId);
-    if (!video) return res.status(404).json({ message: 'Video not found' });
 
-    // Remove any existing rating by this user
-    video.ratings = video.ratings.filter(r => r.user.toString() !== userId);
+
+
+
+router.post('/rate-content', isUser, async (req, res) => {
+  try {
+    const { contentId, rating } = req.body;
+    const userId = req.user._id;
+
+    // Validate input
+    if (!contentId || typeof rating !== 'number' || rating < 1 || rating > 5) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Valid contentId and rating (1-5) are required' 
+      });
+    }
+
+    // Validate contentId format
+    if (!mongoose.Types.ObjectId.isValid(contentId)) {
+      return res.status(400).json({
+        success: false, 
+        message: 'Invalid content ID format'
+      });
+    }
+
+    let content = null;
+    let foundIn = null;
+
+    // Loop through each schema to find the content
+    for (const { model, name } of modelsToCheck) {
+      content = await model.findById(contentId);
+      if (content) {
+        foundIn = name;
+        break;
+      }
+    }
+
+    if (!content) {
+      return res.status(404).json({
+        success: false,
+        message: 'Content not found in any schema'
+      });
+    }
+
+    // Initialize ratings array if missing
+    if (!Array.isArray(content.ratings)) {
+      content.ratings = [];
+    }
+
+    // Remove previous rating by this user
+    content.ratings = content.ratings.filter(
+      r => r.user.toString() !== userId.toString()
+    );
 
     // Add new rating
-    video.ratings.push({ user: userId, value: rating });
+    content.ratings.push({ 
+      user: userId, 
+      value: rating,
+      ratedAt: new Date()
+    });
 
     // Recalculate average rating
-    const total = video.ratings.reduce((sum, r) => sum + r.value, 0);
-    video.ratingCount = video.ratings.length;
-    video.averageRating = total / video.ratingCount;
+    const total = content.ratings.reduce((sum, r) => sum + r.value, 0);
+    content.ratingCount = content.ratings.length;
+    content.averageRating = total / content.ratingCount;
 
-    await video.save(); // This is where the error happens
+    await content.save();
 
-    res.status(200).json({ message: 'Rating submitted successfully' });
+    return res.status(200).json({
+      success: true,
+      message: `Content rated successfully in ${foundIn}`,
+      data: {
+        averageRating: content.averageRating,
+        ratingCount: content.ratingCount,
+        yourRating: rating
+      }
+    });
+
   } catch (error) {
-    console.error('Error rating video:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error rating content:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
+
+
 //search 
 // router.get('/search', async (req, res) => {
 //   const { name } = req.query;

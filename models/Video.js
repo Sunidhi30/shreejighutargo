@@ -80,6 +80,8 @@ ratings: [
     value: { type: Number, min: 1, max: 5 },
   }
 ],
+averageRating: { type: Number, default: 0 },
+ratingCount: { type: Number, default: 0 },
 
 
 // Enhanced ad configuration
@@ -110,8 +112,7 @@ adPerformance: {
   totalRevenue: { type: Number, default: 0 },
   lastAdServed: Date
 },
-averageRating: { type: Number, default: 0 },
-ratingCount: { type: Number, default: 0 },
+
 isSeries: { type: Boolean, default: false },
 series_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Series' },
 season_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Season' },
