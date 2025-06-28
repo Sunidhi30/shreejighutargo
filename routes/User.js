@@ -10,6 +10,7 @@ const Series = require("../models/Series")
 const Dynamic = require("../models/DynamicVideo")
 const dotenv = require('dotenv');
 const geoip = require('geoip-lite'); // For IP location detection
+const FinalPackage = require('../models/FinalPackage'); // ✅ update path if needed
 const useragent = require('useragent'); // For device detection
 const AppRating = require("../models/appRating.model")
 const contentController = require('../controllers/language');
@@ -2415,28 +2416,27 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
           path: 'plan'
         }
       });
-      if (!user.subscription || 
-        user.subscription.status !== 'active' || 
-        new Date(user.subscription.endDate) <= new Date()) {
-      return res.status(403).json({
-        success: false,
-        message: 'No active subscription found'
-      });
-    }
-    const maxScreens = user.subscription.maxDevices || 1;
+      const activeSubscription = user.subscriptions?.find(sub => 
+        sub.status === 'active' && new Date(sub.endDate) > new Date()
+      );
+      
+      if (!activeSubscription) {
+        return res.status(403).json({
+          success: false,
+          message: 'No active subscription found'
+        });
+      }
+      
+      const maxScreens = activeSubscription.plan?.maxDevices || 1;
 
 
-    // Find active subscription
-    const activeSubscription = user.subscriptions?.find(sub => 
-      sub.status === 'active' && new Date(sub.endDate) > new Date()
-    );
 
-    if (!activeSubscription) {
-      return res.status(403).json({
-        success: false,
-        message: 'No active subscription found'
-      });
-    }
+    // // Find active subscription
+    // const activeSubscription = user.subscriptions?.find(sub => 
+    //   sub.status === 'active' && new Date(sub.endDate) > new Date()
+    // );
+
+ 
 
     const activeDevices = await DeviceWatching.find({
       user_id,
@@ -2553,7 +2553,7 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
     const { contentId } = req.params;
     const { device_id, watch_duration, session_id } = req.body;
     const user_id = req.user._id;
-
+    console.log("thies is  before session: " +  session_id )
     // 1. Find and validate session
     const session = await DeviceWatching.findOne({
       _id: session_id,
@@ -2562,7 +2562,7 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
       status: 1,
       sessionEndTime: null
     });
-
+   console.log("thies is session"+session)
     if (!session) {
       return res.status(404).json({
         success: false,
