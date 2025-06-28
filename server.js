@@ -108,6 +108,8 @@ const users = require("./routes/User");
 const path = require('path');
 const vendors = require("./routes/Vendor")
 const contest = require("./routes/Contest")
+require('dotenv').config()
+
 const PORT = process.env.PORT || 6000;
 const Transaction = require('./models/Transactions');
 const Dynmaic = require("./routes/Dynamic")

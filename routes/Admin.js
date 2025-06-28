@@ -11,6 +11,8 @@ const userTransaction= require("../models/transactionSchema")
 const ContestRules = require("../models/ContestRules");
 const mongoose = require("mongoose");
 // const adController = require('../controllers/adController');
+const VideoAdController = require('../controllers/videoAdController');
+
 const AdController = require("../controllers/adController")
 // const mongoose = require("mongoose");
 const dotenv = require("dotenv");
@@ -4729,31 +4731,47 @@ router.get('/subscription-plan-count', async (req, res) => {
     });
   }
 });
-// router.post('/ads', adController.createAd);
-// router.post('/schedule', adController.scheduleAd);
-// router.get('/schedule/:videoId', adController.getVideoAdSchedule);
-// router.post('/track', adController.trackAdDisplay);
 // Create new ad
-router.post('/ads',verifyAdmin, AdController.createAd);
+// router.post('/ads',verifyAdmin, AdController.createAd);
 
-// Get all ads
-router.get('/ads',verifyAdmin, AdController.getAllAds);
+// // Get all ads
+// router.get('/ads',verifyAdmin, AdController.getAllAds);
 
-// Assign ad to video
-router.post('/ads/video-ads', verifyAdmin, AdController.assignAdToVideo);
+// // Assign ad to video
+// router.post('/ads/video-ads', verifyAdmin, AdController.assignAdToVideo);
 
-// Get ads for specific video (for video player)
-router.get('/ads/videos/:video_id/ads', AdController.getVideoAds);
+// // Get ads for specific video (for video player)
+// router.get('/ads/videos/:video_id/ads', AdController.getVideoAds);
 
-// Get all videos with their ads (for admin panel)
-router.get('/ads/videos-with-ads',verifyAdmin, AdController.getVideosWithAds);
+// // Get all videos with their ads (for admin panel)
+// router.get('/ads/videos-with-ads',verifyAdmin, AdController.getVideosWithAds);
 
-// Update video ad assignment
-router.put('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.updateVideoAd);
+// // Update video ad assignment
+// router.put('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.updateVideoAd);
 
-// Remove ad from video
-router.delete('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.removeAdFromVideo);
+// // Remove ad from video
+// router.delete('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.removeAdFromVideo);
 
-// Track ad interaction (view/click)
-router.post('/ads/track-ad', AdController.trackAdInteraction);
+// // Track ad interaction (view/click)
+// router.post('/ads/track-ad', AdController.trackAdInteraction);
+
+
+
+// Video-Ad Management Routes
+router.post('/video/add-ad', VideoAdController.addAdToVideo);
+router.delete('/video/:videoId/ads/:adId', VideoAdController.removeAdFromVideo);
+router.get('/video/:videoId/ads', VideoAdController.getVideoAds);
+router.put('/video/:videoId/ad-config', VideoAdController.updateAdConfiguration);
+router.get('/video/:videoId/playback-ads', VideoAdController.getVideoAdsForPlayback);
+
+// Ad Tracking Routes
+router.post('/track/impression', VideoAdController.trackAdImpression);
+router.post('/track/click', VideoAdController.trackAdClick);
+
+// Ad Management Routes
+router.post('/create-ads', AdController.createAd);
+router.get('/all', AdController.getAllAds);
+router.put('/:adId', AdController.updateAd);
+router.delete('/:adId', AdController.deleteAd);
+router.get('/:adId/analytics', AdController.getAdAnalytics);
 module.exports = router;

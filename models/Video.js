@@ -81,13 +81,35 @@ ratings: [
   }
 ],
 
+
+// Enhanced ad configuration
+adConfiguration: {
   hasAds: { type: Boolean, default: false },
-  adBreaks: [{
-    position: { type: Number }, // timestamp in seconds
-    duration: { type: Number }, // duration in seconds
-    type: { type: String, enum: ['pre-roll', 'mid-roll', 'post-roll'] }
-  }],
-  ads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Ad' }],
+  adDensity: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+  skipAfter: { type: Number, default: 5 }, // Skip button appears after X seconds
+  maxAdsPerSession: { type: Number, default: 3 }
+},
+
+// Ad breaks with more details
+adBreaks: [{
+  position: { type: Number }, // timestamp in seconds
+  duration: { type: Number }, // duration in seconds
+  type: { type: String, enum: ['pre-roll', 'mid-roll', 'post-roll', 'overlay'] },
+  ad_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ad' },
+  isSkippable: { type: Boolean, default: true },
+  skipAfter: { type: Number, default: 5 }
+}],
+
+// Updated ads array (already exists in your schema)
+ads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Ad' }],
+
+// Ad performance for this video
+adPerformance: {
+  totalImpressions: { type: Number, default: 0 },
+  totalClicks: { type: Number, default: 0 },
+  totalRevenue: { type: Number, default: 0 },
+  lastAdServed: Date
+},
 averageRating: { type: Number, default: 0 },
 ratingCount: { type: Number, default: 0 },
 isSeries: { type: Boolean, default: false },
