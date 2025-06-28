@@ -11,6 +11,8 @@ const userTransaction= require("../models/transactionSchema")
 const ContestRules = require("../models/ContestRules");
 const mongoose = require("mongoose");
 // const adController = require('../controllers/adController');
+const Ad = require('../models/Ad');
+
 const VideoAdController = require('../controllers/videoAdController');
 
 const AdController = require("../controllers/adController")
@@ -4731,32 +4733,6 @@ router.get('/subscription-plan-count', async (req, res) => {
     });
   }
 });
-// Create new ad
-// router.post('/ads',verifyAdmin, AdController.createAd);
-
-// // Get all ads
-// router.get('/ads',verifyAdmin, AdController.getAllAds);
-
-// // Assign ad to video
-// router.post('/ads/video-ads', verifyAdmin, AdController.assignAdToVideo);
-
-// // Get ads for specific video (for video player)
-// router.get('/ads/videos/:video_id/ads', AdController.getVideoAds);
-
-// // Get all videos with their ads (for admin panel)
-// router.get('/ads/videos-with-ads',verifyAdmin, AdController.getVideosWithAds);
-
-// // Update video ad assignment
-// router.put('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.updateVideoAd);
-
-// // Remove ad from video
-// router.delete('/ads/video-ads/:videoAd_id', verifyAdmin, AdController.removeAdFromVideo);
-
-// // Track ad interaction (view/click)
-// router.post('/ads/track-ad', AdController.trackAdInteraction);
-
-
-
 // Video-Ad Management Routes
 router.post('/video/add-ad', VideoAdController.addAdToVideo);
 router.delete('/video/:videoId/ads/:adId', VideoAdController.removeAdFromVideo);
@@ -4770,8 +4746,74 @@ router.post('/track/click', VideoAdController.trackAdClick);
 
 // Ad Management Routes
 router.post('/create-ads', AdController.createAd);
-router.get('/all', AdController.getAllAds);
+router.get('/ads/all', AdController.getAllAds);
 router.put('/:adId', AdController.updateAd);
 router.delete('/:adId', AdController.deleteAd);
 router.get('/:adId/analytics', AdController.getAdAnalytics);
+router.get("/videos/:vendorId", async (req, res) => {
+  try {
+    const vendorId = req.params.vendorId;
+
+    const videos = await Video.find({ vendor_id: vendorId })
+      .populate("type_id")
+      .populate("channel_id")
+      .populate("producer_id")
+      .populate("category_id")
+      .populate("language_id")
+      .populate("cast_ids")
+      .populate("comments")
+      .populate("ads");
+
+    res.status(200).json({
+      success: true,
+      count: videos.length,
+      videos,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor videos:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+// GET /api/vendors/all → Get all vendors
+router.get("/all-vendors", async (req, res) => {
+  try {
+    const vendors = await Vendor.find().sort({ createdAt: -1 }); // Optional: latest first
+    res.status(200).json({
+      success: true,
+      count: vendors.length,
+      vendors,
+    });
+  } catch (error) {
+    console.error("Error fetching vendors:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+});
+// GET ads by adType
+router.get('/adType/:adType', async (req, res) => {
+  try {
+    const { adType } = req.params;
+
+    const validTypes = ['banner', 'interstitial', 'reward'];
+    if (!validTypes.includes(adType)) {
+      return res.status(400).json({ success: false, message: 'Invalid adType provided' });
+    }
+
+    const ads = await Ad.find({ adType });
+
+    res.status(200).json({
+      success: true,
+      data: ads,
+      count: ads.length
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: err.message
+    });
+  }
+});
 module.exports = router;

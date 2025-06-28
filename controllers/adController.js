@@ -65,7 +65,7 @@ class AdController {
       
       const ads = await Ad.find(filter)
         .populate('vendor_id', 'name email')
-        .populate('approvedBy', 'name')
+       
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
