@@ -2971,10 +2971,7 @@ router.get('/user/favorites',isUser, async (req, res) => {
   }
 });
 // POST /videos/:videoId/rate — Rate or update rating for a video
-
-
-
-
+//rate content 
 router.post('/rate-content', isUser, async (req, res) => {
   try {
     const { contentId, rating } = req.body;
@@ -3059,46 +3056,6 @@ router.post('/rate-content', isUser, async (req, res) => {
   }
 });
 
-
-//search 
-// router.get('/search', async (req, res) => {
-//   const { name } = req.query;
-
-//   try {
-//     // If `name` exists, search by it; otherwise fetch all movies
-//     const filter = name
-//       ? { name: { $regex: name, $options: 'i' } }
-//       : {};
-
-//     const videos = await Video.find(filter)
-//       .populate('category_id', 'name')
-//       .populate('cast_ids', 'name')
-//       .populate('language_id', 'name')
-//       .populate('producer_id', 'name')
-//       .populate('vendor_id', 'name');
-
-//     videos.forEach(video => {
-//       console.log("Category: ", video.category_id?.name);
-//       console.log("Cast IDs: ", video.cast_ids?.map(c => c.name));
-//       console.log("Language: ", video.language_id?.name);
-//       console.log("Producer: ", video.producer_id?.name);
-//       console.log("Vendor: ", video.vendor_id?.name);
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       results: videos
-//     });
-
-//   } catch (error) {
-//     console.error('Search error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Search failed',
-//       error: error.message
-//     });
-//   }
-// });
 router.get('/search', async (req, res) => {
   const { name } = req.query;
 
@@ -3154,134 +3111,7 @@ router.get('/search', async (req, res) => {
     });
   }
 });
-// GET /api/trailers/coming-soon
-// router.get('/coming-soon', async (req, res) => {
-//   try {
-//     const trailers = await Video.find({ 
-//       isComingSoon: true, 
-//       isApproved: true 
-//     }).select('name thumbnail trailer_url release_date description')
-//       .sort({ release_date: 1 }); // optional sorting by date
 
-//     res.status(200).json({ success: true, data: trailers });
-//   } catch (error) {
-//     console.error('Error fetching coming soon trailers:', error);
-//     res.status(500).json({ success: false, message: 'Server error' });
-//   }
-
-// });
-
-// video progress
-//router.post('/track-video-progress', isUser, async (req, res) => {
-//   try {
-//     const { videoId, currentTime, duration } = req.body;
-//     const userId = req.user.id;
-
-//     if (!videoId || typeof currentTime !== 'number' || typeof duration !== 'number' || duration <= 0) {
-//       return res.status(400).json({ success: false, message: 'Invalid input data' });
-//     }
-
-//     const watchedPercentage = (currentTime / duration) * 100;
-//     console.log(`User ${userId} watching video ${videoId}`);
-//     console.log(`Current Time: ${currentTime}, Duration: ${duration}, Watched: ${watchedPercentage.toFixed(2)}%`);
-
-//     let videoView = await VideoView.findOne({ video_id: videoId, user_id: userId });
-
-//     if (!videoView) {
-//       console.log("Creating new video view record");
-//       videoView = new VideoView({
-//         video_id: videoId,
-//         user_id: userId,
-//         watchedPercentage
-//       });
-//     } else {
-//       console.log("Existing video view found:", videoView);
-//       if (watchedPercentage > videoView.watchedPercentage) {
-//         videoView.watchedPercentage = watchedPercentage;
-//         console.log("Updated watchedPercentage to:", watchedPercentage.toFixed(2));
-//       } else {
-//         console.log("Watched percentage not higher, not updating.");
-//       }
-//     }
-
-//     // if (watchedPercentage >= 30) {
-//     //   videoView.isCompleted = true;
-//     //   console.log("Marking video as completed and updating view count");
-
-//     //   await Video.findByIdAndUpdate(videoId, {
-//     //     $inc: { viewCount: 1}
-//     //   });
-//     //   await PlatformStats.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
-
-//     //   const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
-//     //   const vendor = await Vendor.findById(videoWithPackage.vendor_id);
-
-//     //   if (videoWithPackage?.finalPackage_id) {
-//     //     const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
-
-//     //     await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
-//     //       $inc: {
-//     //         wallet: earnings,
-//     //         lockedBalance: earnings
-//     //       }
-//     //     });
-
-//     //     await Video.findByIdAndUpdate(videoId, {
-//     //       $inc: { totalEarnings: earnings }
-//     //     });
-
-//     //     console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
-//     //   }
-//     // } else if (videoView.isCompleted) {
-//     //   console.log("Video already marked as completed, skipping view/earnings update.");
-//     // }
-
-    
-//     if (watchedPercentage >= 30 && !videoView.isCompleted) {
-//       videoView.isCompleted = true;
-//       console.log("Marking video as completed and updating view count");
-    
-//       await Video.findByIdAndUpdate(videoId, {
-//         $inc: { viewCount: 1 }
-//       });
-    
-//       await Vendor.updateOne({}, { $inc: { totalViews: 1 } }, { upsert: true });
-    
-//       const videoWithPackage = await Video.findById(videoId).populate('finalPackage_id');
-//       const vendor = await Vendor.findById(videoWithPackage.vendor_id);
-    
-//       if (videoWithPackage?.finalPackage_id) {
-//         const earnings = videoWithPackage.finalPackage_id.pricePerView || 0;
-    
-//         await Vendor.findByIdAndUpdate(videoWithPackage.vendor_id, {
-//           $inc: {
-//             wallet: earnings,
-//             lockedBalance: earnings
-//           }
-//         });
-    
-//         await Video.findByIdAndUpdate(videoId, {
-//           $inc: { totalEarnings: earnings }
-//         });
-    
-//         console.log(`Earnings ${earnings} added to vendor ${vendor?.email}`);
-//       }
-//     } else if (videoView.isCompleted) {
-//       console.log("Video already marked as completed, skipping view/earnings update.");
-//     }
-    
-//     await videoView.save();
-
-//     res.json({
-//       success: true,
-//       message: 'Video progress tracked successfully',
-//       watchedPercentage: watchedPercentage.toFixed(2)
-//     });
-//   } catch (error) {
-//     console.error("Error tracking video progress:", error);
-//     res.status(500).json({ success: false, message: 'Error tracking video progress' });
-//   }
-// });
 // video-url with id 
 router.get('/video-url/:id', async (req, res) => {
   try {
@@ -4405,6 +4235,45 @@ router.post('/verify-payment', isUser, async (req, res) => {
       });
     }
 
+    // // No active subscription - create new one
+    // const newSubscription = await UserSubscription.create({
+    //   user: userId,
+    //   plan: planId,
+    //   startDate: startDate,
+    //   endDate: endDate,
+    //   status: 'active',
+    //   paymentMethod: 'razorpay',
+    //   paymentId: razorpay_payment_id,
+    //   transactionId: transactionId
+    // });
+    // await User.findByIdAndUpdate(userId, {
+    //   $addToSet: { subscriptions: newSubscription._id }
+    // });
+    
+
+    // console.log("New subscription created successfully:", newSubscription);
+
+    // return res.json({ 
+    //   success: true, 
+    //   message: 'Payment verified and subscription activated successfully',
+    //   data: {
+    //     subscription: {
+    //       id: newSubscription._id,
+    //       planName: plan.name,
+    //       startDate: newSubscription.startDate,
+    //       endDate: newSubscription.endDate,
+    //       status: newSubscription.status,
+    //       daysRemaining: Math.ceil((newSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24))
+    //     },
+    //     transaction: {
+    //       id: transactionId,
+    //       paymentId: razorpay_payment_id,
+    //       amount: plan.price,
+    //       type: 'new_subscription'
+    //     }
+    //   }
+    // });
+    // In verify-payment route, replace the subscription creation part with this:
     // No active subscription - create new one
     const newSubscription = await UserSubscription.create({
       user: userId,
@@ -4416,12 +4285,23 @@ router.post('/verify-payment', isUser, async (req, res) => {
       paymentId: razorpay_payment_id,
       transactionId: transactionId
     });
-    await User.findByIdAndUpdate(userId, {
-      $addToSet: { subscriptions: newSubscription._id }
-    });
-    
+    console.log("Subscription ID to save in user:", newSubscription._id);
+
+    // Update user's subscriptions array
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: { subscriptions: newSubscription._id }
+      },
+      { new: true }
+    ).populate('subscriptions');
+
+    if (!updatedUser) {
+      throw new Error('Failed to update user with subscription');
+    }
 
     console.log("New subscription created successfully:", newSubscription);
+    console.log("User updated with subscription:", updatedUser);
 
     return res.json({ 
       success: true, 
@@ -4440,10 +4320,12 @@ router.post('/verify-payment', isUser, async (req, res) => {
           paymentId: razorpay_payment_id,
           amount: plan.price,
           type: 'new_subscription'
+        },
+        user: {
+          subscriptions: updatedUser.subscriptions
         }
       }
     });
-    
   } catch (err) {
     console.error('Verify Payment Error:', err);
     

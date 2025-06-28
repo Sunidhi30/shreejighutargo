@@ -60,7 +60,9 @@ const userSchema = new mongoose.Schema({
     }
   ],
   downloads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
+  // subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'UserSubscription' }],
   subscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'UserSubscription' }],
+
   rentedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
   transactions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' }],
   investedAmount: { type: Number, default: 0 },
