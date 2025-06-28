@@ -23,6 +23,10 @@ const subscriptionPlanSchema = new mongoose.Schema({
     type: Number, 
     default: 1 
   },
+  maxScreens: { 
+    type: Number, 
+    default: 1 
+  },
 
   isActive: { 
     type: Boolean, 

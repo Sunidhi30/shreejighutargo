@@ -2372,7 +2372,7 @@ router.patch("/update-profile", verifyAdmin, async (req, res) => {
 // Create a new subscription plan
 router.post("/subscription-plans", verifyAdmin, async (req, res) => {
   try {
-    const { name, description, price, duration, maxDevices, maxProfiles } =
+    const { name, description, price, duration, maxDevices, maxProfiles,maxScreens } =
       req.body;
 
     const newPlan = new SubscriptionPlan({
@@ -2382,6 +2382,7 @@ router.post("/subscription-plans", verifyAdmin, async (req, res) => {
       duration,
       maxDevices,
       maxProfiles,
+      maxScreens,
       createdBy: req.admin._id,
     });
 

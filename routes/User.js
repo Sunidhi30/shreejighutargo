@@ -273,7 +273,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// router.post('/login', async (req, res) => {
 //   try {
 //     const { email } = req.body;
 //     console.log("email"+req.body)
@@ -1219,17 +1218,7 @@ router.post('/devices/stop-watching', async (req, res) => {
     });
   }
 });
-// // Get all existing routes with minor enhancements
-// router.get('/api/user/:id/login-info', async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id).select('lastLogin email role');
-//     if (!user) return res.status(404).json({ message: 'User not found' });
-//     res.json(user);
-//   } catch (err) {
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// });
-
+// users locations
 router.get('/user-locations', async (req, res) => {
   try {
     const users = await User.find({}, {
@@ -1246,55 +1235,6 @@ router.get('/user-locations', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch user locations', error: err.message });
   }
 });
-
-// // Enhanced device routes with existing functionality
-// router.get('/devices/:userId', async (req, res) => {
-//   try {
-//     const { userId } = req.params;
-
-//     const user = await User.findById(userId).select('deviceSessions lastLogin');
-//     if (!user) {
-//       return res.status(404).json({ 
-//         success: false, 
-//         message: 'User not found' 
-//       });
-//     }
-
-//     const syncedDevices = await DeviceSync.find({ 
-//       user_id: userId, 
-//       status: 1 
-//     }).select('device_name device_type device_id createdAt');
-
-//     const watchingDevices = await DeviceWatching.find({ 
-//       user_id: userId, 
-//       status: 1 
-//     }).populate({
-//       path: 'device_sync',
-//       select: 'device_name device_type'
-//     });
-
-//     const devicesInfo = {
-//       lastLogin: user.lastLogin,
-//       activeSessions: user.deviceSessions || [],
-//       syncedDevices: syncedDevices,
-//       currentlyWatching: watchingDevices
-//     };
-
-//     res.status(200).json({
-//       success: true,
-//       devices: devicesInfo
-//     });
-
-//   } catch (error) {
-//     console.error('Get devices error:', error);
-//     res.status(500).json({ 
-//       success: false, 
-//       message: 'Internal server error' 
-//     });
-//   }
-// });
-
-
 
 // // get the login information places 
 // router.get('/api/user/:id/login-info', async (req, res) => {
@@ -1900,25 +1840,6 @@ router.get('/sessions/:userId', async (req, res) => {
 //   }
 // });
 
-// 3. Link code from web/mobile after login
-// router.post('/confirm', async (req, res) => {
-//   const { code, user_id } = req.body;
-//   if (!code || !user_id) return res.status(400).json({ success: false, message: 'Code and user_id are required' });
-
-//   try {
-//     const tvLogin = await TvLogin.findOneAndUpdate(
-//       { unique_code: code, status: 1 },
-//       { user_id },
-//       { new: true }
-//     );
-
-//     if (!tvLogin) return res.status(404).json({ success: false, message: 'Invalid or expired code' });
-
-//     res.json({ success: true, message: 'TV linked successfully' });
-//   } catch (err) {
-//     res.status(500).json({ success: false });
-//   }
-// });
 
 // Update User Profile Image API
 router.put('/upload-profile-image', isUser, upload.single('profileImage'), async (req, res) => {
@@ -4170,6 +4091,10 @@ router.post('/verify-payment', isUser, async (req, res) => {
       paymentId: razorpay_payment_id,
       transactionId: transactionId
     });
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { subscriptions: newSubscription._id }
+    });
+    
 
     console.log("New subscription created successfully:", newSubscription);
 
