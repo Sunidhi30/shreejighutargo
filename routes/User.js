@@ -2400,7 +2400,6 @@ router.post('/:contentId/comment', isUser, async (req, res) => {
 
 
 
-//testing left 
 
 // Start video playback
 router.post('/start-playback/:contentId', isUser, async (req, res) => {
@@ -2519,13 +2518,122 @@ router.post('/start-playback/:contentId', isUser, async (req, res) => {
 
 
 
-// End video playback
+// // End video playback
+// router.post('/end-playback/:contentId', isUser, async (req, res) => {
+//   try {
+//     const { contentId } = req.params;
+//     const { device_id, watch_duration, session_id } = req.body;
+//     const user_id = req.user._id;
+//     console.log("thies is  before session: " +  session_id )
+//     // 1. Find and validate session
+//     const session = await DeviceWatching.findOne({
+//       _id: session_id,
+//       user_id,
+//       device_id,
+//       status: 1,
+//       sessionEndTime: null
+//     });
+//    console.log("thies is session"+session)
+//     if (!session) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'No active session found'
+//       });
+//     }
+
+//     // 2. Find content
+//     let content;
+//     let ModelToUpdate;
+
+//     content = await Video.findById(contentId);
+//     if (content) ModelToUpdate = Video;
+
+//     if (!content) {
+//       content = await TVEpisode.findById(contentId);
+//       if (content) ModelToUpdate = TVEpisode;
+//     }
+
+//     if (!content) {
+//       content = await Episode.findById(contentId);
+//       if (content) ModelToUpdate = Episode;
+//     }
+
+//     if (!content) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Content not found'
+//       });
+//     }
+
+//     // 3. Calculate watch percentage and update view count
+//     const totalDuration = content.video_duration || session.duration;
+//     const watchPercentage = (watch_duration / totalDuration) * 100;
+
+//     // Update session
+//     session.sessionEndTime = new Date();
+//     session.status = 0;
+//     session.watch_duration = watch_duration;
+//     session.watch_percentage = watchPercentage;
+//     await session.save();
+
+//     // 4. Update view count if threshold met (30%)
+//     if (watchPercentage >= 30) {
+//       // Check if user has already viewed this content
+//       const previousComplete = await DeviceWatching.findOne({
+//         user_id,
+//         content_id: contentId,
+//         watch_percentage: { $gte: 30 },
+//         _id: { $ne: session._id }
+//       });
+
+//       // Only increment view count if this is the first time user watches >30%
+//       if (!previousComplete) {
+//         const updateData = {
+//           $inc: { 
+//             total_view: 1,
+//             viewCount: 1
+//           }
+//         };
+
+//         // Update view count in content document
+//         await ModelToUpdate.findByIdAndUpdate(contentId, updateData);
+
+//         // If content has vendor_id, update vendor earnings
+//         if (content.vendor_id && content.finalPackage_id) {
+//           const package = await FinalPackage.findById(content.finalPackage_id);
+//           if (package && package.pricePerView) {
+//             await Vendor.findByIdAndUpdate(content.vendor_id, {
+//               $inc: {
+//                 wallet: package.pricePerView,
+//                 totalEarnings: package.pricePerView
+//               }
+//             });
+//           }
+//         }
+//       }
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Playback session ended successfully',
+//       watch_percentage: watchPercentage,
+//       view_counted: watchPercentage >= 30
+//     });
+
+//   } catch (error) {
+//     console.error('Error ending playback:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
 router.post('/end-playback/:contentId', isUser, async (req, res) => {
   try {
     const { contentId } = req.params;
     const { device_id, watch_duration, session_id } = req.body;
     const user_id = req.user._id;
-    console.log("thies is  before session: " +  session_id )
+
     // 1. Find and validate session
     const session = await DeviceWatching.findOne({
       _id: session_id,
@@ -2534,7 +2642,7 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
       status: 1,
       sessionEndTime: null
     });
-   console.log("thies is session"+session)
+
     if (!session) {
       return res.status(404).json({
         success: false,
@@ -2542,10 +2650,8 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
       });
     }
 
-    // 2. Find content
-    let content;
-    let ModelToUpdate;
-
+    // 2. Find content and determine model type
+    let content, ModelToUpdate;
     content = await Video.findById(contentId);
     if (content) ModelToUpdate = Video;
 
@@ -2566,20 +2672,18 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
       });
     }
 
-    // 3. Calculate watch percentage and update view count
+    // 3. Calculate watch percentage and update session
     const totalDuration = content.video_duration || session.duration;
     const watchPercentage = (watch_duration / totalDuration) * 100;
 
-    // Update session
     session.sessionEndTime = new Date();
     session.status = 0;
     session.watch_duration = watch_duration;
     session.watch_percentage = watchPercentage;
     await session.save();
 
-    // 4. Update view count if threshold met (30%)
+    // 4. Increment view count if not previously counted and watch > 30%
     if (watchPercentage >= 30) {
-      // Check if user has already viewed this content
       const previousComplete = await DeviceWatching.findOne({
         user_id,
         content_id: contentId,
@@ -2587,26 +2691,19 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
         _id: { $ne: session._id }
       });
 
-      // Only increment view count if this is the first time user watches >30%
       if (!previousComplete) {
-        const updateData = {
-          $inc: { 
-            total_view: 1,
-            viewCount: 1
-          }
-        };
+        await ModelToUpdate.findByIdAndUpdate(contentId, {
+          $inc: { total_view: 1, viewCount: 1 }
+        });
 
-        // Update view count in content document
-        await ModelToUpdate.findByIdAndUpdate(contentId, updateData);
-
-        // If content has vendor_id, update vendor earnings
+        // If monetized by vendor, credit vendor
         if (content.vendor_id && content.finalPackage_id) {
-          const package = await FinalPackage.findById(content.finalPackage_id);
-          if (package && package.pricePerView) {
+          const pack = await FinalPackage.findById(content.finalPackage_id);
+          if (pack?.pricePerView) {
             await Vendor.findByIdAndUpdate(content.vendor_id, {
               $inc: {
-                wallet: package.pricePerView,
-                totalEarnings: package.pricePerView
+                wallet: pack.pricePerView,
+                totalEarnings: pack.pricePerView
               }
             });
           }
@@ -2614,11 +2711,37 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
       }
     }
 
+    // 5. Update or Insert into ContinueWatching
+    const profileId = session.profileId;
+    const completed = watchPercentage >= 95;
+
+    await ContinueWatching.findOneAndUpdate(
+      {
+        userId: user_id,
+        profileId,
+        contentId: content._id,
+        contentModel: content.constructor.modelName
+      },
+      {
+        userId: user_id,
+        profileId,
+        contentId: content._id,
+        contentModel: content.constructor.modelName,
+        video_type: session.content_type,
+        progress: watch_duration,
+        duration: totalDuration,
+        completed,
+        lastWatchedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+
     res.status(200).json({
       success: true,
       message: 'Playback session ended successfully',
       watch_percentage: watchPercentage,
-      view_counted: watchPercentage >= 30
+      view_counted: watchPercentage >= 30,
+      continue_watching: !completed
     });
 
   } catch (error) {
@@ -2629,6 +2752,36 @@ router.post('/end-playback/:contentId', isUser, async (req, res) => {
     });
   }
 });
+// Get continue watching list for a profile
+router.get('/continue-watching/:profileId', isUser, async (req, res) => {
+  try {
+    const { profileId } = req.params;
+
+    const list = await ContinueWatching.find({
+      profileId,
+      completed: false
+    })
+    .sort({ lastWatchedAt: -1 })
+    .limit(20)
+    .populate('contentId'); // Dynamic population based on contentModel
+
+    res.status(200).json({
+      success: true,
+      data: list.map(item => ({
+        _id: item._id,
+        content: item.contentId,
+        content_type: item.video_type,
+        progress: item.progress,
+        duration: item.duration,
+        lastWatchedAt: item.lastWatchedAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching continue watching:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 
 // Get active devices for a user
 // Get active devices for a user
@@ -2669,28 +2822,6 @@ router.get('/active-devices', isUser, async (req, res) => {
 
 
 
-
-//   try {
-//     const { videoId } = req.params;
-//     const video = await Video.findById(videoId);
-
-//     if (!video) {
-//       return res.status(404).json({ message: 'Video not found' });
-//     }
-
-//     // Increment the view count
-//     video.total_view += 1;
-
-//     // Optionally, you can calculate engagement rate based on views, likes, and comments here.
-//     video.engagementRate = calculateEngagementRate(video); // Implement this function as needed
-
-//     await video.save();
-//     res.status(200).json({ message: 'Video view recorded', totalView: video.total_view });
-//   } catch (error) {
-//     console.error('Error tracking view:', error);
-//     res.status(500).json({ message: 'Failed to track view' });
-//   }
-// });
 // get analytics
 router.get('/:videoId/analytics', async (req, res) => {
   try {
@@ -2712,169 +2843,169 @@ router.get('/:videoId/analytics', async (req, res) => {
   }
 });
 
-// POST API to save watching progress
-router.post('/continue-watching', isUser, async (req, res) => {
-  const { contentId, video_type, progress } = req.body;
-  const userId = req.user._id;
+// // POST API to save watching progress
+// router.post('/continue-watching', isUser, async (req, res) => {
+//   const { contentId, video_type, progress } = req.body;
+//   const userId = req.user._id;
 
-  try {
-    let content;
+//   try {
+//     let content;
     
-    // Find content based on video_type
-    switch(video_type) {
-      case 'movie':
-        content = await Video.findById(contentId);
-        break;
+//     // Find content based on video_type
+//     switch(video_type) {
+//       case 'movie':
+//         content = await Video.findById(contentId);
+//         break;
       
-      case 'series':
-        // First check if it's an episode
-        content = await Episode.findById(contentId)
-          .populate('series_id')
-          .populate('season_id');
-        if (!content) {
-          // If not an episode, check if it's a series
-          content = await Series.findById(contentId);
-        }
-        break;
+//       case 'series':
+//         // First check if it's an episode
+//         content = await Episode.findById(contentId)
+//           .populate('series_id')
+//           .populate('season_id');
+//         if (!content) {
+//           // If not an episode, check if it's a series
+//           content = await Series.findById(contentId);
+//         }
+//         break;
       
-      case 'show':
-        // First check if it's a TV episode
-        content = await TVEpisode.findById(contentId)
-          .populate('tvshow_id')
-          .populate('tvseason_id');
-        if (!content) {
-          // If not an episode, check if it's a show
-          content = await TVShow.findById(contentId);
-        }
-        break;
+//       case 'show':
+//         // First check if it's a TV episode
+//         content = await TVEpisode.findById(contentId)
+//           .populate('tvshow_id')
+//           .populate('tvseason_id');
+//         if (!content) {
+//           // If not an episode, check if it's a show
+//           content = await TVShow.findById(contentId);
+//         }
+//         break;
       
-      default:
-        return res.status(400).json({ message: 'Invalid video type' });
-    }
+//       default:
+//         return res.status(400).json({ message: 'Invalid video type' });
+//     }
 
-    if (!content) {
-      return res.status(404).json({ message: 'Content not found' });
-    }
+//     if (!content) {
+//       return res.status(404).json({ message: 'Content not found' });
+//     }
 
-    // Update or create continue watching entry
-    const updated = await ContinueWatching.findOneAndUpdate(
-      { userId, contentId },
-      {
-        video_type,
-        progress,
-        lastWatchedAt: Date.now()
-      },
-      { new: true, upsert: true }
-    );
+//     // Update or create continue watching entry
+//     const updated = await ContinueWatching.findOneAndUpdate(
+//       { userId, contentId },
+//       {
+//         video_type,
+//         progress,
+//         lastWatchedAt: Date.now()
+//       },
+//       { new: true, upsert: true }
+//     );
 
-    res.json({
-      message: 'Progress saved successfully',
-      data: updated
-    });
+//     res.json({
+//       message: 'Progress saved successfully',
+//       data: updated
+//     });
 
-  } catch (error) {
-    res.status(500).json({
-      message: 'Failed to save progress',
-      error: error.message
-    });
-  }
-});
-router.get('/continue-watching', isUser, async (req, res) => {
-  const userId = req.user._id;
-  console.log("this is user id ", userId);
+//   } catch (error) {
+//     res.status(500).json({
+//       message: 'Failed to save progress',
+//       error: error.message
+//     });
+//   }
+// });
+// router.get('/continue-watching', isUser, async (req, res) => {
+//   const userId = req.user._id;
+//   console.log("this is user id ", userId);
 
-  try {
-    const list = await ContinueWatching.find({ userId })
-      .sort({ lastWatchedAt: -1 });
-    console.log("this is list ", list);
+//   try {
+//     const list = await ContinueWatching.find({ userId })
+//       .sort({ lastWatchedAt: -1 });
+//     console.log("this is list ", list);
 
-    const formattedList = await Promise.all(list.map(async (item) => {
-      try {
-        // Use the video_type from the ContinueWatching document to determine which model to query
-        let foundContent;
-        const videoType = item.video_type || item.contentModel?.toLowerCase() || 'series'; // fallback to 'series' if undefined
+//     const formattedList = await Promise.all(list.map(async (item) => {
+//       try {
+//         // Use the video_type from the ContinueWatching document to determine which model to query
+//         let foundContent;
+//         const videoType = item.video_type || item.contentModel?.toLowerCase() || 'series'; // fallback to 'series' if undefined
 
-        console.log(`Searching for content with ID ${item.contentId} of type ${videoType}`);
+//         console.log(`Searching for content with ID ${item.contentId} of type ${videoType}`);
 
-        switch(videoType) {
-          case 'series':
-            foundContent = await Series.findById(item.contentId)
-              .populate('category_id', 'name')
-              .populate('language_id', 'name')
-              .populate('vendor_id', 'name');
-            break;
-          case 'movie':
-            foundContent = await Video.findById(item.contentId)
-              .populate('category_id', 'name')
-              .populate('language_id', 'name')
-              .populate('vendor_id', 'name');
-            break;
-          case 'show':
-            // foundContent = await mongoose.model('tvShowSchema').findById(item.contentId)
-            foundContent = await TVShow.findById(item.contentId)
+//         switch(videoType) {
+//           case 'series':
+//             foundContent = await Series.findById(item.contentId)
+//               .populate('category_id', 'name')
+//               .populate('language_id', 'name')
+//               .populate('vendor_id', 'name');
+//             break;
+//           case 'movie':
+//             foundContent = await Video.findById(item.contentId)
+//               .populate('category_id', 'name')
+//               .populate('language_id', 'name')
+//               .populate('vendor_id', 'name');
+//             break;
+//           case 'show':
+//             // foundContent = await mongoose.model('tvShowSchema').findById(item.contentId)
+//             foundContent = await TVShow.findById(item.contentId)
 
-              .populate('category_id', 'name')
-              .populate('language_id', 'name')
-              .populate('vendor_id', 'name');
-            break;
-          default:
-            console.log(`Unknown video type: ${videoType}`);
-            return null;
-        }
+//               .populate('category_id', 'name')
+//               .populate('language_id', 'name')
+//               .populate('vendor_id', 'name');
+//             break;
+//           default:
+//             console.log(`Unknown video type: ${videoType}`);
+//             return null;
+//         }
 
-        console.log("Found content:", foundContent);
+//         console.log("Found content:", foundContent);
 
-        if (!foundContent) {
-          console.log("No content found for ID:", item.contentId);
-          return null;
-        }
+//         if (!foundContent) {
+//           console.log("No content found for ID:", item.contentId);
+//           return null;
+//         }
 
-        // Format content details based on what was found
-        const contentDetails = {
-          title: foundContent.title || '',
-          thumbnail: foundContent.thumbnail || '',
-          type: videoType,
-          duration: foundContent.video_duration || foundContent.duration || 0,
-          // Add additional fields if needed
-          category: foundContent.category_id?.name || '',
-          language: foundContent.language_id?.name || '',
-          vendor: foundContent.vendor_id?.name || ''
-        };
+//         // Format content details based on what was found
+//         const contentDetails = {
+//           title: foundContent.title || '',
+//           thumbnail: foundContent.thumbnail || '',
+//           type: videoType,
+//           duration: foundContent.video_duration || foundContent.duration || 0,
+//           // Add additional fields if needed
+//           category: foundContent.category_id?.name || '',
+//           language: foundContent.language_id?.name || '',
+//           vendor: foundContent.vendor_id?.name || ''
+//         };
 
-        return {
-          id: item._id,
-          contentId: item.contentId,
-          video_type: videoType,
-          progress: item.progress,
-          lastWatchedAt: item.lastWatchedAt,
-          content: contentDetails
-        };
-      } catch (err) {
-        console.error(`Error processing content ${item.contentId}:`, err);
-        return null;
-      }
-    }));
+//         return {
+//           id: item._id,
+//           contentId: item.contentId,
+//           video_type: videoType,
+//           progress: item.progress,
+//           lastWatchedAt: item.lastWatchedAt,
+//           content: contentDetails
+//         };
+//       } catch (err) {
+//         console.error(`Error processing content ${item.contentId}:`, err);
+//         return null;
+//       }
+//     }));
 
-    // Filter out any null entries and empty titles
-    const validList = formattedList.filter(item => 
-      item && item.content && item.content.title
-    );
+//     // Filter out any null entries and empty titles
+//     const validList = formattedList.filter(item => 
+//       item && item.content && item.content.title
+//     );
 
-    console.log("Final valid list:", validList);
+//     console.log("Final valid list:", validList);
 
-    res.json({
-      message: 'Continue watching list fetched successfully',
-      data: validList
-    });
+//     res.json({
+//       message: 'Continue watching list fetched successfully',
+//       data: validList
+//     });
 
-  } catch (error) {
-    console.error('Error fetching continue watching list:', error);
-    res.status(500).json({
-      message: 'Failed to fetch continue watching list',
-      error: error.message
-    });
-  }
-});
+//   } catch (error) {
+//     console.error('Error fetching continue watching list:', error);
+//     res.status(500).json({
+//       message: 'Failed to fetch continue watching list',
+//       error: error.message
+//     });
+//   }
+// });
 // DELETE API to remove from continue watching
 router.delete('/continue-watching/:id', isUser, async (req, res) => {
   const userId = req.user._id;
@@ -2904,6 +3035,8 @@ router.delete('/continue-watching/:id', isUser, async (req, res) => {
     });
   }
 });
+
+
 // Endpoint to mark a video as favorite
 router.put('/user/favorites/:videoId',isUser, async (req, res) => {
   const userId = req.user._id; // Assuming user ID is available in the request (e.g., from a JWT)
@@ -3108,6 +3241,25 @@ router.get('/video-url/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching video' });
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 router.get('/sections', async (req, res) => {
   try {
     const sections = await HomeSection.find()
@@ -3128,6 +3280,7 @@ router.get('/sections', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+//not working correctly 
 router.get('/sections/:typeName', async (req, res) => {
   try {
     const { typeName } = req.params;
@@ -3155,6 +3308,8 @@ router.get('/sections/:typeName', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+
+
 router.get('/videos/:id', async (req, res) => {
   const videoId = req.params.id;
 
@@ -3344,6 +3499,7 @@ router.get('/contests/:id/videos', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 // // ===== 2. TRACK CONTEST-SPECIFIC VIDEO VIEW =====
 // router.post('/contests/:contestId/videos/:videoId/view', async (req, res) => {
 //   try {
@@ -3474,7 +3630,7 @@ router.get('/contests/:id/videos', async (req, res) => {
 //     res.status(500).json({ success: false, message: error.message });
 //   }
 // });
-router.post('/contest/:contestId/video/:videoId/view', async (req, res) => {
+router.post('/contest/:contestId/video/:videoId/view',isUser, async (req, res) => {
   const { contestId, videoId } = req.params;
   const { watchedSeconds } = req.body;
   console.log("hi " + watchedSeconds);
@@ -3531,7 +3687,7 @@ router.post('/contest/:contestId/video/:videoId/view', async (req, res) => {
   return res.status(200).json({ message: 'View recorded', counted: viewer.counted });
 });
 // ➕ Add or Update Rating
-router.post('/rate', isUser, async (req, res) => {
+router.post('/app-rate', isUser, async (req, res) => {
   try {
     const { rating, comment } = req.body;
     const userId = req.user.id;
@@ -3554,7 +3710,7 @@ router.post('/rate', isUser, async (req, res) => {
   }
 });
 // 📥 Get All Ratings (Admin use)
-router.get('/ratings', async (req, res) => {
+router.get('/app-ratings', async (req, res) => {
   try {
     const ratings = await AppRating.find().populate('userId', 'name email');
     res.json(ratings);
@@ -3562,6 +3718,7 @@ router.get('/ratings', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch ratings', error: err.message });
   }
 });
+
 router.get('/series/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -4447,7 +4604,7 @@ router.post('/users-logout', isUser, async (req, res) => {
   }
 });
 
-router.get('/user/transactions', isUser, async (req, res) => {
+router.get('/users-transactions', isUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
