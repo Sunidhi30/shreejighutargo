@@ -4827,5 +4827,53 @@ router.get('/home-banners', async (req, res) => {
     });
   }
 });
+// Delete logged-in user's account
+router.delete('/delete-account', isUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
 
+    // Option 1: Soft delete (recommended for recovery/analytics)
+    await User.findByIdAndUpdate(userId, { deleted: true });
+
+    // Option 2 (Optional): Hard delete - uncomment if you want to fully remove
+    // await User.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Your account has been deleted successfully.'
+    });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete account.', error: error.message });
+  }
+});
+// 🚪 Logout from a specific device session
+router.delete('/logout-device-session/:sessionId', isUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sessionId = req.params.sessionId;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const originalLength = user.deviceSessions.length;
+
+    // Filter out the session by its _id
+    user.deviceSessions = user.deviceSessions.filter(session => session._id.toString() !== sessionId);
+
+    if (user.deviceSessions.length === originalLength) {
+      return res.status(404).json({ success: false, message: 'Device session not found' });
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully logged out from device session: ${sessionId}`
+    });
+  } catch (error) {
+    console.error('Error logging out device session:', error);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+});
 module.exports = router;
