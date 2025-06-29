@@ -3308,7 +3308,99 @@ router.get('/sections/:typeName', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+router.get('/good-test-home-sections', async (req, res) => {
+  const { typeId, languageId } = req.query;
+  try {
+    // Optional TypeID Validation
+    if (typeId && typeId.length !== 24) {
+      return res.status(400).json({ success: false, message: "Invalid Type ID format" });
+    }
 
+    // Optional Type Lookup
+    if (typeId) {
+      const type = await Type.findById(typeId);
+      if (!type) {
+        return res.status(404).json({ success: false, message: "Type not found" });
+      }
+    }
+
+    // Find all or filtered Home Sections
+    const filter = {
+      isHomeScreen: true,
+      status: true,
+      ...(typeId && { type_id: typeId }),
+      ...(req.query.isBanner !== undefined && { isBanner: req.query.isBanner === 'true' })
+    };
+
+    const homeSections = await HomeSection.find(filter).sort({ order: 1 }).lean();
+
+    const populatedSections = await Promise.all(homeSections.map(async section => {
+      try {
+        const videoMap = section.videos.reduce((acc, item) => {
+          if (!acc[item.videoType]) acc[item.videoType] = [];
+          acc[item.videoType].push(item.videoId);
+          return acc;
+        }, {});
+
+        let combinedVideos = [];
+
+        for (const [typeKey, ids] of Object.entries(videoMap)) {
+          let Model;
+          switch (typeKey) {
+            case 'movie': Model = Video; break;
+            case 'series': Model = Series; break;
+            case 'tv_show':
+            case 'show': Model = TVShow; break;
+            default: continue;
+          }
+
+          const query = { _id: { $in: ids } };
+          if (languageId && languageId.length === 24) {
+            query.language_id = languageId;
+          }
+
+          const results = await Model.find(query)
+            .select('title thumbnail description language_id')
+            .lean();
+
+          combinedVideos = combinedVideos.concat(
+            results.map(video => ({
+              ...video,
+              videoType: typeKey
+            }))
+          );
+        }
+
+        if (combinedVideos.length === 0) return null;
+
+        return {
+          ...section,
+          videos: combinedVideos,
+          isBanner: section.isBanner // ✅ Explicitly included
+        };
+
+      } catch (err) {
+        console.error(`Error processing section "${section.title}":`, err.message);
+        return null;
+      }
+    }));
+
+    const filteredSections = populatedSections.filter(Boolean);
+
+    return res.status(200).json({
+      success: true,
+      count: filteredSections.length,
+      sections: filteredSections
+    });
+
+  } catch (err) {
+    console.error('Server Error:', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error occurred while fetching sections.'
+    });
+  }
+});
 
 router.get('/videos/:id', async (req, res) => {
   const videoId = req.params.id;
