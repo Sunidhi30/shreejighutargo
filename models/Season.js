@@ -54,6 +54,14 @@ const seasonSchema = new mongoose.Schema({
         value: { type: Number, min: 1, max: 5 },
       }
     ],
+    trailer: {
+      url: { type: String },
+      type: {
+        type: String,
+        enum: ['upload', 'external'],
+        default: 'external'
+      }
+    },    
     averageRating: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 }
   }, {

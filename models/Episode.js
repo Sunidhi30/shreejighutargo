@@ -44,10 +44,18 @@ const episodeSchema = new mongoose.Schema({
   video_1080: { type: String },
   video_extension: { type: String },
   video_duration: { type: Number },
-
+  trailer: {
+    url: { type: String },
+    type: {
+      type: String,
+      enum: ['upload', 'external'],
+      default: 'external'
+    }
+  },
+  
   // Trailer Related Fields
-  trailer_type: { type: String },
-  trailer_url: { type: String },
+  // trailer_type: { type: String },
+  // trailer_url: { type: String },
 
   // Subtitle Related Fields
   subtitle_type: { type: String },
