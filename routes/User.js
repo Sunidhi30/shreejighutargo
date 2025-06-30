@@ -2397,10 +2397,6 @@ router.post('/:contentId/comment', isUser, async (req, res) => {
 
 
 
-
-
-
-
 // Start video playback
 router.post('/start-playback/:contentId', isUser, async (req, res) => {
   try {

@@ -63,6 +63,14 @@ const seriesSchema = new mongoose.Schema({
     immutable: true // ❗ Cannot be changed once set
   },
 
+  trailer: {
+    url: { type: String },
+    type: { 
+      type: String, 
+      enum: ['upload', 'external'], // To distinguish between uploaded and external URLs
+      default: 'external'
+    }
+  },
   thumbnail: { type: String },
   landscape: { type: String },
   releaseYear: { type: Number },

@@ -1416,7 +1416,6 @@ router.get('/videos/:videoId/ads', async (req, res) => {
     });
   }
 });
-
 // Update ad
 router.put('/ads/:adId', isVendor, async (req, res) => {
   try {
@@ -2738,34 +2737,155 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
 //       details: err.message
 //     });
 //   }
-// });
+
+
+
+
+
+
+
+
+router.post('/series', isVendor, upload.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'landscape', maxCount: 1 },
+  { name: 'trailer_url', maxCount: 1 } // Unified trailer field
+]), async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      category_id,
+      video_type,
+      releaseYear,
+      channel_id,
+      tags,
+      language_id,
+      type_id,
+      trailer_url // external trailer URL (if used)
+    } = req.body;
+
+    let thumbnailUrl = '';
+    let landscapeUrl = '';
+    let trailerUrl = '';
+    let trailerType = 'external';
+
+    // Cloudinary uploader utility
+    const uploadFile = async (field, folder, resourceType = 'image') => {
+      if (req.files && req.files[field]?.[0]) {
+        let file = req.files[field][0];
+        let buffer = file.buffer;
+        let mimetype = file.mimetype;
+
+        // HEIC conversion only for images
+        if (resourceType === 'image' && (mimetype === 'image/heic' || mimetype === 'image/heif')) {
+          const outputBuffer = await heicConvert({
+            buffer,
+            format: 'JPEG',
+            quality: 1
+          });
+          buffer = outputBuffer;
+          mimetype = 'image/jpeg';
+        }
+
+        const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
+        return await uploadToCloudinary(base64, folder, mimetype, resourceType);
+      }
+      return '';
+    };
+
+    // Upload images
+    thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
+    landscapeUrl = await uploadFile('landscape', 'series/landscapes');
+
+    // Handle trailer (file or external URL)
+    if (req.files?.trailer_url) {
+      trailerUrl = await uploadFile('trailer_url', 'series/trailers', 'video');
+      trailerType = 'upload';
+    } else if (trailer_url) {
+      trailerUrl = trailer_url;
+      trailerType = 'external';
+    }
+
+    // Validation checks
+    if (!title) {
+      return res.status(400).json({ success: false, error: 'Title is required' });
+    }
+
+    const contentType = await Type.findOne({ name: video_type.toLowerCase() });
+    if (!contentType) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Content type "${video_type}" not found` 
+      });
+    }
+
+    const newSeries = new Series({
+      title,
+      description: description || '',
+      vendor_id: req.vendor.id,
+      category_id: category_id || null,
+      language_id,
+      releaseYear: releaseYear || new Date().getFullYear(),
+      thumbnail: thumbnailUrl,
+      landscape: landscapeUrl,
+      type_id,
+      channel_id,
+      video_type: 'series',
+      tags: tags ? tags.split(',').map(t => t.trim()) : [],
+      trailer: {
+        url: trailerUrl,
+        type: trailerType
+      }
+    });
+
+    await newSeries.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Series created successfully',
+      series: newSeries
+    });
+
+  } catch (err) {
+    console.error('Error creating series:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      details: err.message
+    });
+  }
+});
+
+
 // router.post('/series', isVendor, upload.fields([
 //   { name: 'thumbnail', maxCount: 1 },
-//   { name: 'landscape', maxCount: 1 }
+//   { name: 'landscape', maxCount: 1 },
+  
 // ]), async (req, res) => {
 //   try {
 //     const {
 //       title,
 //       description,
 //       category_id,
+//       video_type,
 //       releaseYear,
 //       channel_id,
-//       video_type,
 //       tags,
 //       language_id,
-//       type_id // ✅ vendor can now pass this
+//       type_id // Vendor can provide this
 //     } = req.body;
 
 //     let thumbnailUrl = '';
 //     let landscapeUrl = '';
 
-//     // Upload helper
+//     // Cloudinary uploader utility
 //     const uploadFile = async (field, folder) => {
 //       if (req.files && req.files[field]?.[0]) {
 //         let file = req.files[field][0];
 //         let buffer = file.buffer;
 //         let mimetype = file.mimetype;
 
+//         // Optional HEIC conversion
 //         if (mimetype === 'image/heic' || mimetype === 'image/heif') {
 //           const outputBuffer = await heicConvert({
 //             buffer,
@@ -2782,30 +2902,32 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
 //       return '';
 //     };
 
-//     // Upload images
+//     // Upload media
 //     thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
 //     landscapeUrl = await uploadFile('landscape', 'series/landscapes');
 
-//     // Validate required fields
 //     if (!title) {
 //       return res.status(400).json({ success: false, error: 'Title is required' });
 //     }
 
-//     let finalTypeId = type_id;
-
-//     // If type_id not given, set default to web-series
-//     if (!finalTypeId) {
-//       const defaultType = await Type.findOne({ name: 'web-series' });
-//       if (!defaultType) {
-//         return res.status(400).json({ success: false, error: 'Default type "web-series" not found' });
-//       }
-//       finalTypeId = defaultType._id;
-//     }
-
-//     // Create new Series
+//     // let finalTypeId = type_id;
+//     // if (!finalTypeId) {
+//     //   const defaultType = await Type.findOne({ name: 'series' });
+//     //   if (!defaultType) {
+//     //     return res.status(400).json({ success: false, error: 'Default type "series" not found' });
+//     //   }
+//     //   finalTypeId = defaultType._id;
+//     // }
+//    // Find type based on video_type from request
+//    const contentType = await Type.findOne({ name: video_type.toLowerCase() });
+//    if (!contentType) {
+//      return res.status(400).json({ 
+//        success: false, 
+//        error: `Content type "${video_type}" not found` 
+//      });
+//    }
 //     const newSeries = new Series({
 //       title,
-//       channel_id,
 //       description: description || '',
 //       vendor_id: req.vendor.id,
 //       category_id: category_id || null,
@@ -2813,8 +2935,9 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
 //       releaseYear: releaseYear || new Date().getFullYear(),
 //       thumbnail: thumbnailUrl,
 //       landscape: landscapeUrl,
-//       type_id: finalTypeId, // ✅ use vendor’s or fallback type
-//       video_type: 'series', // ✅ enforce always
+//       type_id,
+//       channel_id,
+//       video_type: 'series', // ✅ Always "series", will be ignored if someone tries to change it due to immutable:true
 //       tags: tags ? tags.split(',').map(t => t.trim()) : []
 //     });
 
@@ -2835,106 +2958,6 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
 //     });
 //   }
 // });
-router.post('/series', isVendor, upload.fields([
-  { name: 'thumbnail', maxCount: 1 },
-  { name: 'landscape', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      category_id,
-      video_type,
-      releaseYear,
-      channel_id,
-      tags,
-      language_id,
-      type_id // Vendor can provide this
-    } = req.body;
-
-    let thumbnailUrl = '';
-    let landscapeUrl = '';
-
-    // Cloudinary uploader utility
-    const uploadFile = async (field, folder) => {
-      if (req.files && req.files[field]?.[0]) {
-        let file = req.files[field][0];
-        let buffer = file.buffer;
-        let mimetype = file.mimetype;
-
-        // Optional HEIC conversion
-        if (mimetype === 'image/heic' || mimetype === 'image/heif') {
-          const outputBuffer = await heicConvert({
-            buffer,
-            format: 'JPEG',
-            quality: 1
-          });
-          buffer = outputBuffer;
-          mimetype = 'image/jpeg';
-        }
-
-        const base64 = `data:${mimetype};base64,${buffer.toString('base64')}`;
-        return await uploadToCloudinary(base64, folder, mimetype);
-      }
-      return '';
-    };
-
-    // Upload media
-    thumbnailUrl = await uploadFile('thumbnail', 'series/thumbnails');
-    landscapeUrl = await uploadFile('landscape', 'series/landscapes');
-
-    if (!title) {
-      return res.status(400).json({ success: false, error: 'Title is required' });
-    }
-
-    // let finalTypeId = type_id;
-    // if (!finalTypeId) {
-    //   const defaultType = await Type.findOne({ name: 'series' });
-    //   if (!defaultType) {
-    //     return res.status(400).json({ success: false, error: 'Default type "series" not found' });
-    //   }
-    //   finalTypeId = defaultType._id;
-    // }
-   // Find type based on video_type from request
-   const contentType = await Type.findOne({ name: video_type.toLowerCase() });
-   if (!contentType) {
-     return res.status(400).json({ 
-       success: false, 
-       error: `Content type "${video_type}" not found` 
-     });
-   }
-    const newSeries = new Series({
-      title,
-      description: description || '',
-      vendor_id: req.vendor.id,
-      category_id: category_id || null,
-      language_id,
-      releaseYear: releaseYear || new Date().getFullYear(),
-      thumbnail: thumbnailUrl,
-      landscape: landscapeUrl,
-      type_id,
-      channel_id,
-      video_type: 'series', // ✅ Always "series", will be ignored if someone tries to change it due to immutable:true
-      tags: tags ? tags.split(',').map(t => t.trim()) : []
-    });
-
-    await newSeries.save();
-
-    return res.status(201).json({
-      success: true,
-      message: 'Series created successfully',
-      series: newSeries
-    });
-
-  } catch (err) {
-    console.error('Error creating series:', err);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      details: err.message
-    });
-  }
-});
 // // Get all series uploaded by the logged-in vendor
 // router.get('/series', isVendor, async (req, res) => {
 //   try {
