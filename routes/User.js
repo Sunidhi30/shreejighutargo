@@ -4876,4 +4876,43 @@ router.delete('/logout-device-session/:sessionId', isUser, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error', error: error.message });
   }
 });
+router.get('/get-trailers', async (req, res) => {
+  const { video_type, id } = req.query;
+
+  if (!video_type || !id) {
+    return res.status(400).json({ success: false, message: 'Missing video_type or id' });
+  }
+
+  try {
+    let Model;
+
+    switch (video_type) {
+      case 'movie':
+        Model = Video;
+        break;
+      case 'series':
+        Model = Series;
+        break;
+      case 'show':
+        Model = TVShow;
+        break;
+      default:
+        return res.status(400).json({ success: false, message: 'Invalid video_type provided' });
+    }
+
+    // Only select trailer field
+    const video = await Model.findById(id).select('trailer_url');
+
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video not found' });
+    }
+
+    res.status(200).json({ success: true, trailer: video.trailer_url });
+
+  } catch (error) {
+    console.error('Error fetching trailer:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 module.exports = router;
