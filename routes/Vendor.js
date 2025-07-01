@@ -3195,17 +3195,24 @@ router.post(
       const video_720 = await uploadFile('video_720', 'episodes/720');
       const video_1080 = await uploadFile('video_1080', 'episodes/1080');
 
-      // Trailer upload logic
-      let trailerUrl = '';
-      let trailerType = 'external';
+     // Trailer upload logic
+// In your backend route
 
-      if (req.files?.trailer) {
-        trailerUrl = await uploadFile('trailer', 'episodes/trailers', 'video');
-        trailerType = 'upload';
-      } else if (trailer_url) {
-        trailerUrl = trailer_url;
-        trailerType = 'external';
-      }
+// Trailer upload logic
+let trailerUrl = '';
+let trailerType = 'external';
+
+if (req.files?.trailer?.[0]) {
+  // If a trailer file was uploaded
+  trailerUrl = await uploadFile('trailer', 'episodes/trailers', 'video');
+  trailerType = 'upload';
+} else if (req.body.trailer_url) {
+  // If a trailer URL was provided
+  trailerUrl = req.body.trailer_url;
+  trailerType = 'external';
+}
+
+
 
       // Create Episode
       const episode = new Episode({
@@ -3268,7 +3275,6 @@ router.post(
     }
   }
 );
-
 // // Add Episode to Season
 // router.post(
 //   '/episodes',
