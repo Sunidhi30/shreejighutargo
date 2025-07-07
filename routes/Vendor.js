@@ -3255,7 +3255,7 @@ router.post('/forgot-password', async (req, res) => {
     await vendor.save();
 
     // Create reset URL
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:9000'}/reset-password/${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'https://gutargoof.onrender.com'}/reset-password/${resetToken}`;
 
     // Send email
     const mailOptions = {
