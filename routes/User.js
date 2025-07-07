@@ -3304,6 +3304,7 @@ router.get('/sections/:typeName', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+
 router.get('/good-test-home-sections', async (req, res) => {
   const { typeId, languageId } = req.query;
   try {

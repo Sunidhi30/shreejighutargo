@@ -6017,4 +6017,38 @@ router.get('/analytics/:videoId', async (req, res) => {
     });
   }
 });
+
+// DELETE Vendor Account
+router.delete('/vendors/:vendorId', async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    // Check if vendor exists
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor account not found'
+      });
+    }
+
+    // Optional: Delete related uploaded content if needed
+    // await Content.deleteMany({ _id: { $in: vendor.uploadedContent } });
+
+    // Delete the vendor account
+    await Vendor.findByIdAndDelete(vendorId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Vendor account deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting vendor account:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting vendor account'
+    });
+  }
+});
+
 module.exports = router;
