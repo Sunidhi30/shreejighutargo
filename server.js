@@ -118,32 +118,8 @@ require('./cron/autoStartContests'); // Adjust path as needed
 
 require('dotenv').config()
 db();
-// app.use(
-//   session({
-//     secret: process.env.SESSION_SECRET,
-//     resave: false,
-//     saveUninitialized: false,
-//     store: MongoStore.create({
-//       mongoUrl: process.env.MONGO_URI,
-//       ttl: 14 * 24 * 60 * 60 // 14 days
-//     }),
-//     cookie: {
-//       secure: process.env.NODE_ENV === 'production',
-//       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-//       maxAge: 1000 * 60 * 60 * 24 * 14 // 14 days
-//     }
-//   })
-// );
-// app.use(cors());
 app.use(cors({
   origin: true,
-  // origin: [
-  //   'http://localhost:3000',
-  //   'http://localhost:3001',
-  //   'https://gutargoof.onrender.com'
-  //   // // 'https://your-production-domain.com',
-  //   // // 'https://your-app.vercel.app'
-  // ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -158,9 +134,12 @@ app.listen(PORT,()=>{
  })
 // Configure session storage with MongoDB
 
-  app.get("/testingVideos", (req, res) => {
-    res.sendFile(__dirname + "/testingVideos.html");
-  })
+app.get("/testingVideos", (req, res) => {
+res.sendFile(__dirname + "/testingVideos.html");
+})
+app.get("/testingpassword", (req, res) => {
+res.sendFile(__dirname + "/reset-password.html");
+})
 
   app.get("/Admintransactions", (req, res) => {
     res.sendFile(__dirname + "/payementAdmin.html");

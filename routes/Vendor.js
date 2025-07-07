@@ -342,182 +342,7 @@ const generatePDF = async (videoData, outputPath) => {
     });
   });
 };
-// const generatePDF = async (videoData, outputPath) => {
-//   const doc = new PDFDocument({
-//     margins: {
-//       top: 50,
-//       bottom: 50,
-//       left: 50,
-//       right: 50
-//     }
-//   });
-//   const stream = fs.createWriteStream(outputPath);
 
-//   return new Promise((resolve, reject) => {
-//     doc.pipe(stream);
-
-//     // Helper functions
-//     const addHeader = () => {
-//       doc.fontSize(10).text('Mega Frame Entertainment Pvt. Ltd.', { align: 'center' });
-//       doc.fontSize(8).text('Plot No - J1/32B, Street - 38, Chanakya place - 1, Uttam Nagar, New Delhi West - 110059', { align: 'center' });
-//       doc.moveDown(2);
-//     };
-
-//     const addSection = (title) => {
-//       doc.fontSize(12).text(title, { underline: true });
-//       doc.moveDown(1);
-//     };
-
-//     // Cover Page
-//     addHeader();
-//     doc.fontSize(16).text('VENDOR AGREEMENT', { align: 'center' });
-//     doc.moveDown(2);
-
-//     // Agreement Preamble
-//     doc.fontSize(10).text(`This Agreement ("Agreement") is entered into by and between Mega Frame Entertainment Private Limited, a company registered under the Companies Act, 2013, having its registered office at Plot No - J1/32B, Street - 38, Chanakya place - 1, Uttam Nagar, New Delhi West - 110059, hereinafter referred to as "Gutargoo+" or the "Platform," and ${videoData.vendor_id?.name || '[Vendor Name]'} ("Vendor"), which includes any individual, group, company, firm, or partnership who submits content for digital streaming and monetization through the Gutargoo+ OTT Platform.`, { align: 'justify' });
-//     doc.moveDown(1);
-
-//     // Purpose statement
-//     doc.text('The purpose of this Agreement is to establish the full terms, rights, responsibilities, and liabilities pertaining to the submission, hosting, monetization, and ongoing management of audiovisual content by the Vendor on the Gutargoo+ Platform.', { align: 'justify' });
-//     doc.moveDown(2);
-
-//     // Table of Contents
-//     addSection('TABLE OF CONTENTS');
-//     const sections = [
-//       'Section 1: Definitions and Interpretation',
-//       'Section 2: Appointment and Scope of Agreement',
-//       'Section 3: Rights Granted by Vendor',
-//       'Section 4: Content Submission Procedure',
-//       'Section 5: Document and Certificate Compliance',
-//       'Section 6: Exclusivity vs. Non-Exclusivity Models',
-//       'Section 7: Verification, Review, and Approval',
-//       'Section 8: Gutargoo+ View Monetization Models',
-//       'Section 9: Advertisement Policy',
-//       'Section 10: Rental View Policy',
-//       'Section 11: Per-View Earnings Policy',
-//       'Section 12: Payment Terms',
-//       'Section 13: Content Submission and Approval',
-//       'Section 14: Content Guidelines',
-//       'Section 15: Vendor Obligations',
-//       'Section 16: Termination and Suspension',
-//       'Section 17: Governing Law and Dispute Resolution',
-//       'Section 18: Miscellaneous',
-//       'Section 19: Signature and Execution',
-//       'Section 20: Final Provisions'
-//     ];
-
-//     sections.forEach((section, index) => {
-//       doc.text(`${index + 1}. ${section}`);
-//     });
-//     doc.addPage();
-
-//     // Add all sections from the agreement
-//     // Section 1: Definitions and Interpretation
-//     addHeader();
-//     addSection('Section 1: Definitions and Interpretation');
-//     doc.text('1.1 Definitions', { underline: true });
-//     doc.moveDown(1);
-    
-//     // Add definitions
-    
-
-//     definitions.forEach(def => {
-//       doc.font('Helvetica-Bold')         // Set font to bold for the term
-//          .text(`${def.term}:`, { continued: true });
-      
-//       doc.font('Helvetica')              // Set font back to normal for the definition
-//          .text(` ${def.def}`, { align: 'justify' });
-      
-//       doc.moveDown(1);                   // Add spacing after each definition
-//     });
-    
-
-//     // Continue adding all sections...
-//     // [Additional sections would be added here following the same pattern]
-
-//     // Video Submission Details
-//     doc.addPage();
-//     addHeader();
-//     addSection('VIDEO SUBMISSION DETAILS');
-
-//     const details = [
-//       { label: 'Content Title', value: videoData.name },
-//       { label: 'Content Type', value: videoData.video_type },
-//       { label: 'Category', value: videoData.category_id?.name },
-//       { label: 'Language', value: videoData.language_id?.name },
-//       { label: 'Duration', value: `${videoData.video_duration} minutes` },
-//       { label: 'Release Date', value: new Date(videoData.release_date).toLocaleDateString() },
-//       { label: 'Producer', value: videoData.producer_id?.name },
-//       { label: 'Channel', value: videoData.channel_id?.name }
-//     ];
-
-//     details.forEach(detail => {
-//       doc.text(`${detail.label}: ${detail.value || 'Not specified'}`, { continued: false });
-//     });
-
-//     // Signature Section
-//     doc.addPage();
-//     addHeader();
-//     doc.moveDown(4);
-//     doc.text('IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first above written.');
-//     doc.moveDown(2);
-
-//     // Vendor Signature
-//     doc.text('For the Vendor:', { underline: true });
-//     doc.moveDown(2);
-//     doc.text('Signature: _______________________');
-//     doc.text(`Name: ${videoData.vendor_id?.name || '[Vendor Name]'}`);
-//     doc.text('Date: ' + new Date().toLocaleDateString());
-//     doc.moveDown(2);
-
-//     // Platform Signature
-//     doc.text('For Gutargoo+:', { underline: true });
-//     doc.moveDown(2);
-//     doc.text('Signature: _______________________');
-//     doc.text('Name: _________________________');
-//     doc.text('Designation: ____________________');
-//     doc.text('Date: ' + new Date().toLocaleDateString());
-
-//     // Finalize PDF
-//     doc.end();
-
-//     stream.on('finish', () => {
-//       resolve();
-//     });
-
-//     stream.on('error', (error) => {
-//       reject(error);
-//     });
-//   });
-// };
-
-
-// const generatePDF = (videoData, filePath) => {
-//   return new Promise((resolve, reject) => {
-//     const doc = new PDFDocument();
-//     const stream = fs.createWriteStream(filePath);
-//     doc.pipe(stream);
-
-//     doc.fontSize(18).text('Video Submission Agreement', { underline: true });
-//     doc.moveDown();
-//     doc.fontSize(12).text(`Name: ${videoData.name}`);
-//     doc.text(`Description: ${videoData.description}`);
-//     doc.text(`Video Type: ${videoData.video_type}`);
-//     doc.text(`Duration: ${videoData.video_duration}`);
-//     doc.text(`Release Date: ${videoData.release_date}`);
-//     doc.text(`Language: ${videoData.language_id?.name || 'N/A'}`);
-//     doc.text(`Category: ${videoData.category_id?.name || 'N/A'}`);
-//     doc.text(`Producer: ${videoData.producer_id?.name || 'N/A'}`);
-//     doc.text(`Vendor: ${videoData.vendor_id?.name || 'N/A'}`);
-//     doc.text(`Status: ${videoData.status}`);
-//     doc.moveDown().text('Agreement Terms...');
-//     doc.text('By uploading this video, the vendor agrees to platform terms and conditions.');
-
-//     doc.end();
-//     stream.on('finish', () => resolve());
-//     stream.on('error', err => reject(err));
-//   });
-// };
 // Fields for upload
 const uploadFields = [
   { name: 'video', maxCount: 1 },
@@ -635,7 +460,7 @@ router.get('/get-profile', isVendor, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: err.message });
   }
 });
-//upload video  (its simple uploading without doing the rentals videos and all )
+
 // router.post(
 //   '/create-video',isVendor,
 //   upload.fields([
@@ -1821,78 +1646,6 @@ router.get('/get-packages',isVendor, async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch packages', error: err.message });
   }
 });
-//video count
-// router.post('/assign-package', isVendor, async (req, res) => {
-//   try {
-//     const vendorId = req.vendor._id;
-//     const { videoId, revenueType, packageId } = req.body;
-
-//     // Basic validation
-//     if (!videoId || !revenueType) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'videoId and revenueType are required.',
-//       });
-//     }
-
-//     // If rental, validate packageId and price
-//     let selectedPackage = null;
-//     if (revenueType === 'rental') {
-//       if (!packageId) {
-//         return res.status(400).json({
-//           success: false,
-//           message: 'Rental revenueType requires a packageId.',
-//         });
-//       }
-
-//       selectedPackage = await Package.findOne({ _id: packageId, vendor_id: vendorId, revenueType: 'rental' });
-//       if (!selectedPackage) {
-//         return res.status(404).json({
-//           success: false,
-//           message: 'Rental package not found or unauthorized.',
-//         });
-//       }
-//     }
-
-//     // Update the video
-//     const updateData = {
-//       monetizationType: revenueType,
-//       package_id: packageId || null,
-//       packageType: revenueType,
-//       packageDetails: selectedPackage ? {
-//         price: selectedPackage.price,
-//         viewThreshold: selectedPackage.viewThreshold,
-//         commissionRate: selectedPackage.commissionRate
-//       } : undefined
-//     };
-
-//     const updatedVideo = await Video.findOneAndUpdate(
-//       { _id: videoId, vendor_id: vendorId },
-//       { $set: updateData },
-//       { new: true }
-//     );
-
-//     if (!updatedVideo) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Video not found or unauthorized.',
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: 'Package and monetization type assigned successfully.',
-//       data: updatedVideo,
-//     });
-
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({
-//       success: false,
-//       message: err.message,
-//     });
-//   }
-// });
 // total videos vendor have uploaded 
 router.get('/video-count', isVendor, async (req, res) => {
   try {
@@ -1996,7 +1749,6 @@ router.get('/total-views', isVendor, async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
 // total likes 
 router.get('/vendor-total-likes', isVendor, async (req, res) => {
   try {
@@ -2083,7 +1835,7 @@ router.get('/approved-videos', isVendor, async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
-// // Route: Calculate vendor and admin earnings based on likes
+
 // router.get('/calculate-earnings', isVendor,async (req, res) => {
 //   const vendorId = req.vendor.id; // Extracted vendorId from the token
 
@@ -2212,7 +1964,6 @@ router.get('/calculate-vendor-earnings', isVendor, async (req, res) => {
   }
 });
 
-// Route to get vendor earnings this is the wrong api 
 // router.get('/vendor/earnings',isVendor, async (req, res) => {
 //   try {
 //     const vendorId = req.vendor.id
@@ -2738,13 +2489,6 @@ router.get('/vendor-earnings', isVendor, async (req, res) => {
 //     });
 //   }
 
-
-
-
-
-
-
-
 router.post('/series', isVendor, upload.fields([
   { name: 'thumbnail', maxCount: 1 },
   { name: 'landscape', maxCount: 1 },
@@ -2855,8 +2599,6 @@ router.post('/series', isVendor, upload.fields([
     });
   }
 });
-
-
 // router.post('/series', isVendor, upload.fields([
 //   { name: 'thumbnail', maxCount: 1 },
 //   { name: 'landscape', maxCount: 1 },
@@ -3611,6 +3353,35 @@ router.post('/reset-password/:token', async (req, res) => {
   } catch (err) {
     console.error('Password reset error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+// Update Vendor Password API
+router.put('/update-password/:vendorId', async (req, res) => {
+  const { vendorId } = req.params;
+  const { newPassword } = req.body;
+
+  try {
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    }
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    vendor.password = hashedPassword;
+    await vendor.save();
+
+    res.status(200).json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 // create a tv show channel - tv show - season - episode 
