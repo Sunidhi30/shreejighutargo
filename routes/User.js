@@ -2906,102 +2906,102 @@ router.get('/:videoId/analytics', async (req, res) => {
 //     });
 //   }
 // });
-// router.get('/continue-watching', isUser, async (req, res) => {
-//   const userId = req.user._id;
-//   console.log("this is user id ", userId);
+router.get('/continue-watching', isUser, async (req, res) => {
+  const userId = req.user._id;
+  console.log("this is user id ", userId);
 
-//   try {
-//     const list = await ContinueWatching.find({ userId })
-//       .sort({ lastWatchedAt: -1 });
-//     console.log("this is list ", list);
+  try {
+    const list = await ContinueWatching.find({ userId })
+      .sort({ lastWatchedAt: -1 });
+    console.log("this is list ", list);
 
-//     const formattedList = await Promise.all(list.map(async (item) => {
-//       try {
-//         // Use the video_type from the ContinueWatching document to determine which model to query
-//         let foundContent;
-//         const videoType = item.video_type || item.contentModel?.toLowerCase() || 'series'; // fallback to 'series' if undefined
+    const formattedList = await Promise.all(list.map(async (item) => {
+      try {
+        // Use the video_type from the ContinueWatching document to determine which model to query
+        let foundContent;
+        const videoType = item.video_type || item.contentModel?.toLowerCase() || 'series'; // fallback to 'series' if undefined
 
-//         console.log(`Searching for content with ID ${item.contentId} of type ${videoType}`);
+        console.log(`Searching for content with ID ${item.contentId} of type ${videoType}`);
 
-//         switch(videoType) {
-//           case 'series':
-//             foundContent = await Series.findById(item.contentId)
-//               .populate('category_id', 'name')
-//               .populate('language_id', 'name')
-//               .populate('vendor_id', 'name');
-//             break;
-//           case 'movie':
-//             foundContent = await Video.findById(item.contentId)
-//               .populate('category_id', 'name')
-//               .populate('language_id', 'name')
-//               .populate('vendor_id', 'name');
-//             break;
-//           case 'show':
-//             // foundContent = await mongoose.model('tvShowSchema').findById(item.contentId)
-//             foundContent = await TVShow.findById(item.contentId)
+        switch(videoType) {
+          case 'series':
+            foundContent = await Series.findById(item.contentId)
+              .populate('category_id', 'name')
+              .populate('language_id', 'name')
+              .populate('vendor_id', 'name');
+            break;
+          case 'movie':
+            foundContent = await Video.findById(item.contentId)
+              .populate('category_id', 'name')
+              .populate('language_id', 'name')
+              .populate('vendor_id', 'name');
+            break;
+          case 'show':
+            // foundContent = await mongoose.model('tvShowSchema').findById(item.contentId)
+            foundContent = await TVShow.findById(item.contentId)
 
-//               .populate('category_id', 'name')
-//               .populate('language_id', 'name')
-//               .populate('vendor_id', 'name');
-//             break;
-//           default:
-//             console.log(`Unknown video type: ${videoType}`);
-//             return null;
-//         }
+              .populate('category_id', 'name')
+              .populate('language_id', 'name')
+              .populate('vendor_id', 'name');
+            break;
+          default:
+            console.log(`Unknown video type: ${videoType}`);
+            return null;
+        }
 
-//         console.log("Found content:", foundContent);
+        console.log("Found content:", foundContent);
 
-//         if (!foundContent) {
-//           console.log("No content found for ID:", item.contentId);
-//           return null;
-//         }
+        if (!foundContent) {
+          console.log("No content found for ID:", item.contentId);
+          return null;
+        }
 
-//         // Format content details based on what was found
-//         const contentDetails = {
-//           title: foundContent.title || '',
-//           thumbnail: foundContent.thumbnail || '',
-//           type: videoType,
-//           duration: foundContent.video_duration || foundContent.duration || 0,
-//           // Add additional fields if needed
-//           category: foundContent.category_id?.name || '',
-//           language: foundContent.language_id?.name || '',
-//           vendor: foundContent.vendor_id?.name || ''
-//         };
+        // Format content details based on what was found
+        const contentDetails = {
+          title: foundContent.title || '',
+          thumbnail: foundContent.thumbnail || '',
+          type: videoType,
+          duration: foundContent.video_duration || foundContent.duration || 0,
+          // Add additional fields if needed
+          category: foundContent.category_id?.name || '',
+          language: foundContent.language_id?.name || '',
+          vendor: foundContent.vendor_id?.name || ''
+        };
 
-//         return {
-//           id: item._id,
-//           contentId: item.contentId,
-//           video_type: videoType,
-//           progress: item.progress,
-//           lastWatchedAt: item.lastWatchedAt,
-//           content: contentDetails
-//         };
-//       } catch (err) {
-//         console.error(`Error processing content ${item.contentId}:`, err);
-//         return null;
-//       }
-//     }));
+        return {
+          id: item._id,
+          contentId: item.contentId,
+          video_type: videoType,
+          progress: item.progress,
+          lastWatchedAt: item.lastWatchedAt,
+          content: contentDetails
+        };
+      } catch (err) {
+        console.error(`Error processing content ${item.contentId}:`, err);
+        return null;
+      }
+    }));
 
-//     // Filter out any null entries and empty titles
-//     const validList = formattedList.filter(item => 
-//       item && item.content && item.content.title
-//     );
+    // Filter out any null entries and empty titles
+    const validList = formattedList.filter(item => 
+      item && item.content && item.content.title
+    );
 
-//     console.log("Final valid list:", validList);
+    console.log("Final valid list:", validList);
 
-//     res.json({
-//       message: 'Continue watching list fetched successfully',
-//       data: validList
-//     });
+    res.json({
+      message: 'Continue watching list fetched successfully',
+      data: validList
+    });
 
-//   } catch (error) {
-//     console.error('Error fetching continue watching list:', error);
-//     res.status(500).json({
-//       message: 'Failed to fetch continue watching list',
-//       error: error.message
-//     });
-//   }
-// });
+  } catch (error) {
+    console.error('Error fetching continue watching list:', error);
+    res.status(500).json({
+      message: 'Failed to fetch continue watching list',
+      error: error.message
+    });
+  }
+});
 // DELETE API to remove from continue watching
 router.delete('/continue-watching/:id', isUser, async (req, res) => {
   const userId = req.user._id;
@@ -4692,7 +4692,6 @@ router.post('/users-logout', isUser, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
-
 router.get('/users-transactions', isUser, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -4789,7 +4788,6 @@ router.get('/testing-get-video-by-type', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 // GET all approved upcoming videos
 // router.get('/coming-soon', async (req, res) => {
 //   try {
