@@ -4789,27 +4789,6 @@ router.get('/testing-get-video-by-type', async (req, res) => {
   }
 });
 // GET all approved upcoming videos
-// router.get('/coming-soon', async (req, res) => {
-//   try {
-//     const approvedUpcomingVideos = await UpcomingContent.find({ status: 'approved' })
-//       .populate('category')
-//       .populate('type')
-//       .populate('language')
-//       .populate('cast')
-//       .populate('uploadedBy');
-
-//     res.status(200).json({
-//       success: true,
-//       data: approvedUpcomingVideos
-//     });
-//   } catch (error) {
-//     console.error('Error fetching approved upcoming videos:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Server error while fetching upcoming videos'
-//     });
-//   }
-// });
 router.get('/coming-soon', async (req, res) => {
   try {
     const { type } = req.query;
@@ -4839,6 +4818,41 @@ router.get('/coming-soon', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while fetching upcoming videos'
+    });
+  }
+});
+// GET /api/upcoming/:id
+router.get('/upcoming/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find upcoming content by ID and populate all related fields
+    const upcomingContent = await UpcomingContent.findById(id)
+      .populate('category')
+      .populate('type')
+      .populate('language')
+      .populate('cast')
+      .populate('video_type')
+      .populate('uploadedBy');
+
+    // Check if content exists
+    if (!upcomingContent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Upcoming content not found'
+      });
+    }
+
+    // Respond with the content
+    res.status(200).json({
+      success: true,
+      data: upcomingContent
+    });
+  } catch (error) {
+    console.error('Error fetching upcoming content by ID:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching upcoming content'
     });
   }
 });
