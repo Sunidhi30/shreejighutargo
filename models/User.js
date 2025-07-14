@@ -13,7 +13,6 @@ const userSchema = new mongoose.Schema({
   device_type: { type: String },
   device_token: { type: String },
   device_id: { type: String },
-  
   // Netflix-like profiles
   profiles: [{
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },

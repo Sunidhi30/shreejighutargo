@@ -313,7 +313,6 @@ router.post("/verify-signup-otp", async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
-
 // ✅ Sign Up Admin (only email)
 // both were working fine
 // router.post('/signup', async (req, res) => {
